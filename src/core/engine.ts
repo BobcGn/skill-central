@@ -32,6 +32,19 @@ export class SkillEngine {
     const skill = this.tree.get(skillId);
     return skill ? toView(skill) : undefined;
   }
+
+  /**
+   * Return all skills that have at least one matching tag.
+   * Results are ordered by originating layer priority (ascending), so later
+   * entries effectively "override" earlier ones when merged.
+   */
+  getSkillsByTags(tags: string[]): ResolvedSkillView[] {
+    const matched = this.tree
+      .getAll()
+      .filter((s) => s.tags?.some((t) => tags.includes(t)));
+    matched.sort((a, b) => a.priority - b.priority);
+    return matched.map(toView);
+  }
 }
 
 // ── Public view (excludes internal fields) ─────────────────────────────────
@@ -44,6 +57,7 @@ export interface ResolvedSkillView {
   prompt?: string;
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
+  tags?: string[];
 }
 
 function toView(skill: {
@@ -54,6 +68,7 @@ function toView(skill: {
   prompt?: string;
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
+  tags?: string[];
 }): ResolvedSkillView {
   return {
     id: skill.id,
@@ -63,5 +78,6 @@ function toView(skill: {
     prompt: skill.prompt,
     inputSchema: skill.inputSchema,
     arguments: skill.arguments,
+    tags: skill.tags,
   };
 }

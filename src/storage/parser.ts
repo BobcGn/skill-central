@@ -1,13 +1,13 @@
 // ============================================================================
 // Storage / Parser
 // ----------------------------------------------------------------------------
-// Parses raw skill definition files (.json, .yaml, .md) into validated
-// SkillSchema objects. Invalid or malformed files are silently skipped
-// with a warning rather than crashing the server.
+// Parses raw skill definition files (.json, .yaml) into validated SkillSchema
+// objects. Invalid or malformed files are silently skipped with a warning.
 // ============================================================================
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { load as parseYaml } from "js-yaml";
 import type { SkillSchema } from "./schemas.js";
 
 /**
@@ -22,9 +22,11 @@ export async function parseSkillFile(filePath: string): Promise<SkillSchema | nu
 
     switch (ext) {
       case ".json":
-        return parseJsonSkill(raw, filePath);
+        return validateSkill(JSON.parse(raw), filePath);
+      case ".yaml":
+      case ".yml":
+        return parseYamlSkill(raw, filePath);
       default:
-        // JSON5, YAML, and Markdown front-matter parsers will be added here.
         return null;
     }
   } catch (err) {
@@ -33,22 +35,47 @@ export async function parseSkillFile(filePath: string): Promise<SkillSchema | nu
   }
 }
 
-function parseJsonSkill(raw: string, filePath: string): SkillSchema | null {
+// ── YAML ───────────────────────────────────────────────────────────────────
+
+function parseYamlSkill(raw: string, filePath: string): SkillSchema | null {
   try {
-    const obj = JSON.parse(raw);
-
-    if (typeof obj.id !== "string" || !obj.id) {
-      console.warn(`[skill-central] Missing "id" field: ${filePath}`);
+    const obj = parseYaml(raw);
+    if (typeof obj !== "object" || obj === null) {
+      console.warn(`[skill-central] YAML did not produce an object: ${filePath}`);
       return null;
     }
-    if (obj.type !== "prompt" && obj.type !== "tool") {
-      console.warn(`[skill-central] Invalid "type" in: ${filePath}`);
-      return null;
-    }
-
-    return obj as SkillSchema;
-  } catch {
-    console.warn(`[skill-central] JSON parse error: ${filePath}`);
+    return validateSkill(obj as Record<string, unknown>, filePath);
+  } catch (err) {
+    console.warn(`[skill-central] YAML parse error: ${filePath}`, err);
     return null;
   }
+}
+
+// ── Validation (shared by JSON and YAML) ───────────────────────────────────
+
+function validateSkill(
+  obj: Record<string, unknown>,
+  filePath: string,
+): SkillSchema | null {
+  if (typeof obj.id !== "string" || !obj.id) {
+    console.warn(`[skill-central] Missing "id" field: ${filePath}`);
+    return null;
+  }
+  if (obj.type !== "prompt" && obj.type !== "tool") {
+    console.warn(`[skill-central] Invalid "type" in: ${filePath}`);
+    return null;
+  }
+
+  // Normalise tags: accept string or array, collapse to array.
+  if (obj.tags !== undefined) {
+    if (Array.isArray(obj.tags)) {
+      obj.tags = obj.tags.filter((t): t is string => typeof t === "string");
+    } else if (typeof obj.tags === "string") {
+      obj.tags = [obj.tags];
+    } else {
+      delete obj.tags;
+    }
+  }
+
+  return obj as unknown as SkillSchema;
 }

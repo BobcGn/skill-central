@@ -36,6 +36,8 @@ export interface SkillSchema {
 
   // ── Common metadata ──────────────────────────────────────────────────────
   arguments?: SkillArgument[];
+  /** Tags for category matching (e.g. "android", "kmp", "global"). */
+  tags?: string[];
   version?: string;
 }
 

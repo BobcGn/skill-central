@@ -1,59 +1,53 @@
+#!/usr/bin/env node
 // ============================================================================
-// skill-central —  Local MCP Server for cross-IDE AI skill distribution
+// skill-central  CLI Entry
+// ----------------------------------------------------------------------------
+// Routes subcommands to the appropriate module:
+//   skill-central mcp     →  Stdio MCP Server (IDE-facing, silent)
+//   skill-central board   →  Developer terminal dashboard
+//   skill-central init    →  Scaffold .skills/ directory and config
 // ============================================================================
-// Architecture layers:
-//   Entry  (index.ts)         →  Bootstrap, transport, lifecycle
-//   Protocol (protocol/)      →  MCP request/response handler registration
-//   Core    (core/)           →  Engine, override tree, context composer
-//   Storage (storage/)        →  File discovery, parsing, schema validation
-// ============================================================================
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { SkillEngine } from "./core/engine.js";
-import { registerHandlers } from "./protocol/handler.js";
-import type { SkillLayer } from "./storage/schemas.js";
+import { Command } from "commander";
+import { startMcpServer } from "./mcp.js";
+import { showBoard } from "./board.js";
+import { runInit } from "./init.js";
 
-// ── Configuration ──────────────────────────────────────────────────────────
+const program = new Command();
 
-/** Ordered list of skill source directories. Loaded from config in future. */
-const SKILL_LAYERS: SkillLayer[] = [
-  { name: "project", path: ".skills",   priority: 100 },
-];
+program
+  .name("skill-central")
+  .description("Local MCP Server for cross-IDE AI skill distribution")
+  .version("0.1.0");
 
-// ── Bootstrap ──────────────────────────────────────────────────────────────
+program
+  .command("mcp")
+  .description("Start Stdio MCP Server (for IDE integration)")
+  .action(() => {
+    startMcpServer().catch((err) => {
+      console.error("[skill-central] Fatal:", err);
+      process.exit(1);
+    });
+  });
 
-const server = new Server(
-  {
-    name: "skill-central",
-    version: "0.1.0",
-  },
-  {
-    capabilities: {
-      prompts: {},
-      tools: {},
-    },
-  },
-);
+program
+  .command("board")
+  .description("Display loaded skills and layer hierarchy")
+  .action(() => {
+    showBoard().catch((err) => {
+      console.error("[skill-central] Board error:", err);
+      process.exit(1);
+    });
+  });
 
-const engine = new SkillEngine();
+program
+  .command("init")
+  .description("Scaffold .skills/ directory with sample definitions")
+  .action(() => {
+    runInit().catch((err) => {
+      console.error("[skill-central] Init error:", err);
+      process.exit(1);
+    });
+  });
 
-// Register all MCP request handlers (prompts + tools).
-registerHandlers(server, engine);
-
-// ── Lifecycle ──────────────────────────────────────────────────────────────
-
-async function main(): Promise<void> {
-  // Load skills from disk before accepting requests.
-  await engine.reload(SKILL_LAYERS);
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-
-  console.error("[skill-central] Server ready — listening on stdio");
-}
-
-main().catch((err) => {
-  console.error("[skill-central] Fatal error:", err);
-  process.exit(1);
-});
+program.parse(process.argv);
