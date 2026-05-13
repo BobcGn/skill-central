@@ -1,0 +1,434 @@
+---
+id: backend-code-review
+name: Backend Code Review
+description: 审查和优化后端代码，涵盖Kotlin、Java语言和Ktor、Spring框架。当用户需要代码审查、性能优化或架构改进时调用。
+type: prompt
+tags:
+  - review
+  - code-review
+  - backend
+  - kotlin
+  - java
+prompt: |
+  # 后端代码审查与优化指南
+
+  ## 1. 语言层面
+
+  ### 1.1 Kotlin
+
+  **参考文档：**
+  - [JetBrains Kotlin技术栈文档（第三方翻译）](https://openaidoc.org/)
+
+  #### 1.1.1 协程规范
+
+  **审查要点：**
+  - 确保所有I/O操作使用协程
+  - 检查协程作用域管理
+  - 验证取消机制的正确实现
+
+  **优化建议：**
+  ```kotlin
+  // 不推荐
+  fun fetchData() {
+      Thread { /* 网络请求 */ }.start()
+  }
+
+  // 推荐
+   suspend fun fetchData() {
+      withContext(Dispatchers.IO) {
+          // 网络请求
+      }
+  }
+  ```
+
+  #### 1.1.2 空安全
+
+  **审查要点：**
+  - 检查可空类型的正确使用
+  - 验证空检查的完整性
+
+  **优化建议：**
+  ```kotlin
+  // 不推荐
+  fun processUser(user: User?) {
+      if (user != null) {
+          // 处理用户
+      }
+  }
+
+  // 推荐
+  fun processUser(user: User) {
+      // 处理用户
+  }
+
+  fun processNullableUser(user: User?) {
+      user?.let {
+          // 处理用户
+      }
+  }
+  ```
+
+  #### 1.1.3 扩展函数与属性
+
+  **审查要点：**
+  - 检查扩展函数的使用合理性
+  - 验证命名规范
+
+  ### 1.2 Java
+
+  #### 1.2.1 并发处理
+
+  **审查要点：**
+  - 检查线程池的正确使用
+  - 验证同步机制的实现
+
+  **优化建议：**
+  ```java
+  // 不推荐
+  ExecutorService executor = Executors.newFixedThreadPool(10);
+
+  // 推荐
+  ExecutorService executor = new ThreadPoolExecutor(
+      5, 10, 60L, TimeUnit.SECONDS,
+      new LinkedBlockingQueue<>(100),
+      new ThreadPoolExecutor.CallerRunsPolicy()
+  );
+  ```
+
+  #### 1.2.2 异常处理
+
+  **审查要点：**
+  - 检查异常的合理使用
+  - 验证异常链的完整性
+
+  #### 1.2.3 资源管理
+
+  **审查要点：**
+  - 检查资源的正确关闭
+  - 验证try-with-resources的使用
+
+  **优化建议：**
+  ```java
+  // 不推荐
+  BufferedReader reader = null;
+  try {
+      reader = new BufferedReader(new FileReader("file.txt"));
+      // 读取文件
+  } catch (IOException e) {
+      e.printStackTrace();
+  } finally {
+      if (reader != null) {
+          try {
+              reader.close();
+          } catch (IOException e) {
+              e.printStackTrace();
+          }
+      }
+  }
+
+  // 推荐
+  try (BufferedReader reader = new BufferedReader(new FileReader("file.txt"))) {
+      // 读取文件
+  } catch (IOException e) {
+      e.printStackTrace();
+  }
+  ```
+
+  ## 2. 框架层面
+
+  ### 2.1 Ktor
+
+  #### 2.1.1 路由管理
+
+  **审查要点：**
+  - 检查路由的组织方式
+  - 验证路由处理函数的简洁性
+
+  **优化建议：**
+  ```kotlin
+  // 推荐
+  fun Application.configureRouting() {
+      routing {
+          apiRoutes()
+          adminRoutes()
+      }
+  }
+
+  private fun Route.apiRoutes() {
+      route("/api") {
+          get("/users") { /* 处理 */ }
+          post("/users") { /* 处理 */ }
+      }
+  }
+  ```
+
+  #### 2.1.2 中间件使用
+
+  **审查要点：**
+  - 检查中间件的正确配置
+  - 验证中间件的执行顺序
+
+  #### 2.1.3 依赖注入
+
+  **审查要点：**
+  - 检查依赖注入的实现方式
+  - 验证服务的生命周期管理
+
+  ### 2.2 Spring
+
+  #### 2.2.1 控制器设计
+
+  **审查要点：**
+  - 检查控制器的职责分离
+  - 验证请求参数的验证
+
+  **优化建议：**
+  ```java
+  // 推荐
+  @RestController
+  @RequestMapping("/api/users")
+  public class UserController {
+      
+      private final UserService userService;
+      
+      public UserController(UserService userService) {
+          this.userService = userService;
+      }
+      
+      @GetMapping
+      public ResponseEntity<List<User>> getUsers() {
+          return ResponseEntity.ok(userService.findAll());
+      }
+  }
+  ```
+
+  #### 2.2.2 服务层设计
+
+  **审查要点：**
+  - 检查业务逻辑的封装
+  - 验证事务管理的正确实现
+
+  #### 2.2.3 数据访问
+
+  **审查要点：**
+  - 检查Repository的设计
+  - 验证SQL查询的优化
+
+  **优化建议：**
+  ```java
+  // 推荐
+  @Repository
+  public interface UserRepository extends JpaRepository<User, Long> {
+      
+      @Query("SELECT u FROM User u WHERE u.active = true")
+      List<User> findActiveUsers();
+  }
+  ```
+
+  ## 3. 性能优化
+
+  ### 3.1 数据库优化
+
+  **审查要点：**
+  - 检查SQL查询的效率
+  - 验证索引的合理使用
+  - 检查连接池配置
+
+  ### 3.2 缓存策略
+
+  **审查要点：**
+  - 检查缓存的合理使用
+  - 验证缓存失效策略
+
+  ### 3.3 网络优化
+
+  **审查要点：**
+  - 检查HTTP请求的优化
+  - 验证连接复用
+
+  ## 4. 安全性
+
+  ### 4.1 认证与授权
+
+  **审查要点：**
+  - 检查认证机制的实现
+  - 验证授权策略的完整性
+
+  ### 4.2 输入验证
+
+  **审查要点：**
+  - 检查用户输入的验证
+  - 验证参数绑定的安全性
+
+  ### 4.3 敏感信息保护
+
+  **审查要点：**
+  - 检查敏感信息的存储
+  - 验证加密算法的合理使用
+
+  ## 5. 代码质量
+
+  ### 5.1 代码风格
+
+  **审查要点：**
+  - 检查代码风格的一致性
+  - 验证命名规范的遵循
+
+  ### 5.2 测试覆盖
+
+  **审查要点：**
+  - 检查测试用例的完整性
+  - 验证测试覆盖率
+
+  ### 5.3 文档
+
+  **审查要点：**
+  - 检查代码注释的完整性
+  - 验证API文档的准确性
+
+  ## 6. 架构设计
+
+  ### 6.1 模块化
+
+  **审查要点：**
+  - 检查模块的合理划分
+  - 验证模块间的依赖关系
+
+  ### 6.2 微服务架构
+
+  **审查要点：**
+  - 检查服务的边界划分
+  - 验证服务间的通信方式
+
+  ### 6.3 可扩展性
+
+  **审查要点：**
+  - 检查系统的可扩展性设计
+  - 验证负载均衡的实现
+
+  ## 7. 审查流程
+
+  ### 7.1 准备工作
+
+  1. 了解项目架构
+  2. 确定审查范围
+  3. 准备审查工具
+
+  ### 7.2 执行审查
+
+  1. 代码静态分析
+  2. 代码走查
+  3. 测试验证
+
+  ### 7.3 报告生成
+
+  1. 整理发现的问题
+  2. 提供优化建议
+  3. 跟踪问题解决
+
+  ## 8. 工具推荐
+
+  ### 8.1 静态分析工具
+
+  - Kotlin: Detekt
+  - Java: SonarQube
+  - 通用: Checkstyle
+
+  ### 8.2 性能分析工具
+
+  - JProfiler
+  - YourKit
+  - VisualVM
+
+  ### 8.3 测试工具
+
+  - JUnit 5
+  - Mockito
+  - TestContainers
+
+  ## 9. 最佳实践
+
+  ### 9.1 Kotlin最佳实践
+
+  - 使用协程处理异步操作
+  - 优先使用不可变数据结构
+  - 合理使用扩展函数
+
+  ### 9.2 Java最佳实践
+
+  - 使用try-with-resources管理资源
+  - 优先使用接口而非实现
+  - 合理使用Stream API
+
+  ### 9.3 框架最佳实践
+
+  - Ktor: 合理组织路由，使用中间件处理横切关注点
+  - Spring: 遵循依赖注入原则，合理使用注解
+
+  ## 10. 常见问题与解决方案
+
+  ### 10.1 内存泄漏
+
+  **症状：**
+  - 应用内存使用持续增长
+  - GC频繁执行
+
+  **解决方案：**
+  - 检查对象引用的生命周期
+  - 验证资源的正确释放
+
+  ### 10.2 性能瓶颈
+
+  **症状：**
+  - 响应时间过长
+  - CPU使用率过高
+
+  **解决方案：**
+  - 使用性能分析工具定位瓶颈
+  - 优化算法和数据结构
+
+  ### 10.3 并发问题
+
+  **症状：**
+  - 数据不一致
+  - 死锁
+
+  **解决方案：**
+  - 合理使用同步机制
+  - 考虑使用无锁数据结构
+
+  ## 11. 审查清单
+
+  ### 11.1 语言层面
+
+  - [ ] Kotlin协程规范
+  - [ ] Kotlin空安全
+  - [ ] Java并发处理
+  - [ ] Java异常处理
+
+  ### 11.2 框架层面
+
+  - [ ] Ktor路由管理
+  - [ ] Ktor中间件使用
+  - [ ] Spring控制器设计
+  - [ ] Spring服务层设计
+
+  ### 11.3 性能与安全
+
+  - [ ] 数据库优化
+  - [ ] 缓存策略
+  - [ ] 认证与授权
+  - [ ] 输入验证
+
+  ### 11.4 代码质量
+
+  - [ ] 代码风格一致性
+  - [ ] 测试覆盖率
+  - [ ] 代码注释完整性
+
+  ## 12. 总结
+
+  代码审查是保证代码质量的重要手段，通过系统性的审查可以发现并解决潜在的问题，提高系统的可靠性、性能和可维护性。本指南提供了全面的审查要点和优化建议，可根据具体项目的需求进行调整和扩展。
+
+  定期的代码审查不仅可以改善代码质量，还可以促进团队成员之间的知识共享，提高整体开发水平。建议将代码审查纳入日常开发流程，作为持续集成的一部分。
+  
