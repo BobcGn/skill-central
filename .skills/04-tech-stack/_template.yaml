@@ -1,0 +1,54 @@
+# ============================================================================
+# 04-tech-stack / _template.yaml  (reference template)
+# ----------------------------------------------------------------------------
+# This file is not loaded by the engine (starts with _).
+# Copy it to create your own language or framework skills.
+#
+# Guide:
+#   1. Save a copy under 04-tech-stack/languages/ or 04-tech-stack/frameworks/
+#      with a descriptive name, e.g. "typescript-conventions.yaml".
+#   2. Fill in id, name, description, and the tags your IDE will send.
+#   3. Write the prompt content that teaches the AI how to behave for this
+#      specific tech stack.
+# ============================================================================
+
+# ── Skill metadata ──────────────────────────────────────────────────────────
+id: your-skill-id              # Unique identifier; used in GetPrompt name
+name: Your Skill Name           # Human-readable label
+description: What this skill does in one sentence
+type: prompt                    # "prompt" for instructions, "tool" for callable tools
+
+# ── Tags (how the engine finds this skill) ──────────────────────────────────
+# When an IDE calls:  GetPrompt("skills:compose", { tags: "typescript,react" })
+# the engine collects every skill whose tags array overlaps the requested tags.
+# Follow a convention like:
+#   - language skill: tags: [ "typescript", "lang-ts" ]
+#   - framework skill: tags: [ "react", "nextjs", "framework-react" ]
+tags:
+  - example-tag
+
+# ── Arguments metadata ──────────────────────────────────────────────────────
+# Declare what arguments this skill accepts (informational, for IDE UI).
+arguments:
+  - name: context
+    description: Additional context from the IDE (file path, problem type, etc.)
+    required: false
+
+# ── Prompt content ──────────────────────────────────────────────────────────
+# The actual instructions sent to the AI. Use markdown formatting.
+# Be specific. General advice ("write clean code") is ignored; specific
+# conventions ("use named exports, PascalCase for components") are followed.
+prompt: |
+  You are an expert in [Language / Framework].
+
+  ## Coding Conventions
+  - Follow [specific style guide link or summary].
+  - Use [specific patterns, e.g. async/await, named parameters, etc.].
+  - Avoid [anti-patterns you want to prevent].
+
+  ## Architecture Decisions
+  - [Project structure convention, e.g. feature-first folders].
+  - [State management / data flow pattern].
+
+  ## Performance
+  - [Key performance rules, e.g. lazy loading, memoization].

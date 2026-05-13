@@ -1,16 +1,19 @@
 # ============================================================================
-# skill-central.yaml — 项目本地层级配置
+# skill-central.yaml — per-project layer configuration
 # ----------------------------------------------------------------------------
-# 定义各技能目录的加载顺序与优先级。数值越大，优先级越高。
-# 当多个层定义了相同 id 的技能时，高优先级层的版本胜出。
+# Each block defines one skill layer. Priority values determine override
+# order: higher wins when two layers define the same skill id.
 # ============================================================================
 layers:
-  - name: "global"
-    path: ".skills/global"
+  - name: "01-global"
+    path: ".skills/01-global"
     priority: 10
-  - name: "languages"
-    path: ".skills/languages"
+  - name: "02-workflows"
+    path: ".skills/02-workflows"
     priority: 20
-  - name: "frameworks"
-    path: ".skills/frameworks"
+  - name: "03-domains"
+    path: ".skills/03-domains"
     priority: 30
+  - name: "04-tech-stack"
+    path: ".skills/04-tech-stack"
+    priority: 40

@@ -1,8 +1,10 @@
 // ============================================================================
 // Init Command
 // ----------------------------------------------------------------------------
-// "skill-central init" — 初始化项目所需的配置文件与示例技能目录。
-// 在项目根目录创建 .skills/ 文件夹，并生成带有层级覆写关系的 YAML 文件。
+// "skill-central init" — scaffolds the .skills/ directory with a layered
+// structure organised by scope and task intent rather than by tech stack.
+// The 4 layers (global → workflows → domains → tech-stack) form a
+// progressively-overriding knowledge hierarchy.
 // ============================================================================
 
 import { mkdirSync, writeFileSync, readdirSync, statSync } from "node:fs";
@@ -12,126 +14,273 @@ export async function runInit(): Promise<void> {
   const root = process.cwd();
   const skillsDir = path.join(root, ".skills");
 
-  // ── 全局层（最低优先级，适用所有场景） ──────────────────────────────────
-  const globalDir = path.join(skillsDir, "global");
+  // ── Layer 1: 01-global (priority 10) ──────────────────────────────────
+  // Universal context that applies to every interaction.
+  const globalDir = path.join(skillsDir, "01-global");
   mkdirSync(globalDir, { recursive: true });
   writeFileSync(
-    path.join(globalDir, "architecture-mindset.yaml"),
+    path.join(globalDir, "architectural-mindset.yaml"),
     `# ============================================================================
-# Global / Architecture Mindset
+# 01-global / Architectural Mindset
 # ----------------------------------------------------------------------------
-# 全局架构思维要求：适用于所有回答场景的基础上下文。
-# 当没有更具体的技能匹配时，此上下文确保 AI 始终保持高层架构视角。
+# Universal context: every reply must start from the system perspective
+# before producing code. This is the baseline skill that all other layers
+# build on top of.
 # ============================================================================
-id: architecture-mindset
-name: 架构思维
-description: 全局架构思维要求 — 优先考虑可靠性与高层设计
+id: architectural-mindset
+name: Architectural Mindset
+description: Before writing code, always reason about system design, reliability, and project fit
 type: prompt
 tags:
   - global
 prompt: |
-  你是一位资深的软件架构师。在回答任何技术问题时，请严格遵循以下原则：
+  You are an experienced software architect. Before answering any technical
+  question or producing code, you must follow these principles:
 
-  1. 【全局视角】优先从系统整体架构出发思考问题，而非仅关注局部实现。
-  2. 【可维护性】任何代码建议必须考虑长期维护成本，优先选择可读性强、
-     测试覆盖充分的方案。
-  3. 【可靠性】在性能与正确性之间发生冲突时，始终以正确性和数据一致性
-     为第一优先。
-  4. 【渐进设计】避免过度工程。推荐的方案应遵循"先简单，后演进"的原则，
-     同时预留合理的扩展点。
+  1. **System perspective first** — Always start from the overall architecture.
+     Describe how the proposed solution fits into the broader system before
+     diving into implementation details.
+
+  2. **Reliability over convenience** — When there is tension between a
+     quick implementation and a reliable one, choose reliability. Consider
+     error handling, data consistency, observability, and graceful degradation.
+
+  3. **Maintainability** — Every code suggestion must account for long-term
+     maintenance cost. Favour readable, well-tested solutions over clever
+     one-liners. Default to explicit over implicit.
+
+  4. **Fit & context** — Understand where this component lives in the project:
+     is it a hot path? A one-off script? A public API? Tailor the rigour of
+     your review accordingly. Not every file needs hexagonal architecture;
+     every file does need intentional design.
+
+  5. **Incremental evolution** — Avoid over-engineering. Recommend the
+     simplest solution that works today while leaving reasonable extension
+     points for tomorrow. Do not build for hypothetical future requirements
+     unless the user explicitly asks.
+
+  Do NOT dump code without first explaining the rationale and design
+  decisions. Code without context is a liability.
 `,
   );
 
-  // ── 语言层（中等优先级，按技术栈划分） ──────────────────────────────────
-  const langDir = path.join(skillsDir, "languages");
+  // ── Layer 2: 02-workflows (priority 20) ────────────────────────────────
+  // Cross-cutting workflow patterns (debugging, code review, planning, etc.)
+  const wfDir = path.join(skillsDir, "02-workflows");
+  mkdirSync(wfDir, { recursive: true });
+  writeFileSync(
+    path.join(wfDir, "debugging-expert.yaml"),
+    `# ============================================================================
+# 02-workflows / Debugging Expert
+# ----------------------------------------------------------------------------
+# Guidelines for debugging and troubleshooting scenarios. The core principle
+# is: understand the root cause before reaching for a fix.
+# ============================================================================
+id: debugging-expert
+name: Debugging Expert
+description: Systematic debugging — identify root cause before applying any fix
+type: prompt
+tags:
+  - debug
+  - fix
+  - error
+prompt: |
+  You are a systematic debugging expert. When helping with errors, crashes,
+  or unexpected behaviour, follow this disciplined process:
+
+  ## Diagnostic workflow
+
+  1. **Reproduce & isolate** — Ask for or infer the exact steps to reproduce.
+     Narrow the scope: is it deterministic or intermittent? Does it happen
+     in one environment or all? Isolate the minimal input that triggers the
+     failure.
+
+  2. **Hypothesise root cause** — Before suggesting any change, output 2-3
+     hypotheses ranked by likelihood. For each hypothesis, explain *why* it
+     could cause the observed symptom. This is the most important step — do
+     not skip it.
+
+  3. **Instrument before fix** — When the cause is unclear, recommend
+     probing diagnostics first (logging, metrics, small targeted assertions)
+     rather than guessing a fix. A one-line log is cheaper than a one-hour
+     wild goose chase.
+
+  4. **Minimal fix** — Once the root cause is confirmed, propose the smallest
+     possible change that addresses it. Do not rewrite the file. Do not
+     refactor unrelated code.
+
+  5. **Verify** — After the fix, explain how to verify it actually resolved
+     the issue. Suggest a regression test if one is missing.
+
+  ## Anti-patterns
+
+  - ❌ "Let me rewrite this entire function/module" — understand first, then fix.
+  - ❌ "Try adding X" without explaining what X does or why it might help.
+  - ❌ Treating a workaround as a fix — a workaround buys time, a fix eliminates cause.
+`,
+  );
+
+  // ── Layer 3: 03-domains (priority 30) ──────────────────────────────────
+  // Domain-specific knowledge (infra, security, data, etc.)
+  const domainDir = path.join(skillsDir, "03-domains");
+  mkdirSync(domainDir, { recursive: true });
+  writeFileSync(
+    path.join(domainDir, "container-infra.yaml"),
+    `# ============================================================================
+# 03-domains / Container & Infrastructure
+# ----------------------------------------------------------------------------
+# Guidelines for Docker containerisation, Nginx reverse-proxy configuration,
+# and general infrastructure best-practices.
+# ============================================================================
+id: container-infra
+name: Container & Infrastructure
+description: Docker, Nginx, and infra deployment standards — security and isolation first
+type: prompt
+tags:
+  - docker
+  - nginx
+  - infra
+  - devops
+prompt: |
+  You are an infrastructure engineer specialising in containerised deployments.
+  Follow these standards for Docker, Nginx, and related infrastructure code.
+
+  ## Docker
+
+  1. **Single concern per container** — Each container runs exactly one
+     process. Do not run both the app server and a cron job in the same
+     container. Use a process manager (s6, supervisord) only when the
+     image explicitly requires multiple daemons.
+
+  2. **Network isolation** — In a single-host setup, use user-defined bridge
+     networks to isolate services. Never use --network=host unless the
+     service requires it (e.g. a network sniffer). In a swarm/cluster setup,
+     use overlay networks with encryption (--opt encrypted) for multi-tenant
+     isolation.
+
+  3. **Image hygiene** — Prefer distroless or slim base images. Tag images
+     with the commit SHA, never :latest. Use multi-stage builds to keep the
+     final image small. Run as a non-root user.
+
+  4. **Health checks** — Every long-running container must have HEALTHCHECK.
+     The check should exercise the application, not just ping localhost.
+
+  ## Nginx
+
+  1. **TLS minimum** — Enforce TLS 1.2+ with a secure cipher suite. Disable
+     SSLv3, TLS 1.0, and TLS 1.1. Use HSTS headers.
+
+  2. **Proxy isolation** — When Nginx proxies to upstream services:
+     - Always set and validate X-Forwarded-* headers (X-Forwarded-For,
+       X-Forwarded-Proto).
+     - Set a reasonable proxy_read_timeout (default 60 s).
+     - Limit request body size with client_max_body_size.
+     - Do not proxy requests to internal-only endpoints (e.g. /health,
+       /metrics) from the public-facing server block without authentication.
+
+  3. **Rate limiting** — Use ngx_http_limit_req_module on public endpoints.
+     A sensible default is 10 req/s per IP with a burst of 20.
+
+  ## General
+
+  - All infrastructure code (Dockerfiles, Compose files, CI config) must be
+    version-controlled.
+  - Secrets (DB passwords, API keys, TLS certs) must never appear in config
+    files. Use secrets management (Docker secrets, Vault, or equivalent).
+  - Every exposed port must be documented in a README or inline comment.
+`,
+  );
+
+  // ── Layer 4: 04-tech-stack (priority 40) ───────────────────────────────
+  // Tech-stack specific: languages and frameworks. The sub-directories are
+  // empty by design — users populate them as their project grows.
+  const langDir = path.join(skillsDir, "04-tech-stack", "languages");
   mkdirSync(langDir, { recursive: true });
-  writeFileSync(
-    path.join(langDir, "android-foundation.yaml"),
-    `# ============================================================================
-# Languages / Android Foundation
-# ----------------------------------------------------------------------------
-# Android 原生开发基础体系。当上下文涉及 Android 开发时叠加此知识。
-# ============================================================================
-id: android-foundation
-name: Android 原生基础
-description: Android 原生开发知识体系
-type: prompt
-tags:
-  - android
-prompt: |
-  你是具备以下 Android 原生开发能力的工程师：
-
-  ## 核心能力
-  - Kotlin / Java 语言及 JVM 生态
-  - Android SDK 与 Jetpack 组件库（ViewModel, Room, Navigation, Compose）
-  - Material Design 3 设计规范与无障碍支持
-  - Gradle / Kotlin DSL 构建系统与依赖管理
-  - NDK / JNI 边界性能敏感代码
-  - ADB / Profiler / Systrace 性能分析与调优
-
-  ## 代码规范
-  - 所有公共 API 必须编写文档注释（KDoc）
-  - 资源文件使用 lint 规则约束，禁止硬编码字符串
-  - 异步操作优先使用 Kotlin Coroutines + Flow
-  - DI 框架优先选用 Hilt，禁止 ServiceLocator 反模式
-`,
-  );
-
-  // ── 框架层（最高优先级，覆盖底层知识） ──────────────────────────────────
-  const fwDir = path.join(skillsDir, "frameworks");
+  const fwDir = path.join(skillsDir, "04-tech-stack", "frameworks");
   mkdirSync(fwDir, { recursive: true });
+
+  // Template file with full schema documentation for users.
   writeFileSync(
-    path.join(fwDir, "compose-multiplatform.yaml"),
+    path.join(skillsDir, "04-tech-stack", "_template.yaml"),
     `# ============================================================================
-# Frameworks / Compose Multiplatform
+# 04-tech-stack / _template.yaml  (reference template)
 # ----------------------------------------------------------------------------
-# Kotlin Multiplatform 下的跨平台 UI 构建规范。
-# 优先级高于 android-foundation：当两者冲突时以此为准。
+# This file is not loaded by the engine (starts with _).
+# Copy it to create your own language or framework skills.
+#
+# Guide:
+#   1. Save a copy under 04-tech-stack/languages/ or 04-tech-stack/frameworks/
+#      with a descriptive name, e.g. "typescript-conventions.yaml".
+#   2. Fill in id, name, description, and the tags your IDE will send.
+#   3. Write the prompt content that teaches the AI how to behave for this
+#      specific tech stack.
 # ============================================================================
-id: compose-multiplatform
-name: Compose Multiplatform 规范
-description: KMP 跨平台 UI 构建规范 — 高优先级覆盖 android-foundation
-type: prompt
+
+# ── Skill metadata ──────────────────────────────────────────────────────────
+id: your-skill-id              # Unique identifier; used in GetPrompt name
+name: Your Skill Name           # Human-readable label
+description: What this skill does in one sentence
+type: prompt                    # "prompt" for instructions, "tool" for callable tools
+
+# ── Tags (how the engine finds this skill) ──────────────────────────────────
+# When an IDE calls:  GetPrompt("skills:compose", { tags: "typescript,react" })
+# the engine collects every skill whose tags array overlaps the requested tags.
+# Follow a convention like:
+#   - language skill: tags: [ "typescript", "lang-ts" ]
+#   - framework skill: tags: [ "react", "nextjs", "framework-react" ]
 tags:
-  - kmp
-  - compose
+  - example-tag
+
+# ── Arguments metadata ──────────────────────────────────────────────────────
+# Declare what arguments this skill accepts (informational, for IDE UI).
+arguments:
+  - name: context
+    description: Additional context from the IDE (file path, problem type, etc.)
+    required: false
+
+# ── Prompt content ──────────────────────────────────────────────────────────
+# The actual instructions sent to the AI. Use markdown formatting.
+# Be specific. General advice ("write clean code") is ignored; specific
+# conventions ("use named exports, PascalCase for components") are followed.
 prompt: |
-  你是 Kotlin Multiplatform (KMP) 专家，精通 Compose Multiplatform 跨平台 UI 框架。
+  You are an expert in [Language / Framework].
 
-  ## 核心原则
-  - 【平台无关优先】所有 UI 代码必须在 commonMain 中实现，各平台仅提供
-    必要的外设适配层（expect/actual），严禁在 common 中引入平台特定 API。
-  - 【声明式 UI】使用 @Composable 函数构建界面，确保组件可组合、可测试。
-    避免在 Composable 中编写副作用逻辑；使用 LaunchedEffect / SnapshotFlow
-    管理生命周期感知的副作用。
-  - 【主题一致】跨平台 UI 必须统一使用 MaterialTheme，各平台只通过
-    expect/actual 提供平台色调和字体缩放参数。
+  ## Coding Conventions
+  - Follow [specific style guide link or summary].
+  - Use [specific patterns, e.g. async/await, named parameters, etc.].
+  - Avoid [anti-patterns you want to prevent].
 
-  ## 与 Android 原生规范的关系
-  当此规范与 android-foundation 中关于 UI 层的建议冲突时，以此规范为准。
-  非 UI 层的 Android 建议（如数据持久化、DI）继续参考 android-foundation。
+  ## Architecture Decisions
+  - [Project structure convention, e.g. feature-first folders].
+  - [State management / data flow pattern].
+
+  ## Performance
+  - [Key performance rules, e.g. lazy loading, memoization].
 `,
   );
 
-  // ── 项目根目录配置 ───────────────────────────────────────────────────────
+  // ── Project-level config ───────────────────────────────────────────────
   writeFileSync(
     path.join(root, "skill-central.yaml"),
     `# ============================================================================
-# skill-central.yaml — 项目本地层级配置
+# skill-central.yaml — per-project layer configuration
 # ----------------------------------------------------------------------------
-# 定义各技能目录的加载顺序与优先级。数值越大，优先级越高。
-# 当多个层定义了相同 id 的技能时，高优先级层的版本胜出。
+# Each block defines one skill layer. Priority values determine override
+# order: higher wins when two layers define the same skill id.
 # ============================================================================
 layers:
-  - name: "global"
-    path: ".skills/global"
+  - name: "01-global"
+    path: ".skills/01-global"
     priority: 10
-  - name: "languages"
-    path: ".skills/languages"
+  - name: "02-workflows"
+    path: ".skills/02-workflows"
     priority: 20
-  - name: "frameworks"
-    path: ".skills/frameworks"
+  - name: "03-domains"
+    path: ".skills/03-domains"
     priority: 30
+  - name: "04-tech-stack"
+    path: ".skills/04-tech-stack"
+    priority: 40
 `,
   );
 

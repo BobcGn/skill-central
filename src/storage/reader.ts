@@ -5,7 +5,7 @@
 // directories on the local filesystem.
 // ============================================================================
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 import type { SkillLayer, SkillSchema } from "./schemas.js";
 import { parseSkillFile } from "./parser.js";
@@ -44,6 +44,8 @@ async function discoverSkillFiles(dirPath: string): Promise<string[]> {
     const files: string[] = [];
 
     for (const entry of entries) {
+      // Skip hidden files and files prefixed with _ (templates/references)
+      if (entry.name.startsWith(".") || entry.name.startsWith("_")) continue;
       const fullPath = path.join(dirPath, entry.name);
       if (entry.isDirectory()) {
         files.push(...(await discoverSkillFiles(fullPath)));
