@@ -1,15 +1,44 @@
 {
-  "name": "skill-central",
+  "name": "@bobcgn/skill-central",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "Local MCP Server for cross-IDE AI skill distribution and reuse",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "skill-central": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BobcGn/skill-central.git"
+  },
+  "homepage": "https://github.com/BobcGn/skill-central#readme",
+  "bugs": {
+    "url": "https://github.com/BobcGn/skill-central/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "skills",
+    "prompts",
+    "cursor",
+    "windsurf",
+    "claude"
+  ],
+  "license": "MIT",
   "scripts": {
     "dev:mcp": "tsx watch src/index.ts mcp",
     "dev:board": "tsx src/index.ts board",
     "dev:init": "tsx src/index.ts init",
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js mcp"
   },
   "dependencies": {
