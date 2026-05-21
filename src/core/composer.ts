@@ -31,23 +31,97 @@ export function composeSkill(
 
 function composePrompt(
   skill: ResolvedSkill,
-  _args: Record<string, unknown>,
+  args: Record<string, unknown>,
 ): ComposedPrompt {
-  // TODO: replace {{placeholder}} in skill.prompt with actual _args values
-  const content: TextContent = { type: "text", text: skill.prompt ?? "" };
+  let text = skill.prompt ?? "";
+  for (const [key, value] of Object.entries(args)) {
+    const placeholder = `{{${key}}}`;
+    if (text.includes(placeholder)) {
+      text = text.replaceAll(placeholder, String(value));
+    }
+  }
+  const content: TextContent = { type: "text", text };
   return {
     messages: [{ role: "user", content }],
   };
 }
 
 function composeTool(
-  _skill: ResolvedSkill,
+  skill: ResolvedSkill,
   args: Record<string, unknown>,
 ): ComposedToolCall {
-  // TODO: validate args against skill.inputSchema before returning
+  const errors = validateArgs(skill.inputSchema, args);
+  if (errors.length > 0) {
+    return {
+      content: [{ type: "text", text: errors.join("\n") }],
+      isError: true,
+    };
+  }
+
+  let text = skill.prompt ?? "";
+  for (const [key, value] of Object.entries(args)) {
+    const placeholder = `{{${key}}}`;
+    if (text.includes(placeholder)) {
+      text = text.replaceAll(placeholder, String(value));
+    }
+  }
+
   return {
-    content: [{ type: "text", text: JSON.stringify(args, null, 2) }],
+    content: [{ type: "text", text: text || JSON.stringify(args, null, 2) }],
   };
+}
+
+/**
+ * Lightweight validation of tool arguments against a JSON Schema.
+ * Returns an array of human-readable error messages (empty = valid).
+ */
+function validateArgs(
+  schema: Record<string, unknown> | undefined,
+  args: Record<string, unknown>,
+): string[] {
+  const errors: string[] = [];
+
+  if (!schema || typeof schema !== "object") return errors;
+
+  const required = (schema as Record<string, unknown>).required;
+  const properties = (schema as Record<string, unknown>).properties as
+    | Record<string, { type?: string }>
+    | undefined;
+
+  // Check required fields
+  if (Array.isArray(required)) {
+    for (const field of required) {
+      if (!(field in args) || args[field] === undefined || args[field] === null) {
+        errors.push(`Missing required argument: "${field}"`);
+      }
+    }
+  }
+
+  // Type validation for provided fields
+  if (properties) {
+    for (const [key, value] of Object.entries(args)) {
+      const prop = properties[key];
+      if (!prop?.type || value === undefined || value === null) continue;
+
+      const typeMap: Record<string, (v: unknown) => boolean> = {
+        string: (v) => typeof v === "string",
+        number: (v) => typeof v === "number",
+        integer: (v) => Number.isInteger(v),
+        boolean: (v) => typeof v === "boolean",
+        array: (v) => Array.isArray(v),
+        object: (v) => typeof v === "object" && !Array.isArray(v) && v !== null,
+      };
+
+      const check = typeMap[prop.type];
+      if (check && !check(value)) {
+        errors.push(
+          `Argument "${key}" expected ${prop.type}, got ${Array.isArray(value) ? "array" : typeof value}`,
+        );
+      }
+    }
+  }
+
+  return errors;
 }
 
 // ── Tag-based multi-skill composition ──────────────────────────────────────

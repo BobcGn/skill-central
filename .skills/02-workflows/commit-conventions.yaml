@@ -1,0 +1,57 @@
+# ============================================================================
+# 02-workflows / Commit Conventions
+# ----------------------------------------------------------------------------
+# A tool skill that enforces conventional commit format. The AI calls this
+# tool when asked to generate or validate commit messages.
+# ============================================================================
+id: commit-conventions
+name: Commit Conventions
+description: Generate or validate git commit messages following Conventional Commits format
+type: tool
+tags:
+  - git
+  - workflow
+  - commit
+inputSchema:
+  type: object
+  properties:
+    type:
+      type: string
+      description: Commit type (feat, fix, chore, docs, refactor, test, style)
+    scope:
+      type: string
+      description: Scope of the change (e.g. api, cli, core)
+    summary:
+      type: string
+      description: Short imperative description of the change
+    body:
+      type: string
+      description: Optional longer description with motivation and context
+  required:
+    - type
+    - summary
+arguments:
+  - name: type
+    description: Commit type (feat, fix, chore, docs, refactor, test, style)
+    required: true
+  - name: scope
+    description: Scope of the change (e.g. api, cli, core)
+    required: false
+  - name: summary
+    description: Short imperative description of the change
+    required: true
+  - name: body
+    description: Longer description with motivation and context
+    required: false
+prompt: |
+  Generate a Conventional Commit message with the following structure:
+
+  {{type}}({{scope}}): {{summary}}
+
+  {{body}}
+
+  Rules:
+  - type must be one of: feat, fix, chore, docs, refactor, test, style
+  - summary must be lowercase, imperative mood, no period at end
+  - summary should be under 72 characters
+  - scope is optional but encouraged for larger projects
