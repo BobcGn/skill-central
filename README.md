@@ -6,13 +6,15 @@ skill-central is a local [MCP (Model Context Protocol)](https://modelcontextprot
 
 > A **skill** is a structured prompt or tool definition — organised by topic, managed in layers, matched by tags. You manage your AI's capability boundaries the same way you manage code.
 
+[中文版](./README.zh-CN.md)
+
 ---
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
-- [README.zh-CN.md](#README.zh-CN.md)
+- [中文版](./README.zh-CN.md)
 - [CLI Commands](#cli-commands)
 - [JSON-RPC API](#json-rpc-api)
 - [Skill File Format](#skill-file-format)

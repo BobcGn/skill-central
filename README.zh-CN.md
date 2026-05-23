@@ -6,10 +6,13 @@ skill-central 是一个本地 [MCP (Model Context Protocol)](https://modelcontex
 
 > **技能（Skill）** 是一段结构化的提示词或工具定义，按主题组织、按层级管理、按标签匹配。你可以像管理代码一样管理 AI 的能力边界。
 
+[English](./README.md)
+
 ---
 
 ## 目录
 
+- [English](./README.md)
 - [快速开始](#快速开始)
 - [架构](#架构)
 - [CLI 命令](#cli-命令)
