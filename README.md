@@ -12,6 +12,7 @@ skill-central is a local [MCP (Model Context Protocol)](https://modelcontextprot
 
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
+- [README.zh-CN.md](#README.zh-CN.md)
 - [CLI Commands](#cli-commands)
 - [JSON-RPC API](#json-rpc-api)
 - [Skill File Format](#skill-file-format)
@@ -23,7 +24,6 @@ skill-central is a local [MCP (Model Context Protocol)](https://modelcontextprot
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [License](#license)
-
 ---
 
 ## Quick Start
