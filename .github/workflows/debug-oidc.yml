@@ -1,8 +1,8 @@
 # ============================================================================
-# OIDC 诊断流水线（仅调试，不发布）
+# OIDC 诊断流水线 v2 — 手动 OIDC 令牌交换
 # ============================================================================
-# 手动触发，用于排查 npm Trusted Publisher 配置问题。
-# 通过 workflow_dispatch 在 GitHub Actions UI 中手动运行。
+# 绕过 setup-node@v4 的自动 OIDC 配置，手动完成令牌交换，
+# 以排查 setup-node 的 .npmrc 写入是否存在兼容性问题。
 # ============================================================================
 
 name: OIDC Debug
@@ -24,96 +24,130 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🔧 设置 Node.js 22
+      - name: 🔧 设置 Node.js 22（不带 registry-url）
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
+          # 故意不传 registry-url，手动配置
 
-      - name: 🔍 查看 GitHub Actions OIDC 令牌声明
+      - name: 🔍 环境信息
         run: |
-          echo "=============================================="
-          echo "  GitHub Actions OIDC 环境变量"
-          echo "=============================================="
+          echo "npm 版本: $(npm --version)"
+          echo "node 版本: $(node --version)"
+          echo ""
           echo "ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:+已设置}"
           echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+已设置}"
           echo ""
-
-      - name: 🔍 npm whoami（OIDC 身份映射）
-        run: |
-          echo "=============================================="
-          echo "  npm OIDC 认证身份"
-          echo "=============================================="
-          echo ""
-          echo "▶ npm whoami:"
-          npm whoami --registry=https://registry.npmjs.org 2>&1 || echo "  ❌ whoami 失败！"
+          echo "NPM_CONFIG_USERCONFIG: ${NPM_CONFIG_USERCONFIG:-未设置（默认位置）}"
           echo ""
 
-      - name: 🔍 npm 配置检查
+      # ── 方案 A: 手动 OIDC 令牌交换 ──────────────────────────────────────
+      # 直接调用 GitHub Actions OIDC endpoint，获取 audience 为
+      # https://registry.npmjs.org 的 JWT，然后手动写入 .npmrc。
+      - name: 🔑 方案 A — 手动 OIDC 令牌交换
         run: |
           echo "=============================================="
-          echo "  npm 配置"
+          echo "  方案 A: 手动 OIDC 令牌交换"
           echo "=============================================="
+
+          # 1. 从 GitHub Actions OIDC endpoint 获取 JWT
           echo ""
-          echo "▶ npm config get registry:"
-          npm config get registry
+          echo "▶ 1/4 请求 OIDC 令牌（audience: https://registry.npmjs.org）..."
+          OIDC_RESPONSE=$(curl -sS -f \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https%3A%2F%2Fregistry.npmjs.org")
+
+          OIDC_TOKEN=$(echo "$OIDC_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
+          echo "::add-mask::$OIDC_TOKEN"
+          echo "  ✓ OIDC 令牌已获取（长度: ${#OIDC_TOKEN}）"
+
+          # 2. 解析 JWT payload 查看 claims
           echo ""
-          echo "▶ npm config get //registry.npmjs.org/:_authToken (仅长度):"
-          TOKEN=$(npm config get //registry.npmjs.org/:_authToken 2>/dev/null)
-          if [ -n "$TOKEN" ] && [ "$TOKEN" != "undefined" ]; then
-            echo "  令牌长度: ${#TOKEN} 字符"
-            echo "  令牌前缀: ${TOKEN:0:20}..."
+          echo "▶ 2/4 JWT Claims:"
+          JWT_PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null || echo "$OIDC_TOKEN" | cut -d. -f2 | python3 -c "import base64,sys; print(base64.urlsafe_b64decode(sys.stdin.read() + '==').decode())")
+          echo "$JWT_PAYLOAD" | python3 -c "
+import json, sys
+claims = json.load(sys.stdin)
+for k in ['aud', 'iss', 'sub', 'repository', 'repository_owner', 'workflow', 'ref']:
+    print(f'  {k}: {claims.get(k, \"(未设置)\")}')
+"
+
+          # 3. 写入 .npmrc
+          echo ""
+          echo "▶ 3/4 写入 .npmrc..."
+          npm config set registry https://registry.npmjs.org/
+          npm config set //registry.npmjs.org/:_authToken "$OIDC_TOKEN"
+          echo "  ✓ .npmrc 已配置"
+
+          # 4. 测试认证
+          echo ""
+          echo "▶ 4/4 npm whoami:"
+          npm whoami --registry=https://registry.npmjs.org 2>&1 && echo "  ✅ 认证成功！" || echo "  ❌ 仍失败"
+
+      # ── 方案 B: setup-node 默认行为（对比测试）───────────────────────────
+      - name: 🔑 方案 B — setup-node 自动配置（对比）
+        if: always()
+        run: |
+          echo "=============================================="
+          echo "  方案 B: setup-node@v4 自动配置（对比）"
+          echo "=============================================="
+
+          # 还原 setup-node 的默认 .npmrc
+          npm config delete registry
+          npm config delete //registry.npmjs.org/:_authToken 2>/dev/null || true
+
+          # 模拟 setup-node@v4 的配置方式
+          echo ""
+          echo "▶ 配置方式: NODE_AUTH_TOKEN → .npmrc"
+          echo "注意: 此处无法获取 setup-node 内部生成的令牌，仅检查配置格式"
+
+          echo ""
+          echo "▶ .npmrc 默认位置内容:"
+          if [ -f ~/.npmrc ]; then
+            cat ~/.npmrc | sed 's/:_authToken=.*/:_authToken=***REDACTED***/'
           else
-            echo "  ⚠️  未设置 _authToken！"
+            echo "  （无 ~/.npmrc）"
           fi
-          echo ""
 
-      - name: 🔍 包信息
+          if [ -n "${NPM_CONFIG_USERCONFIG:-}" ] && [ -f "$NPM_CONFIG_USERCONFIG" ]; then
+            echo ""
+            echo "▶ 自定义 userconfig ($NPM_CONFIG_USERCONFIG):"
+            cat "$NPM_CONFIG_USERCONFIG" | sed 's/:_authToken=.*/:_authToken=***REDACTED***/'
+          fi
+
+      # ── 方案 C: 用方案 A 的令牌尝试 publish --dry-run ──────────────────
+      - name: 🔑 方案 C — 手动令牌 publish --dry-run
+        if: always()
         run: |
           echo "=============================================="
-          echo "  @bobcgn/skill-central 包信息"
+          echo "  方案 C: 手动令牌 publish --dry-run"
           echo "=============================================="
-          echo ""
-          echo "▶ 基本信息:"
-          npm view @bobcgn/skill-central name version --json 2>&1
-          echo ""
-          echo "▶ 维护者列表:"
-          npm view @bobcgn/skill-central maintainers --json 2>&1
-          echo ""
-          echo "▶ dist-tags:"
-          npm view @bobcgn/skill-central dist-tags --json 2>&1
-          echo ""
 
-      - name: 🔍 发布预检（dry-run）
-        run: |
-          echo "=============================================="
-          echo "  npm publish --dry-run（仅模拟，不上传）"
-          echo "=============================================="
+          # 重新获取令牌
+          OIDC_RESPONSE=$(curl -sS -f \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https%3A%2F%2Fregistry.npmjs.org")
+          OIDC_TOKEN=$(echo "$OIDC_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
+          echo "::add-mask::$OIDC_TOKEN"
+
+          # 配置
+          npm config set registry https://registry.npmjs.org/
+          npm config set //registry.npmjs.org/:_authToken "$OIDC_TOKEN"
+
           echo ""
+          echo "▶ npm publish --access public --dry-run:"
           npm publish --access public --dry-run 2>&1
-          DRYRUN_EXIT=$?
           echo ""
-          if [ $DRYRUN_EXIT -eq 0 ]; then
-            echo "✅ --dry-run 成功！基本 OIDC 发布功能正常。"
-            echo "   如果之前 publish 失败，问题可能在 provenance 层面。"
-          else
-            echo "❌ --dry-run 失败（exit code: $DRYRUN_EXIT）"
-            echo "   这说明 OIDC 认证本身有问题，与 provenance 无关。"
-          fi
-          echo ""
+          echo "  exit code: $?"
 
+      # ── 总结 ────────────────────────────────────────────────────────────
       - name: 📊 诊断总结
         if: always()
         run: |
           echo "=============================================="
-          echo "  诊断完成"
+          echo "  诊断总结"
           echo "=============================================="
           echo ""
-          echo "  关键检查项:"
-          echo "  1. npm whoami 应返回 'bobcgn'"
-          echo "  2. _authToken 应该存在（长度 > 0）"
-          echo "  3. npm publish --dry-run 应成功"
-          echo ""
-          echo "  如果 whoami 不对 → Trusted Publisher 配置有误"
-          echo "  如果 _authToken 缺失 → setup-node 未正确设置 OIDC"
-          echo "  如果 dry-run 失败 → OIDC 令牌交换或权限映射有问题"
+          echo "  如果方案 A 的 whoami 成功 → 问题在 setup-node@v4 的 .npmrc 写入方式"
+          echo "  如果方案 A 的 whoami 仍 E401 → 问题在 npm registry 端（Trusted Publisher）"
+          echo "  如果方案 C 的 dry-run 成功 → OIDC + scoped package 发布通道是通的"
