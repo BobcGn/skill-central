@@ -95,8 +95,10 @@ jobs:
       # test is hermetic; no writes to ~/.skill-central/.
       - name: CLI integration tests
         run: |
-          # add: with explicit tags so layer inference is deterministic
-          node dist/index.js add test-skill \
+          # add: id is a --flag, not a positional. With explicit tags so
+          # layer inference is deterministic.
+          node dist/index.js add \
+            --id test-skill \
             --name "Test" \
             --description "CI smoke skill" \
             --tags "ci,review" \
