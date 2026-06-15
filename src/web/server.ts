@@ -14,16 +14,19 @@
 // Edit / backup endpoints land in P6.
 // ============================================================================
 
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { load as parseYaml } from "js-yaml";
 
 import { SkillEngine } from "../core/engine.js";
 import { loadConfig } from "../storage/config.js";
 import { readAllLayers } from "../storage/reader.js";
+import { validateSkill } from "../storage/parser.js";
+import { backupBeforeWrite, listBackups, restoreBackup, sha256Of } from "./backup.js";
 import type { SkillCentralConfig } from "../storage/config.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
@@ -210,6 +213,140 @@ export function createBoardApp(deps: BoardDeps): Hono {
     return c.json(dto);
   });
 
+  // ── PUT /api/skills/:id — edit + save ─────────────────────────────────
+  app.put("/api/skills/:id", async (c) => {
+    const id = c.req.param("id");
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) {
+      return c.json({ error: "invalid id format" }, 400);
+    }
+    let body: { rawYaml?: string; expectedSha256?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (typeof body.rawYaml !== "string") {
+      return c.json({ error: "rawYaml must be a string" }, 400);
+    }
+
+    // Resolve the source file path (same logic as GET).
+    const resolved = deps.engine.getSkill(id);
+    if (!resolved) {
+      return c.json({ error: `skill not found: ${id}` }, 404);
+    }
+    const dto = await buildSkillDto(resolved, deps.config, deps.rootDir);
+    if (!dto.source) {
+      return c.json({ error: "source path not resolved" }, 500);
+    }
+
+    // 1. Optimistic-concurrency check.
+    let currentRaw = "";
+    let currentSha = "";
+    try {
+      currentRaw = await readFile(dto.source, "utf-8");
+      currentSha = await sha256Of(currentRaw);
+    } catch {
+      return c.json({ error: "source file disappeared" }, 410);
+    }
+    if (body.expectedSha256 && body.expectedSha256 !== currentSha) {
+      return c.json(
+        {
+          error: "sha256 conflict — file changed since you loaded it",
+          currentSha256: currentSha,
+          currentRawYaml: currentRaw,
+        },
+        409,
+      );
+    }
+
+    // 2. Parse + validate.
+    let parsed: unknown;
+    try {
+      parsed = parseYaml(body.rawYaml);
+    } catch (err) {
+      return c.json(
+        { error: `YAML parse error: ${(err as Error).message}` },
+        400,
+      );
+    }
+    if (typeof parsed !== "object" || parsed === null) {
+      return c.json({ error: "YAML did not parse to an object" }, 400);
+    }
+    const schemaObj = parsed as Record<string, unknown>;
+    const validated = validateSkill(schemaObj, dto.source);
+    if (!validated) {
+      return c.json({ error: "schema validation failed" }, 400);
+    }
+
+    // 3. Reject id change (would orphan the original file).
+    if (validated.id !== id) {
+      return c.json(
+        {
+          error: `id change not allowed: original="${id}", new="${validated.id}". Use remove + add to move skills across layers.`,
+        },
+        400,
+      );
+    }
+
+    // 4. Backup existing file (if any) before write.
+    await backupBeforeWrite(dto.source);
+
+    // 5. Write.
+    await writeFile(dto.source, body.rawYaml, "utf-8");
+
+    // 6. New sha256.
+    const newSha = await sha256Of(body.rawYaml);
+
+    return c.json({ ok: true, sha256: newSha });
+  });
+
+  // ── GET /api/skills/:id/backups ────────────────────────────────────────
+  app.get("/api/skills/:id/backups", async (c) => {
+    const id = c.req.param("id");
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) {
+      return c.json({ error: "invalid id format" }, 400);
+    }
+    const resolved = deps.engine.getSkill(id);
+    if (!resolved) {
+      return c.json({ error: `skill not found: ${id}` }, 404);
+    }
+    const dto = await buildSkillDto(resolved, deps.config, deps.rootDir);
+    if (!dto.source) return c.json([]);
+    const backups = await listBackups(dto.source);
+    return c.json(backups);
+  });
+
+  // ── POST /api/skills/:id/restore ──────────────────────────────────────
+  app.post("/api/skills/:id/restore", async (c) => {
+    const id = c.req.param("id");
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) {
+      return c.json({ error: "invalid id format" }, 400);
+    }
+    let body: { backupFile?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (typeof body.backupFile !== "string") {
+      return c.json({ error: "backupFile required" }, 400);
+    }
+    const resolved = deps.engine.getSkill(id);
+    if (!resolved) {
+      return c.json({ error: `skill not found: ${id}` }, 404);
+    }
+    const dto = await buildSkillDto(resolved, deps.config, deps.rootDir);
+    if (!dto.source) {
+      return c.json({ error: "source path not resolved" }, 500);
+    }
+    try {
+      await restoreBackup(dto.source, body.backupFile);
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
+    return c.json({ ok: true });
+  });
+
   // ── Static assets ─────────────────────────────────────────────────────
   // Hand-rolled minimal static middleware. We deliberately do not depend on
   // hono/serve-static because its Node adapter in this Hono version requires
@@ -260,13 +397,6 @@ function mimeFor(p: string): string {
   if (p.endsWith(".svg")) return "image/svg+xml";
   if (p.endsWith(".png")) return "image/png";
   return "application/octet-stream";
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-async function sha256Of(s: string): Promise<string> {
-  const { createHash } = await import("node:crypto");
-  return createHash("sha256").update(s, "utf-8").digest("hex");
 }
 
 // ── Server bootstrap ───────────────────────────────────────────────────────
