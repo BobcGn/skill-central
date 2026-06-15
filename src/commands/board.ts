@@ -10,13 +10,12 @@
 //                      LAN exposure)
 // ============================================================================
 
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { createServer } from "node:net";
 
 import { SkillEngine } from "../core/engine.js";
 import { loadConfig } from "../storage/config.js";
-import { startBoardServer } from "../web/server.js";
+import { resolveWebRoot, startBoardServer } from "../web/server.js";
 
 const DEFAULT_PORT = 5417;
 const MAX_PORT_TRIES = 10;
@@ -107,10 +106,17 @@ export async function boardWeb(opts: BoardOptions): Promise<void> {
 
   // Verify the static asset directory exists before binding. Without it the
   // user would see a confusing "web assets not found" page in the browser.
-  const webRoot = path.join(process.cwd(), "dist", "web");
-  if (!existsSync(path.join(webRoot, "index.html"))) {
+  // `resolveWebRoot()` already searches script-relative + cwd-relative
+  // locations, so the pre-check stays in sync with what `server.ts` uses.
+  const webRoot = resolveWebRoot();
+  if (!webRoot) {
     console.error(
-      `[skill-central] Web assets not found at ${webRoot}.\n` +
+      `[skill-central] Web assets not found. Looked at:\n` +
+        `  - $SC_WEB_ROOT (if set)\n` +
+        `  - <this module>/            (dist/web/ in compiled, src/web/ in tsx)\n` +
+        `  - <this module>/static/     (tsx dev only)\n` +
+        `  - ${path.join(process.cwd(), "dist", "web")}\n` +
+        `  - ${path.join(process.cwd(), "src", "web", "static")}\n` +
         `  Run \`npm run build:web\` first, then retry.`,
     );
     throw new Error("web assets missing");

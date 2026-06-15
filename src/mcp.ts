@@ -10,6 +10,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SkillEngine } from "./core/engine.js";
 import { registerHandlers } from "./protocol/handler.js";
 import { loadConfig } from "./storage/config.js";
+import { VERSION } from "./version.js";
 
 /**
  * 启动 MCP Server 并绑定 Stdio 传输。
@@ -27,7 +28,7 @@ export async function startMcpServer(): Promise<void> {
   const config = loadConfig();
 
   const server = new Server(
-    { name: "skill-central", version: "0.1.0" },
+    { name: "skill-central", version: VERSION },
     { capabilities: { prompts: {}, tools: {} } },
   );
 

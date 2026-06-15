@@ -26,13 +26,14 @@ import { cmdDoctor } from "./commands/doctor.js";
 import { cmdInstall } from "./commands/install.js";
 import { cmdUpdate } from "./commands/update.js";
 import { cmdUninstall } from "./commands/uninstall.js";
+import { VERSION } from "./version.js";
 
 const program = new Command();
 
 program
   .name("skill-central")
   .description("Local MCP Server for cross-IDE AI skill distribution")
-  .version("0.1.0");
+  .version(VERSION);
 
 program
   .command("mcp")

@@ -16,6 +16,7 @@
 
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import { Hono } from "hono";
@@ -28,6 +29,7 @@ import { readAllLayers } from "../storage/reader.js";
 import { validateSkill } from "../storage/parser.js";
 import { backupBeforeWrite, listBackups, restoreBackup, sha256Of } from "./backup.js";
 import type { SkillCentralConfig } from "../storage/config.js";
+import { VERSION } from "../version.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -49,20 +51,37 @@ export interface BoardOptions {
 
 /**
  * Returns the directory containing the static frontend (index.html, app.js,
- * style.css). Tries a list of candidates — production build puts them at
- * `<dist>/web/`, dev (tsx) at `src/web/static/`. The first existing one wins.
+ * style.css). The first existing candidate wins.
+ *
+ * Why a fallback chain and not one canonical path:
+ *   - `npm install` puts everything under `node_modules/@bobcgn/skill-central/`
+ *     and the user can invoke the bin from any cwd, so cwd-relative lookup
+ *     is unreliable.
+ *   - `import.meta.url` is the one location guaranteed to point at *this*
+ *     compiled module regardless of cwd. In production it lands inside
+ *     `dist/web/` (same dir as the bundled assets). In tsx dev it lands
+ *     inside `src/web/` and the assets live one step deeper at
+ *     `src/web/static/`.
+ *   - The cwd-relative candidates remain as a last-resort fallback for
+ *     unusual layouts (e.g. someone copying `dist/web/` into a project).
+ *
+ * `SC_WEB_ROOT` env var always wins — useful for tests and custom deploys.
  */
 export function resolveWebRoot(): string | undefined {
-  const candidates = [
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates: Array<string | undefined> = [
     process.env.SC_WEB_ROOT,
+    // Compiled: server.js sits next to index.html in dist/web/.
+    here,
+    // tsx dev: assets are at src/web/static/ (one step deeper than server.ts).
+    path.join(here, "static"),
+    // Cwd-relative fallbacks for non-standard invocations.
     path.join(process.cwd(), "dist", "web"),
     path.join(process.cwd(), "src", "web", "static"),
-    // When running from compiled dist/web/../web/server.js, walk up.
-    path.resolve(process.cwd(), "dist", "web"),
-  ].filter((x): x is string => typeof x === "string" && x.length > 0);
+  ];
 
   for (const dir of candidates) {
-    if (existsSync(path.join(dir, "index.html"))) {
+    if (typeof dir === "string" && dir.length > 0 && existsSync(path.join(dir, "index.html"))) {
       return dir;
     }
   }
@@ -408,7 +427,7 @@ function mimeFor(p: string): string {
 export function startBoardServer(opts: BoardOptions = {}): { port: number; host: string } {
   const config = loadConfig();
   const engine = new SkillEngine();
-  const version = "0.2.0"; // bumped from 0.1.0; see CHANGELOG
+  const version = VERSION;
   const rootDir = process.cwd();
 
   // Block on initial load so /api/skills returns immediately.
