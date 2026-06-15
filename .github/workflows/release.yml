@@ -144,8 +144,28 @@ jobs:
       # No `--tag latest` flag: npm defaults to `latest` for non-prerelease
       # semver. For pre-releases, pass `--tag next` (or whatever) by editing
       # this step — or split pre-releases out into a separate workflow.
+
+      # ── 6a. Debug: inspect OIDC-resolved identity ────────────────────────
+      - name: Debug OIDC identity
+        run: |
+          echo "=== npm whoami (OIDC-resolved identity) ==="
+          npm whoami --verbose 2>&1 || echo "(whoami failed — this is expected for OIDC tokens)"
+          echo
+          echo "=== npm config (registry + auth) ==="
+          npm config list 2>&1
+          echo
+          echo "=== npm token list ==="
+          npm token list 2>&1 || echo "(token list failed)"
+          echo
+          echo "=== npm access (package visibility check) ==="
+          npm access get status @bobcgn/skill-central 2>&1 || echo "(access check failed)"
+          echo
+          echo "=== dry-run publish (does PUT resolve?) ==="
+          npm publish --provenance --access public --dry-run 2>&1
+
+      # ── 6b. Publish to npm ─────────────────────────────────────────────
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --verbose
 
       # ── 7. Create GitHub Release ────────────────────────────────────────
       # Extract the matching CHANGELOG section. The awk idiom grabs the
