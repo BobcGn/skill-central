@@ -2,6 +2,16 @@
 
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.3] - 2026-06-16
+
+### Changed
+
+- **First release published via Trusted Publisher OIDC** — v0.2.3 is the first version published through `.github/workflows/release.yml` with npm Trusted Publishing (OIDC). Each `npm publish --provenance` in this workflow attaches a Sigstore-signed provenance attestation to the tarball, verifiable via `npm view @bobcgn/skill-central@0.2.3 --json | jq .dist.attestations`.
+
+### Notes
+
+- v0.2.2 was published manually (without provenance) because the Trusted Publisher had not been configured on npmjs.com at release time. From v0.2.3 onward, all releases go through the OIDC workflow.
+
 ## [0.2.2] - 2026-06-16
 
 ### Changed
