@@ -2,6 +2,12 @@
 
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.4] - 2026-06-16
+
+### Changed
+
+- **Retry OIDC publish via release.yml** — Trusted Publisher re-configured on npmjs.com. This release attempts the OIDC `npm publish --provenance` path again.
+
 ## [0.2.3] - 2026-06-16
 
 ### Changed
