@@ -2,6 +2,19 @@
 
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-06-16
+
+### Fixed
+
+- **CLI `--version` reported `0.1.0`** after publishing 0.2.0 because `src/index.ts` hardcoded the version string. Now reads from a single source (`src/version.ts` → `VERSION`).
+- **MCP `serverInfo.version` reported `0.1.0`** for the same reason — `src/mcp.ts` had a hardcoded `"0.1.0"` literal in the `Server` constructor. Now reads `VERSION`.
+- **Web board crashed** with `Web assets not found at <cwd>/dist/web` when invoked from any directory other than the project root (e.g. `npx skill-central board`, `node_modules/.bin/skill-central board` from a sub-directory). `resolveWebRoot()` now searches script-relative candidates derived from `import.meta.url` first, with cwd-relative paths as a last-resort fallback. The pre-bind check in `src/commands/board.ts` calls the same resolver so the two stay in lock-step.
+
+### Changed
+
+- Added `src/version.ts` as the single source of truth for the package version (inlines `package.json` at build time via `import ... with { type: "json" }`). Eliminates the version-drift class of bugs at future releases.
+- `.gitignore`: added `.ai/` and `.codex/` (sibling AI-tool dirs that should not be tracked).
+
 ## [0.2.0] - 2026-06-15
 
 ### Added
