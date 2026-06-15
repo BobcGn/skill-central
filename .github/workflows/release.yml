@@ -1,0 +1,194 @@
+# ============================================================================
+# skill-central · Release
+# ----------------------------------------------------------------------------
+# Publishes to npm + creates the GitHub Release when a `v*` tag is pushed.
+#
+# Trust model
+# ───────────
+# This workflow relies on npm Trusted Publishing (OIDC). No long-lived
+# `NPM_TOKEN` secret exists in this repo. The trust handshake is:
+#
+#   1. Once, on https://www.npmjs.com/package/@bobcgn/skill-central
+#      → Settings → Trusted Publishers → Add GitHub Actions.
+#      Owner = BobcGn, Repo = skill-central,
+#      Workflow filename = release.yml (must match this file's basename).
+#
+#   2. On every release, GitHub Actions issues a short-lived OIDC token
+#      (`permissions: id-token: write` below) that npm exchanges for a
+#      publish credential. `setup-node@v4` with `registry-url` handles the
+#      .npmrc wiring; `--provenance` attaches a Sigstore-signed build
+#      provenance attestation to the published tarball.
+#
+# If Trusted Publisher is not configured yet, `npm publish --provenance`
+# will fail with `npm error code EUNSUPPORTEDPROTOCOL` /
+# `error code E403`. See docs/trusted-publishing.md for the one-time setup.
+#
+# Local fallback
+# ──────────────
+# If you need to ship a hotfix before the Trusted Publisher is wired up,
+# follow docs/manual-publishing.md instead. Do NOT add a long-lived
+# NPM_TOKEN to this repo — it defeats the purpose of OIDC trust.
+# ============================================================================
+
+name: Release
+
+# ── Triggers ────────────────────────────────────────────────────────────────
+# `v*` is intentionally broad so it covers v0.2.0, v1.0.0, v2.0.0-rc.1 etc.
+# To restrict to numeric semver, change to `'v[0-9]+.[0-9]+.[0-9]+'` — but
+# that rejects pre-release tags, which the project may want later.
+on:
+  push:
+    tags: ['v*']
+
+# ── Permissions ─────────────────────────────────────────────────────────────
+# `id-token: write` is mandatory for `--provenance` to mint an OIDC token.
+# `contents: write` lets the workflow create a GitHub Release under the
+# repo's own GITHUB_TOKEN scope. No external secrets are required.
+permissions:
+  contents: write
+  id-token: write
+
+# ── Concurrency ─────────────────────────────────────────────────────────────
+# `cancel-in-progress: false` is non-negotiable for a publish job: never
+# kill a half-done `npm publish`, even if a follow-up tag arrives before
+# the first one finishes. Group is per-tag so v0.2.0 and v0.2.1 can run
+# concurrently if you ever push two at once (unusual but not impossible).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm + GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Node.js ────────────────────────────────────────────────
+      # `registry-url` is the magic flag that makes `setup-node@v4` write
+      # an `.npmrc` consuming the job's OIDC token. Without it, npm would
+      # fall back to looking for `NPM_TOKEN` (which we deliberately don't have).
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      # ── 3. Install dependencies ──────────────────────────────────────────
+      # `npm ci` is the deterministic cousin of `npm install`. Fails loudly
+      # if package-lock.json disagrees with package.json — which is exactly
+      # what we want at release time.
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 4. Build ────────────────────────────────────────────────────────
+      # Two distinct outputs:
+      #   dist/         — TypeScript → JavaScript via `tsc`
+      #   dist/web/     — static frontend (index.html + app.js + style.css)
+      #                   copied from src/web/static/ by `build:web`
+      # Both must be present for the published tarball to be installable.
+      - name: Build TypeScript (dist/)
+        run: npm run build
+
+      - name: Build web assets (dist/web/)
+        run: npm run build:web
+
+      - name: Verify build artifacts exist
+        # Guard against the case where `tsc` exits 0 but writes nothing
+        # (rare, but observed on out-of-memory or partial rebuilds).
+        run: |
+          test -f dist/index.js      || { echo "::error::dist/index.js missing";      exit 1; }
+          test -f dist/web/index.html || { echo "::error::dist/web/index.html missing"; exit 1; }
+          echo "build artifacts present"
+
+      # ── 5. Pre-flight version checks ────────────────────────────────────
+      # Two checks that catch the most common publish-time mistakes:
+      #   a) Pushed tag says vX.Y.Z but package.json still says vW.W.Z
+      #      (someone forgot to bump). Without this guard, the publish
+      #      would succeed at the wrong version and we'd ship stale code.
+      #   b) CHANGELOG has no entry for this version (also means the
+      #      release notes for the GitHub Release would be empty).
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify package.json version matches tag
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$PKG" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::package.json version ($PKG) does not match tag (${{ steps.version.outputs.version }})"
+            echo "::error::Run 'npm version ${{ steps.version.outputs.version }}' (or edit package.json by hand) and re-tag."
+            exit 1
+          fi
+          echo "package.json version $PKG matches tag"
+
+      - name: Verify CHANGELOG entry exists
+        run: |
+          if ! grep -q "^## \[${{ steps.version.outputs.version }}\]" CHANGELOG.md; then
+            echo "::error::No CHANGELOG entry for [${{ steps.version.outputs.version }}]"
+            echo "::error::Add a '## [${{ steps.version.outputs.version }}] - <YYYY-MM-DD>' section before tagging."
+            exit 1
+          fi
+          echo "CHANGELOG entry present"
+
+      # ── 6. Publish to npm ───────────────────────────────────────────────
+      # `--provenance` attaches a Sigstore-signed attestation that links the
+      # tarball back to this exact commit + workflow run. Verifiable via
+      # `npm view @bobcgn/skill-central@<v> --json | jq .dist.attestations`.
+      #
+      # No `--tag latest` flag: npm defaults to `latest` for non-prerelease
+      # semver. For pre-releases, pass `--tag next` (or whatever) by editing
+      # this step — or split pre-releases out into a separate workflow.
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+
+      # ── 7. Create GitHub Release ────────────────────────────────────────
+      # Extract the matching CHANGELOG section. The awk idiom grabs the
+      # line range from "## [<version>]" up to (but not including) the next
+      # "## [" header; if there is no next header (i.e. this is the latest
+      # entry), it falls back to the end of the file.
+      - name: Extract CHANGELOG section for release notes
+        if: success()
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          START=$(grep -n "^## \[$VERSION\]" CHANGELOG.md | head -1 | cut -d: -f1)
+          END=$(awk -v s="$START" 'NR>s && /^## \[/ {print NR; exit}' CHANGELOG.md)
+          END=${END:-$(($(wc -l < CHANGELOG.md) + 1))}
+          sed -n "${START},$((END-1))p" CHANGELOG.md > /tmp/release-notes.md
+          echo "----- release notes preview -----"
+          cat /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --notes-file /tmp/release-notes.md
+          echo "GitHub Release v${{ steps.version.outputs.version }} created"
+
+      # ── 8. Post-publish smoke (best-effort) ─────────────────────────────
+      # Runs `npm view` against the just-published version. Any registry
+      # hiccup surfaces here as a failed step. We do NOT mark the job as
+      # failed if this fails — the publish itself already succeeded and
+      # we don't want to confuse GitHub into thinking the release is bad.
+      - name: Verify npm registry propagation
+        if: success()
+        continue-on-error: true
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if npm view "@bobcgn/skill-central@${{ steps.version.outputs.version }}" version 2>/dev/null; then
+              echo "Registry reports the new version"
+              exit 0
+            fi
+            echo "Attempt $i: registry not yet propagated, waiting..."
+            sleep 5
+          done
+          echo "::warning::Registry did not report the new version within 30s. The publish succeeded; this is just CDN lag."

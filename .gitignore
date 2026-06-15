@@ -14,4 +14,3 @@ dist/
 
 # Per-project engine config (paths + priorities). Same reasoning.
 skill-central.yaml
-docs/

@@ -3,6 +3,8 @@
 > **Audience:** the project owner. Use this when you want to publish a new version of `@bobcgn/skill-central` by hand. If you can wire a release job into CI (Trusted Publishing via OIDC, or a long-lived Automation Token in a repo secret), do that instead — this guide exists for the case when that's not viable.
 >
 > **Scope:** every release from v0.2.0 onward. For v0.1.0 you used a different procedure; cross-reference [`CHANGELOG.md`](../CHANGELOG.md) if you need to reconstruct it.
+>
+> **Recommended path:** see [`docs/trusted-publishing.md`](./trusted-publishing.md) for the one-time OIDC setup that turns `git push --tags` into a fully automated publish + GitHub Release. Use this manual guide only as a fallback when Trusted Publisher is unavailable (e.g. shipping a hotfix before the npmjs.com config is wired up, or publishing from a fork under a different scope).
 
 ## When to use this
 
@@ -13,7 +15,7 @@ Use this guide if **any** of the following is true:
 - The CI release job is broken and you need to ship a hotfix.
 - You are publishing a private fork under a different scope.
 
-If you have Trusted Publishing configured (OIDC between GitHub Actions and npm), prefer that path; this guide's purpose is the fallback.
+If you have Trusted Publishing configured (OIDC between GitHub Actions and npm), prefer that path; this guide's purpose is the fallback. See [`docs/trusted-publishing.md`](./trusted-publishing.md) for the one-time setup.
 
 ## Prerequisites
 

@@ -28,7 +28,8 @@ Since **v0.2.0** skill-central ships a complete local CRUD CLI, a Hono-based **w
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
 - [Pre-release Testing](#pre-release-testing)
-- [Manual Publishing](#manual-publishing)
+- [Trusted Publishing](./docs/trusted-publishing.md)
+- [Manual Publishing](./docs/manual-publishing.md)
 - [Development](#development)
 - [License](#license)
 
@@ -506,7 +507,7 @@ Detailed reference pages live under [`docs/`](./docs/):
 - [`docs/layered-override.md`](./docs/layered-override.md) — layer mechanics
 - [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) — JSON-RPC examples
 
-Release history in [`CHANGELOG.md`](./CHANGELOG.md). Pre-publish verification checklist: [`docs/release-testing.md`](./docs/release-testing.md). For a fallback publish procedure when no CI release job is wired: [`docs/manual-publishing.md`](./docs/manual-publishing.md).
+Release history in [`CHANGELOG.md`](./CHANGELOG.md). Pre-publish verification checklist: [`docs/release-testing.md`](./docs/release-testing.md). Recommended release path (tag push → npm publish with provenance + GitHub Release, all automated): [`docs/trusted-publishing.md`](./docs/trusted-publishing.md). Fallback if Trusted Publishing is not yet configured: [`docs/manual-publishing.md`](./docs/manual-publishing.md).
 
 ---
 

@@ -28,7 +28,8 @@ skill-central 是一个本地 [MCP (Model Context Protocol)](https://modelcontex
 - [故障排查](#故障排查)
 - [参考文档](#参考文档)
 - [发布前自检](#发布前自检)
-- [手动发布指南](#手动发布指南)
+- [Trusted Publishing 自动发布](./docs/trusted-publishing.md)
+- [手动发布指南](./docs/manual-publishing.md)
 - [开发指南](#开发指南)
 - [许可](#许可)
 
@@ -488,7 +489,7 @@ skill-central show typescript-conventions  # 检查渲染结果
 - [`docs/layered-override.md`](./docs/layered-override.md) — 层级机制详解
 - [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) — JSON-RPC 示例
 
-发布历史见 [`CHANGELOG.md`](./CHANGELOG.md)。发布前自检清单：[`docs/release-testing.md`](./docs/release-testing.md)。如果没有 CI release job，回退到手动发布：[`docs/manual-publishing.md`](./docs/manual-publishing.md)。
+发布历史见 [`CHANGELOG.md`](./CHANGELOG.md)。发布前自检清单：[`docs/release-testing.md`](./docs/release-testing.md)。推荐的发布路径（tag push → 自动 npm publish + provenance + 自动 GitHub Release）：[`docs/trusted-publishing.md`](./docs/trusted-publishing.md)。若 Trusted Publishing 尚未配置，回退到：[`docs/manual-publishing.md`](./docs/manual-publishing.md)。
 
 ---
 

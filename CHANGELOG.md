@@ -4,6 +4,11 @@ All notable changes to skill-central are documented here. The format follows [Ke
 
 ## [0.2.1] - 2026-06-16
 
+### Added
+
+- **`.github/workflows/release.yml`** — automated npm publish + GitHub Release on `v*` tag push, via npm Trusted Publishing (OIDC). `npm publish --provenance` attaches a Sigstore-signed attestation to every release. See [`docs/trusted-publishing.md`](./docs/trusted-publishing.md) for the one-time setup (register the workflow on <https://www.npmjs.com/package/@bobcgn/skill-central/settings>).
+- **`docs/trusted-publishing.md`** — full walkthrough of the OIDC trust handshake, including a probe-tag procedure, the four common failure modes, and a rollback recipe.
+
 ### Fixed
 
 - **CLI `--version` reported `0.1.0`** after publishing 0.2.0 because `src/index.ts` hardcoded the version string. Now reads from a single source (`src/version.ts` → `VERSION`).
