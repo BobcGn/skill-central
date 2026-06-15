@@ -2,6 +2,16 @@
 
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-06-16
+
+### Changed
+
+- **All 16 project skill files are now fully bilingual.** Each YAML carries both `prompt:` (English) and `prompt_zh:` (Chinese). Previously, 7 large skills (`backend-code-review`, `frontend-vue-review`, `readme-writer`, `database-review`, `ai-model-agent`, `kotlin-multiplatform`, `python-code-review`) carried only a partial English translation; they now have complete translations matching the depth and length of the Chinese original (1085 lines for kotlin-multiplatform, 1338 for ai-model-agent, etc.). Generated via parallel sub-agents and merged back via a small Node script.
+
+### Notes
+
+- During the merge, 7 affected YAML files needed 2-space indentation inside the `prompt: |` block (js-yaml literal-block fragility at column 0). All skills now follow the same indent convention as the working `error-handling-patterns.yaml`.
+
 ## [0.2.1] - 2026-06-16
 
 ### Added
