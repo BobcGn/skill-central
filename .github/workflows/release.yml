@@ -191,18 +191,19 @@ jobs:
       # 核心机制：
       #   1. OIDC 认证：setup-node@v4 已将 OIDC 令牌写入 .npmrc，
       #      npm 自动使用该令牌向 npm registry 认证，无需 NPM_TOKEN。
-      #   2. Provenance 来源证明：
-      #      • --provenance CLI 标志：告诉 npm 生成 Sigstore 签名证明
-      #      • NPM_CONFIG_PROVENANCE=true 环境变量：兜底方案，
-      #        在某些 OIDC + scoped package 场景下确保 provenance 正确挂载
-      #      • package.json 中 publishConfig.provenance = true：声明性兜底
+      #   2. Provenance 来源证明（三重保障）：
+      #      • NPM_CONFIG_PROVENANCE=true 环境变量（主力方案，
+      #        在 publish 生命周期内联附加 attestation，兼容 scoped package）
+      #      • package.json publishConfig.provenance = true（声明性兜底）
+      #      • package.json "provenance": true（文件级兜底）
+      #      ⚠️  不使用 --provenance CLI 标志 —— 已知在 scoped package +
+      #         OIDC 场景下导致 E404。
       #   3. 预发布 Tag：
       #      如果版本号包含字母（如 1.0.0-beta.1），自动使用 --tag next，
       #      避免预发布版本覆盖 latest 标签。
       #
       # 幂等性：
-      #   先检查版本是否已发布。如果已存在（如 release:published 触发器
-      #   在 tag push 之后再次触发），则跳过发布而不是报错。
+      #   先检查版本是否已发布。如果已存在，则跳过发布而不是报错。
 
       - name: 🔍 检查 npm 版本是否已发布
         id: npm-check
@@ -219,17 +220,23 @@ jobs:
       - name: 🚀 发布到 npm
         if: steps.npm-check.outputs.already_published != 'true'
         run: |
-          # 构建发布命令
-          PUBLISH_CMD="npm publish --provenance"
+          # 关键：scoped package (@bobcgn/skill-central) + OIDC 发布时，
+          # 必须使用环境变量 NPM_CONFIG_PROVENANCE=true 而非 --provenance CLI 标志。
+          # --provenance 标志会在 OIDC 令牌交换前触发独立的 Sigstore 签名流程，
+          # 导致后续的包上传因身份映射不一致而返回 E404。
+          # 参考 npm OIDC + scoped package 已知兼容性问题。
+          #
+          # 环境变量方案让 npm 在 publish 生命周期内内联完成 provenance 附加，
+          # 与 package.json 中 publishConfig.provenance=true 配合使用。
 
-          # 预发布版本自动使用 --tag next
+          TAG_FLAG=""
           if [ "${{ steps.version.outputs.is_prerelease }}" = "true" ]; then
-            PUBLISH_CMD="$PUBLISH_CMD --tag next"
+            TAG_FLAG="--tag next"
             echo "📌 预发布版本，使用 dist-tag: next"
           fi
 
-          echo "执行: $PUBLISH_CMD"
-          $PUBLISH_CMD
+          echo "执行: npm publish ${TAG_FLAG} (provenance via NPM_CONFIG_PROVENANCE=true)"
+          npm publish ${TAG_FLAG}
         env:
           NPM_CONFIG_PROVENANCE: true
 
