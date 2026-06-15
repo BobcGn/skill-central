@@ -3,9 +3,6 @@
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
 
-## [0.0.0-oidc-provenance.2] - 2026-06-16
-
-- Internal: OIDC NPM_CONFIG_PROVENANCE test. Not a real release.
 ## [0.2.4] - 2026-06-16
 
 ### Changed
