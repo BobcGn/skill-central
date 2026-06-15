@@ -1,0 +1,119 @@
+# ============================================================================
+# OIDC 诊断流水线（仅调试，不发布）
+# ============================================================================
+# 手动触发，用于排查 npm Trusted Publisher 配置问题。
+# 通过 workflow_dispatch 在 GitHub Actions UI 中手动运行。
+# ============================================================================
+
+name: OIDC Debug
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  diagnose:
+    name: 诊断 OIDC 认证
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 🔍 查看 GitHub Actions OIDC 令牌声明
+        run: |
+          echo "=============================================="
+          echo "  GitHub Actions OIDC 环境变量"
+          echo "=============================================="
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:+已设置}"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+已设置}"
+          echo ""
+
+      - name: 🔍 npm whoami（OIDC 身份映射）
+        run: |
+          echo "=============================================="
+          echo "  npm OIDC 认证身份"
+          echo "=============================================="
+          echo ""
+          echo "▶ npm whoami:"
+          npm whoami --registry=https://registry.npmjs.org 2>&1 || echo "  ❌ whoami 失败！"
+          echo ""
+
+      - name: 🔍 npm 配置检查
+        run: |
+          echo "=============================================="
+          echo "  npm 配置"
+          echo "=============================================="
+          echo ""
+          echo "▶ npm config get registry:"
+          npm config get registry
+          echo ""
+          echo "▶ npm config get //registry.npmjs.org/:_authToken (仅长度):"
+          TOKEN=$(npm config get //registry.npmjs.org/:_authToken 2>/dev/null)
+          if [ -n "$TOKEN" ] && [ "$TOKEN" != "undefined" ]; then
+            echo "  令牌长度: ${#TOKEN} 字符"
+            echo "  令牌前缀: ${TOKEN:0:20}..."
+          else
+            echo "  ⚠️  未设置 _authToken！"
+          fi
+          echo ""
+
+      - name: 🔍 包信息
+        run: |
+          echo "=============================================="
+          echo "  @bobcgn/skill-central 包信息"
+          echo "=============================================="
+          echo ""
+          echo "▶ 基本信息:"
+          npm view @bobcgn/skill-central name version --json 2>&1
+          echo ""
+          echo "▶ 维护者列表:"
+          npm view @bobcgn/skill-central maintainers --json 2>&1
+          echo ""
+          echo "▶ dist-tags:"
+          npm view @bobcgn/skill-central dist-tags --json 2>&1
+          echo ""
+
+      - name: 🔍 发布预检（dry-run）
+        run: |
+          echo "=============================================="
+          echo "  npm publish --dry-run（仅模拟，不上传）"
+          echo "=============================================="
+          echo ""
+          npm publish --access public --dry-run 2>&1
+          DRYRUN_EXIT=$?
+          echo ""
+          if [ $DRYRUN_EXIT -eq 0 ]; then
+            echo "✅ --dry-run 成功！基本 OIDC 发布功能正常。"
+            echo "   如果之前 publish 失败，问题可能在 provenance 层面。"
+          else
+            echo "❌ --dry-run 失败（exit code: $DRYRUN_EXIT）"
+            echo "   这说明 OIDC 认证本身有问题，与 provenance 无关。"
+          fi
+          echo ""
+
+      - name: 📊 诊断总结
+        if: always()
+        run: |
+          echo "=============================================="
+          echo "  诊断完成"
+          echo "=============================================="
+          echo ""
+          echo "  关键检查项:"
+          echo "  1. npm whoami 应返回 'bobcgn'"
+          echo "  2. _authToken 应该存在（长度 > 0）"
+          echo "  3. npm publish --dry-run 应成功"
+          echo ""
+          echo "  如果 whoami 不对 → Trusted Publisher 配置有误"
+          echo "  如果 _authToken 缺失 → setup-node 未正确设置 OIDC"
+          echo "  如果 dry-run 失败 → OIDC 令牌交换或权限映射有问题"

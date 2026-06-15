@@ -217,26 +217,57 @@ jobs:
             echo "✅ 版本 $VERSION 尚未发布，准备发布"
           fi
 
+      # ── 诊断：验证 OIDC 认证身份 ──────────────────────────────────────────
+      # 这两个命令是排查 E404 的关键。
+      #   • npm whoami → 显示 OIDC 令牌被解析为哪个 npm 用户。
+      #     预期输出: bobcgn（必须与 package 维护者一致）
+      #     如果报错: 说明 OIDC 令牌未被 npm registry 接受
+      #   • npm access ls-packages → 列出当前认证用户有权限的包
+      - name: 🔍 诊断 — 验证 OIDC 认证身份
+        if: steps.npm-check.outputs.already_published != 'true'
+        run: |
+          echo "=============================================="
+          echo "  OIDC 诊断信息"
+          echo "=============================================="
+
+          echo ""
+          echo "▶ npm whoami（OIDC 令牌 → npm 用户映射）:"
+          WHOAMI=$(npm whoami --registry=https://registry.npmjs.org 2>&1) || true
+          echo "  → $WHOAMI"
+
+          echo ""
+          echo "▶ npm access ls-packages（当前用户有权限的包）:"
+          npm access ls-packages 2>&1 || echo "  （无法列出 — 可能是用户 scope 而非 org）"
+
+          echo ""
+          echo "▶ npm config get registry:"
+          npm config get registry
+
+          echo ""
+          echo "▶ .npmrc 内容（令牌已隐藏）:"
+          cat ~/.npmrc 2>/dev/null | sed 's/:_authToken=.*/:_authToken=***REDACTED***/' || echo "  （无 .npmrc）"
+
+          echo ""
+          echo "▶ 包 maintainer 信息:"
+          npm view @bobcgn/skill-central maintainers --json 2>&1 || echo "  （无法获取）"
+
+          echo ""
+          echo "=============================================="
+          echo "  如果 whoami 不是 'bobcgn'，说明 Trusted Publisher"
+          echo "  映射到了错误的 npm 账号，需要重新配置。"
+          echo "=============================================="
+
       - name: 🚀 发布到 npm
         if: steps.npm-check.outputs.already_published != 'true'
         run: |
-          # 关键：scoped package (@bobcgn/skill-central) + OIDC 发布时，
-          # 必须使用环境变量 NPM_CONFIG_PROVENANCE=true 而非 --provenance CLI 标志。
-          # --provenance 标志会在 OIDC 令牌交换前触发独立的 Sigstore 签名流程，
-          # 导致后续的包上传因身份映射不一致而返回 E404。
-          # 参考 npm OIDC + scoped package 已知兼容性问题。
-          #
-          # 环境变量方案让 npm 在 publish 生命周期内内联完成 provenance 附加，
-          # 与 package.json 中 publishConfig.provenance=true 配合使用。
-
           TAG_FLAG=""
           if [ "${{ steps.version.outputs.is_prerelease }}" = "true" ]; then
             TAG_FLAG="--tag next"
             echo "📌 预发布版本，使用 dist-tag: next"
           fi
 
-          echo "执行: npm publish ${TAG_FLAG} (provenance via NPM_CONFIG_PROVENANCE=true)"
-          npm publish ${TAG_FLAG}
+          echo "执行: npm publish --access public ${TAG_FLAG}"
+          npm publish --access public ${TAG_FLAG}
         env:
           NPM_CONFIG_PROVENANCE: true
 
