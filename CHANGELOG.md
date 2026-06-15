@@ -3,6 +3,23 @@
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
 
+## [0.2.5] - 2026-06-16
+
+### Added
+
+- **`lint` script** (`tsc --noEmit`) — TypeScript 类型检查作为发布门禁，防止类型错误进入发布包。
+- **`test` script** (`scripts/test.sh`) — CLI 集成测试脚本，覆盖 `add`、`list`、`doctor` 核心命令，通过 `pretest` 钩子自动构建后执行。
+- **`pretest` script** — 确保 `npm test` 在任何环境下"开箱即用"（自动执行 `npm run build && npm run build:web`）。
+
+### Changed
+
+- **Release 流水线重构** (`release.yml`)：
+  - 双触发器机制（`push: tags` + `release: published`），内置幂等性保护。
+  - 标准化 CI 步骤：`checkout → npm ci → lint → build+test → verify → publish → GitHub Release`。
+  - `--provenance` CLI 标志 + `NPM_CONFIG_PROVENANCE=true` 环境变量 + `publishConfig.provenance` 三重保障。
+  - 预发布版本自动使用 `--tag next`（如 `v1.0.0-beta.1` 不会覆盖 `latest`）。
+  - 权限配置新增 `attestations: write`。
+
 ## [0.2.4] - 2026-06-16
 
 ### Changed
