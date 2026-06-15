@@ -2,6 +2,10 @@
 
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.0.0-oidc-debug.1] - 2026-06-16
+
+- Internal: OIDC diagnostics probe. Not a real release.
+
 ## [0.2.4] - 2026-06-16
 
 ### Changed
