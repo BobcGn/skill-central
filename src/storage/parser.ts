@@ -53,7 +53,14 @@ function parseYamlSkill(raw: string, filePath: string): SkillSchema | null {
 
 // ── Validation (shared by JSON and YAML) ───────────────────────────────────
 
-function validateSkill(
+/**
+ * Validate that a parsed object conforms to SkillSchema.
+ * Returns the schema on success, or null with a warning on failure.
+ *
+ * Exported so CLI commands (validate, add, doctor) can re-use the same
+ * rules the engine uses at load time.
+ */
+export function validateSkill(
   obj: Record<string, unknown>,
   filePath: string,
 ): SkillSchema | null {

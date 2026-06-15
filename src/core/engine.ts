@@ -58,6 +58,8 @@ export interface ResolvedSkillView {
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
+  /** Originating layer priority (used by web board to display origin). */
+  priority: number;
 }
 
 function toView(skill: {
@@ -69,6 +71,7 @@ function toView(skill: {
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
+  priority: number;
 }): ResolvedSkillView {
   return {
     id: skill.id,
@@ -79,5 +82,6 @@ function toView(skill: {
     inputSchema: skill.inputSchema,
     arguments: skill.arguments,
     tags: skill.tags,
+    priority: skill.priority,
   };
 }

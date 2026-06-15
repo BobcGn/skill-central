@@ -1,6 +1,6 @@
 {
   "name": "@bobcgn/skill-central",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Local MCP Server for cross-IDE AI skill distribution and reuse",
   "type": "module",
@@ -10,6 +10,7 @@
   },
   "files": [
     "dist/",
+    "dist/web/",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"
@@ -37,14 +38,19 @@
     "dev:mcp": "tsx watch src/index.ts mcp",
     "dev:board": "tsx src/index.ts board",
     "dev:init": "tsx src/index.ts init",
+    "dev:web": "tsx watch src/index.ts board",
     "build": "tsc",
-    "prepublishOnly": "npm run build",
+    "build:web": "mkdir -p dist/web && cp -R src/web/static/. dist/web/",
+    "prepublishOnly": "npm run build && npm run build:web",
     "start": "node dist/index.js mcp"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.4",
     "@modelcontextprotocol/sdk": "^1.9.0",
     "commander": "^14.0.3",
-    "js-yaml": "^4.1.1"
+    "hono": "^4.12.25",
+    "js-yaml": "^4.1.1",
+    "tar-stream": "^3.2.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

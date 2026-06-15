@@ -16,6 +16,9 @@ const ALLOWED_EXTENSIONS = new Set([".json", ".json5", ".yaml", ".yml", ".md"]);
  * Walk each layer directory and collect all raw skill schemas found.
  * Returns an array tagged with the layer they came from so the caller
  * can perform conflict resolution later.
+ *
+ * Exported so CLI commands (list, doctor) can iterate raw layer
+ * contents without going through the engine.
  */
 export async function readAllLayers(
   layers: SkillLayer[],
@@ -37,8 +40,11 @@ export async function readAllLayers(
 
 /**
  * Recursively list skill definition files under `dirPath`.
+ *
+ * Exported so the doctor command can enumerate files for diagnostics
+ * even when parsing fails.
  */
-async function discoverSkillFiles(dirPath: string): Promise<string[]> {
+export async function discoverSkillFiles(dirPath: string): Promise<string[]> {
   try {
     const entries = await readdir(dirPath, { withFileTypes: true });
     const files: string[] = [];

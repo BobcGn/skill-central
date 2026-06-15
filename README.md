@@ -6,7 +6,7 @@ skill-central is a local [MCP (Model Context Protocol)](https://modelcontextprot
 
 > A **skill** is a structured prompt or tool definition — organised by topic, managed in layers, matched by tags. You manage your AI's capability boundaries the same way you manage code.
 
-[中文版](./README.zh-CN.md)
+Since **v0.2.0** skill-central ships a complete local CRUD CLI, a Hono-based **web board** for in-browser editing, and a **remote install** path from GitHub raw URLs and npm packages.
 
 ---
 
@@ -14,8 +14,10 @@ skill-central is a local [MCP (Model Context Protocol)](https://modelcontextprot
 
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
-- [中文版](./README.zh-CN.md)
 - [CLI Commands](#cli-commands)
+- [Local CRUD](#local-crud)
+- [Web Board](#web-board)
+- [Remote Install](#remote-install)
 - [JSON-RPC API](#json-rpc-api)
 - [Skill File Format](#skill-file-format)
 - [Tag Composition](#tag-composition)
@@ -24,8 +26,11 @@ skill-central is a local [MCP (Model Context Protocol)](https://modelcontextprot
 - [IDE Integration](#ide-integration)
 - [Custom Skill Development](#custom-skill-development)
 - [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+- [Pre-release Testing](#pre-release-testing)
 - [Development](#development)
 - [License](#license)
+
 ---
 
 ## Quick Start
@@ -38,24 +43,13 @@ npx @bobcgn/skill-central init
 
 This scaffolds a `.skills/` directory with 4 layered skill directories and a `skill-central.yaml` config file.
 
+### Open the web board
+
 ```bash
-# Verify skills are loaded
 npx @bobcgn/skill-central board
 ```
 
-Expected output — 4 layers, 5 skill files (including a tool-type example):
-
-```
-▸ Skills (5 total)
-┌─────────┬──────────────────────────┬────────────────────────────────┬──────────┬────────────────────────────────┐
-│ (index) │ ID                       │ Name                           │ Type     │ Tags                           │
-├─────────┼──────────────────────────┼────────────────────────────────┼──────────┼────────────────────────────────┤
-│ 0       │ 'architectural-mindset'  │ 'Architectural Mindset'        │ 'prompt' │ 'global'                       │
-│ 1       │ 'debugging-expert'       │ 'Debugging Expert'             │ 'prompt' │ 'debug, fix, error'            │
-│ 2       │ 'commit-conventions'     │ 'Commit Conventions'           │ 'tool'   │ 'git, workflow, commit'        │
-│ 3       │ 'container-infra'        │ 'Container & Infrastructure'   │ 'prompt' │ 'docker, nginx, infra, devops' │
-└─────────┴──────────────────────────┴────────────────────────────────┴──────────┴────────────────────────────────┘
-```
+Prints `http://127.0.0.1:5417/` and opens a Hono dashboard in your terminal — browse, preview, edit, and restore skills from the browser. Use `board --cli` (or `--no-web`) for the v0.1.0 terminal-table fallback.
 
 ### Start the MCP server
 
@@ -71,27 +65,27 @@ The server listens on **stdin** for JSON-RPC messages and writes responses to **
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│               AI IDE (Cursor / Windsurf / etc.)        │
-│                        │  Stdio (JSON-RPC)             │
-└────────────────────────┼───────────────────────────────┘
+│               AI IDE (Cursor / Windsurf / etc.)         │
+│                        │  Stdio (JSON-RPC)              │
+└────────────────────────┼────────────────────────────────┘
                          │
 ┌────────────────────────┼────────────────────────────────┐
-│  skill-central         ▼                                │
+│  skill-central         ▼                                 │
 │  ┌────────────┐  ┌─────────────────┐  ┌─────────────┐   │
-│  │  Entry     │  │  Protocol       │  │  Core       │   │
-│  │  index.ts  │→ │  handler.ts     │→ │  engine     │   │
-│  │  mcp.ts    │  │  prompts.ts     │  │  override-  │   │
-│  │  board.ts  │  │  tools.ts       │  │  tree       │   │
-│  │  init.ts   │  │                 │  │  composer   │   │
-│  └────────────┘  └─────────────────┘  └──────┬──────┘   │
-│                                              │          │
-│                                       ┌──────▼───────┐  │
-│                                       │  Storage     │  │
-│                                       │  reader.ts   │  │
-│                                       │  parser.ts   │  │
+│  │  CLI       │  │  Protocol       │  │  Core       │   │
+│  │  mcp/init  │→│  handler.ts     │→│  engine     │   │
+│  │  add/list  │  │  prompts.ts     │  │  override-  │   │
+│  │  show/...  │  │  tools.ts       │  │  tree       │   │
+│  │  install   │  └─────────────────┘  │  composer   │   │
+│  │  board     │  ┌─────────────────┐  └──────┬──────┘   │
+│  │  (Hono)    │  │  Web board      │         │          │
+│  │            │  │  server.ts      │  ┌──────▼───────┐  │
+│  │            │  │  router.ts      │  │  Storage     │  │
+│  │            │  │  backup.ts      │  │  reader.ts   │  │
+│  └────────────┘  └─────────────────┘  │  parser.ts   │  │
 │                                       │  config.ts   │  │
 │                                       └──────────────┘  │
-└─────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### Default Skill Layers
@@ -101,7 +95,10 @@ The server listens on **stdin** for JSON-RPC messages and writes responses to **
 | `01-global` | 10 | Universal context — applies to every interaction |
 | `02-workflows` | 20 | Cross-cutting workflows (debugging, review, planning) |
 | `03-domains` | 30 | Domain-specific knowledge (infra, security, data) |
-| `04-tech-stack` | 40 | Tech-stack specifics — languages and frameworks |
+| `04-tech-stack/languages` | 40 | Language conventions (TypeScript, Python, Kotlin…) |
+| `04-tech-stack/frameworks` | 40 | Framework conventions (React, Vue, Spring…) |
+
+Higher priority wins on id collision. See [Layered Override](#layered-override).
 
 ---
 
@@ -113,18 +110,132 @@ npx @bobcgn/skill-central <command>
 
 | Command | Description |
 |---------|-------------|
-| `mcp` | Start the Stdio MCP Server (silent mode, output on stderr only). For IDE integration. |
-| `board` | Developer dashboard — print all loaded layers and skills as tables. |
-| `init` | Scaffold `.skills/` directory with sample definitions and layer config. |
+| `mcp` | Start the Stdio MCP Server (IDE-facing, silent on stdout) |
+| `board` | Open the **web dashboard** (default) or print terminal table (`--cli`) |
+| `init` | Scaffold `.skills/` with sample skills and `skill-central.yaml` |
+| `add` | Create a new skill definition (auto-selects layer from tags) |
+| `list` | List loaded skills (filters: `--layer`, `--tag`, `--type`) |
+| `show <id>` | Print full skill details + prompt body |
+| `remove <id>` | Delete a skill definition file (with `--layer` ambiguity guard) |
+| `validate <files…>` | Parse + validate one or more skill files |
+| `doctor` | Scan layers for missing dirs, parse errors, collisions, backups |
+| `install <source>` | Install a skill from `github:` or `npm:` URL |
+| `update [id]` | Re-fetch installed skill(s); preserves original scope |
+| `uninstall <id>` | Remove an installed skill (file + lock entry) |
 
 After global install:
 
 ```bash
 npm install -g @bobcgn/skill-central
 skill-central init
-skill-central board
-skill-central mcp
+skill-central board          # opens web dashboard
+skill-central mcp            # or start the MCP server
 ```
+
+See [`docs/cli-reference.md`](./docs/cli-reference.md) for the full flag reference.
+
+---
+
+## Local CRUD
+
+```bash
+# Create a skill — layer inferred from tags
+skill-central add review-pr \
+  --name "PR Review" \
+  --description "Review pull requests against team conventions" \
+  --tags "review,workflow,git" \
+  --prompt-file ./review.md
+
+# Inspect
+skill-central list --tag review
+skill-central show review-pr
+
+# Validate before committing
+skill-central validate .skills/02-workflows/review-pr.yaml
+
+# Clean up
+skill-central remove review-pr --force
+```
+
+`add` writes the YAML to a layer directory chosen by:
+
+1. an explicit `--layer` flag (always wins)
+2. an existing file with the same id (idempotent re-add)
+3. tag-based inference via [`LAYER_RULES`](./docs/cli-reference.md#layer-inference)
+4. fallback to `02-workflows` if no tags match
+
+`doctor` is your diagnostic safety net:
+
+```bash
+$ skill-central doctor
+...
+▸ Layers
+  01-global     ✓   1 file
+  02-workflows  ✓   9 files
+  03-domains    ✓   3 files
+  04-tech-stack ✓   3 files
+▸ ✓ All skill files parse cleanly
+▸ ✓ No id collisions
+▸ ✓ No orphan backups
+```
+
+---
+
+## Web Board
+
+`skill-central board` starts a local Hono server and prints a URL:
+
+```
+  ✓ skill-central web board
+    http://127.0.0.1:5417/
+
+  Press Ctrl+C to stop.
+```
+
+The dashboard shows skills grouped by layer in the sidebar. Click any skill to preview its prompt body in the detail pane. Click **Edit** to open an in-browser textarea; **Save** writes the change back to disk via `PUT /api/skills/:id`.
+
+Each save moves the previous content to `<file>.yaml.bak.<ISO-no-colons>`. Concurrent edits are caught by sha256 mismatch — the server returns `409` with the current content if your expected sha doesn't match.
+
+### Security
+
+- **Loopback-only by default.** `--host 0.0.0.0` requires `--i-understand-nonlocal` because the web board has no authentication.
+- **Port conflict retry.** `+1..+10` from the requested port.
+- **Static asset path traversal.** `GET /*` resolves under `dist/web/`; `..` returns 404.
+
+Full HTTP API and edit-flow walkthrough in [`docs/web-board.md`](./docs/web-board.md).
+
+---
+
+## Remote Install
+
+Install a skill from a remote URL into your local layers:
+
+```bash
+# From a GitHub raw file (any branch / tag / SHA)
+skill-central install \
+  github:BobcGn/skill-central/.skills/02-workflows/review-pr.yaml@v1.0.0
+
+# From an npm package (requires skill-central.paths in its package.json)
+skill-central install npm:@bobcgn/some-skills@1.2.3
+
+# Re-fetch on demand
+skill-central update                 # all installed
+skill-central update review-pr       # one
+
+# Tear down
+skill-central uninstall review-pr --purge-backups
+```
+
+Every install writes a `~/.skill-central/lock.json` entry recording the source URL, resolved version, sha256, layer, and absolute file path. `update` re-fetches, compares sha256, and only writes when the upstream has actually changed.
+
+### Security
+
+- **HTTPS-only.** `http://` URLs are rejected.
+- **No loopback hosts.** Tarball sources pointing at `localhost`, `127.0.0.0/8`, `::1`, or `0.0.0.0` are rejected (tar-slip / SSRF mitigation).
+- **Tar-slip defence.** npm tarball entries must start with `package/`; `..` and `\` are rejected.
+- **sha256 verification.** Every install + update computes and stores the sha256.
+
+Full grammar and manifest conventions in [`docs/remote-sources.md`](./docs/remote-sources.md).
 
 ---
 
@@ -163,7 +274,7 @@ Template interpolation is supported: placeholders like `{{name}}` in the skill's
 **Tag-based composition** (combine multiple skills, low→high priority):
 
 ```json
-{"jsonrpc":"2.0","id":1,"method":"prompts/get","params":{"name":"skills:compose","arguments":{"tags":"global,debug,docker"}}}
+{"method":"prompts/get","params":{"name":"skills:compose","arguments":{"tags":"global,debug,docker"}}}
 ```
 
 ### `tools/list` / `tools/call`
@@ -174,6 +285,8 @@ Template interpolation is supported: placeholders like `{{name}}` in the skill's
 ```
 
 Tool arguments are validated against the skill's `inputSchema` — missing required fields or type mismatches return an error result with `isError: true`.
+
+See [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) for the full schema.
 
 ---
 
@@ -200,15 +313,17 @@ prompt: |
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | string | ✓ | Globally unique identifier. Used as prompt name. |
+| `id` | string | ✓ | Globally unique identifier (kebab-case). Used as prompt name. |
 | `name` | string | ✓ | Human-readable label. |
 | `description` | string | ✓ | One-line description. |
 | `type` | `"prompt"` / `"tool"` | ✓ | Skill type. |
-| `tags` | string[] | | Categorisation tags for composition. |
-| `prompt` | string | for prompt | Markdown instructions sent to the AI. Supports `{{placeholder}}` interpolation. |
+| `tags` | string[] | | Categorisation tags for composition + layer inference. |
+| `prompt` | string | for prompt | Markdown instructions. Supports `{{placeholder}}` interpolation. |
 | `inputSchema` | object | for tool | JSON Schema input definition. Validated on tool call. |
 | `arguments` | object[] | | Declared arguments (informational, for IDE UI). |
 | `version` | string | | Semver for change tracking. |
+
+Full schema reference in [`docs/skill-schema.md`](./docs/skill-schema.md).
 
 ---
 
@@ -235,16 +350,29 @@ Result: debugging guidance first, then infra standards — layered from concrete
 
 ## Layered Override
 
-When multiple layers define the **same `id`**, the highest-priority entry wins:
+When multiple layers define the **same `id`**, the highest-priority entry wins. The `skill-central.yaml` produced by `init` looks like:
 
 ```yaml
 layers:
-  - name: "01-global"      # priority: 10 — overridable baseline
-  - name: "04-tech-stack"  # priority: 40 — team-wide conventions
-  - name: "user-override"  # priority: 100 — personal preference
+  - name: "01-global"
+    path: ".skills/01-global"
+    priority: 10
+  - name: "02-workflows"
+    path: ".skills/02-workflows"
+    priority: 20
+  - name: "03-domains"
+    path: ".skills/03-domains"
+    priority: 30
+  - name: "04-tech-stack"
+    path: ".skills/04-tech-stack"
+    priority: 40
 ```
 
 This lets teams share a common skill repository while allowing individuals to layer custom overrides — no file copying required.
+
+### User-level baseline (v0.2.0)
+
+`add --user` and `install` (default scope) write to `~/.skill-central/skills/`. The four sub-directories mirror the project 1:1, with priorities `5 / 15 / 25 / 35` — always below the project, so a project can always shadow a global baseline. See [`docs/layered-override.md`](./docs/layered-override.md).
 
 ---
 
@@ -304,7 +432,23 @@ claude mcp add skill-central -- npx @bobcgn/skill-central mcp
 
 ## Custom Skill Development
 
-### Step 1 — Create a skill file
+### Option A — `add` (recommended)
+
+```bash
+skill-central add typescript-conventions \
+  --name "TypeScript Conventions" \
+  --description "Coding standards for this project" \
+  --tags "typescript,lang-ts" \
+  --prompt-file ./ts-conventions.md
+```
+
+Layer inference picks `04-tech-stack/languages/` from the `typescript` tag. Verify with:
+
+```bash
+skill-central show typescript-conventions
+```
+
+### Option B — write YAML by hand
 
 ```bash
 mkdir -p .skills/04-tech-stack/languages
@@ -323,20 +467,11 @@ prompt: |
   You are an expert TypeScript developer...
 ```
 
-### Step 2 — Verify
+### Verify and use
 
 ```bash
-npx @bobcgn/skill-central board
-```
-
-### Step 3 — Use it
-
-```bash
-# Via direct lookup
-{"method":"prompts/get","params":{"name":"typescript-conventions"}}
-
-# Or via tag composition
-{"method":"prompts/get","params":{"name":"skills:compose","arguments":{"tags":"typescript"}}}
+skill-central doctor                      # catch parse errors + collisions
+skill-central show typescript-conventions  # inspect the rendered result
 ```
 
 Refer to `.skills/04-tech-stack/_template.yaml` for a complete annotated example.
@@ -349,9 +484,28 @@ Refer to `.skills/04-tech-stack/_template.yaml` for a complete annotated example
 |---------|-------------|-----|
 | Server starts but no response | stdout pollution | Check for rogue `console.log` calls. All output must go to stderr. |
 | IDE can't connect | Wrong command in MCP config | Use `npx @bobcgn/skill-central mcp` as the command. |
-| Skills not loading | YAML syntax error | Run `npx @bobcgn/skill-central board` to see load status. Check `id` and `type` fields exist. |
-| Tag composition returns empty | Tags missing or mismatched | Verify skill YAML has `tags:`. Use `board` to confirm. Pass comma-separated: `"tags":"kmp,android"`. |
+| Skills not loading | YAML syntax error | Run `skill-central doctor` to see parse errors with file paths. |
+| Tag composition returns empty | Tags missing or mismatched | Verify skill YAML has `tags:`. Use `list --tag X` to confirm. Pass comma-separated: `"tags":"kmp,android"`. |
 | Tool call returns error | Missing or invalid arguments | Check the skill's `inputSchema.required` field. Arguments are validated against declared types. |
+| Web board refuses to bind 0.0.0.0 | Footgun guard | Pass `--i-understand-nonlocal` if you really mean it. |
+| `install github:...` returns 404 | Wrong path / branch | Verify the path exists on the remote at that ref. |
+| `Package X has no "skill-central.paths"` | npm package author omitted the manifest field | Author must declare `"skill-central": { "paths": [...] }` in package.json. |
+| Web board shows "web assets not found" | Forgot `npm run build:web` | Run the build step, then retry `board`. |
+
+---
+
+## Documentation
+
+Detailed reference pages live under [`docs/`](./docs/):
+
+- [`docs/cli-reference.md`](./docs/cli-reference.md) — every command, every flag
+- [`docs/web-board.md`](./docs/web-board.md) — web dashboard walkthrough + API
+- [`docs/remote-sources.md`](./docs/remote-sources.md) — source URL grammar + manifest
+- [`docs/skill-schema.md`](./docs/skill-schema.md) — `SkillSchema` field reference
+- [`docs/layered-override.md`](./docs/layered-override.md) — layer mechanics
+- [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) — JSON-RPC examples
+
+Release history in [`CHANGELOG.md`](./CHANGELOG.md). Pre-publish verification checklist: [`docs/release-testing.md`](./docs/release-testing.md).
 
 ---
 
@@ -365,10 +519,15 @@ npm install
 
 # Dev commands
 npm run dev:mcp       # MCP server in watch mode
-npm run dev:board     # dashboard view
+npm run dev:board     # web board dashboard
 npm run dev:init      # (re)generate sample skills
-npm run build         # tsc compile → dist/
-npx tsc --noEmit      # type-check only
+
+# Build
+npm run build         # tsc → dist/
+npm run build:web     # copy static frontend to dist/web/
+
+# Type-check only
+npx tsc --noEmit
 ```
 
 ### Tech Stack
@@ -380,6 +539,8 @@ npx tsc --noEmit      # type-check only
 | **MCP SDK** | `@modelcontextprotocol/sdk` ^1.9.0 |
 | **CLI** | `commander` ^14.0.0 |
 | **YAML** | `js-yaml` ^4.1.1 |
+| **Web server** | `hono` ^4.12 + `@hono/node-server` ^2.0 |
+| **Tarball** | `tar-stream` ^3.2 (npm install support) |
 | **Dev Runner** | `tsx` ^4.19.3 |
 
 ---
