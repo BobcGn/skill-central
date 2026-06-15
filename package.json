@@ -34,6 +34,11 @@
     "claude"
   ],
   "license": "MIT",
+  "provenance": true,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "dev:mcp": "tsx watch src/index.ts mcp",
     "dev:board": "tsx src/index.ts board",
