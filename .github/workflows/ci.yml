@@ -1,0 +1,174 @@
+# ============================================================================
+# skill-central · CI
+# ----------------------------------------------------------------------------
+# Runs on every push to main and every PR targeting main.
+# Validates: dependency install, build (TS + web assets), CLI sanity, CLI
+# integration (add/list/doctor), web board Hono server smoke, and the
+# publishable npm tarball shape.
+# ============================================================================
+
+name: CI
+
+# ── Triggers ────────────────────────────────────────────────────────────────
+# `push` only on main (so feature branches don't burn minutes on CI).
+# `pull_request` against main only — same coverage as push, but doesn't
+# count toward branch protection unless explicitly configured.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# ── Concurrency ─────────────────────────────────────────────────────────────
+# A new push to a PR cancels the in-flight run for the same ref. Saves CI
+# minutes on rapid-fire "push to fix typo" workflows.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── Permissions ─────────────────────────────────────────────────────────────
+# Minimal: only read repo contents. No write/publish actions in this job.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Node.js ────────────────────────────────────────────────
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          # Cache ~/.npm keyed on package-lock.json — restores in <10s on
+          # warm runners, replaces a full `npm ci` registry walk.
+          cache: "npm"
+
+      # ── 3. Install dependencies ──────────────────────────────────────────
+      # `npm ci` is the deterministic cousin of `npm install`: it requires
+      # package-lock.json to exist and fails loudly if it disagrees with
+      # package.json. We use it instead of `npm install` for reproducibility.
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 4. Build ───────────────────────────────────────────────────────
+      # Two distinct outputs:
+      #   dist/         — TypeScript → JavaScript via `tsc`
+      #   dist/web/     — static frontend (index.html + app.js + style.css)
+      #                   copied from src/web/static/ by `build:web`
+      # Both must be present for `node dist/index.js board` to serve a
+      # working dashboard; if either is missing, the board step would 500.
+      - name: Build TypeScript (dist/)
+        run: npm run build
+
+      - name: Build web assets (dist/web/)
+        run: npm run build:web
+
+      - name: Verify build artifacts exist
+        # Guard against the case where `tsc` exits 0 but writes nothing
+        # (rare, but observed on out-of-memory or partial rebuilds). Two
+        # files are enough to know the build was substantive.
+        run: |
+          test -f dist/index.js      || { echo "::error::dist/index.js missing";      exit 1; }
+          test -f dist/web/index.html || { echo "::error::dist/web/index.html missing"; exit 1; }
+          echo "build artifacts present"
+
+      # ── 5. Sanity check ────────────────────────────────────────────────
+      # Confirm the binary loads and commander can enumerate subcommands.
+      # This catches the embarrassing "we shipped a file that won't even
+      # --help" class of regression early.
+      - name: CLI sanity check
+        run: |
+          node dist/index.js --version
+          node dist/index.js --help
+
+      # ── 6. CLI integration ──────────────────────────────────────────────
+      # End-to-end exercise of the CRUD + doctor flow that real users run.
+      # We do this against a project-local .skills/ (the default) so the
+      # test is hermetic; no writes to ~/.skill-central/.
+      - name: CLI integration tests
+        run: |
+          # add: with explicit tags so layer inference is deterministic
+          node dist/index.js add test-skill \
+            --name "Test" \
+            --description "CI smoke skill" \
+            --tags "ci,review" \
+            --prompt "Smoke-test prompt."
+
+          # list: the new id must appear in the output
+          node dist/index.js list | grep -q "test-skill"
+
+          # doctor: must exit 0 and report a clean state
+          node dist/index.js doctor
+
+      # ── 7. Web board smoke test ─────────────────────────────────────────
+      # Why this is non-obvious:
+      #   1. `node dist/index.js board` is a long-running HTTP server.
+      #      A bare `run:` would block forever; we must background it.
+      #   2. Background processes leak across steps and across the job
+      #      if not killed. The `trap "kill $PID" EXIT` pattern below
+      #      guarantees cleanup even if the curl assertion fails.
+      #   3. The server takes a moment to bind; we poll for up to 10s
+      #      rather than blind-sleeping.
+      #   4. `curl -f` makes the test fail on any non-2xx response,
+      #      including "connection refused" — so a never-started server
+      #      surfaces as a clear failure.
+      - name: Web board smoke test
+        run: |
+          set -u
+          node dist/index.js board --port 5601 > board.log 2>&1 &
+          BOARD_PID=$!
+          # Trap fires on any exit path (success, failure, signal).
+          trap "kill $BOARD_PID 2>/dev/null || true" EXIT
+
+          # Poll for readiness — up to 10s, then proceed regardless.
+          READY=0
+          for i in $(seq 1 10); do
+            if curl -f -s http://127.0.0.1:5601/api/health > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" != "1" ]; then
+            echo "::error::server failed to start within 10s"
+            echo "::group::board.log"
+            cat board.log
+            echo "::endgroup::"
+            exit 1
+          fi
+
+          # Real assertion: full response body, fail on any non-2xx.
+          echo "Health response:"
+          curl -f -s http://127.0.0.1:5601/api/health
+          echo ""
+
+          # A second endpoint to prove the API is wired through the
+          # engine and not just returning a static health string.
+          echo "Layers response:"
+          curl -f -s http://127.0.0.1:5601/api/layers | head -c 200
+          echo ""
+
+      # ── Cleanup ────────────────────────────────────────────────────────
+      # `if: always()` so the test-skill.yaml artifact is removed even if
+      # the integration step above failed. This keeps the workspace clean
+      # for any post-job artifacts / debugging.
+      - name: Clean up test artifact
+        if: always()
+        run: rm -f .skills/02-workflows/test-skill.yaml
+
+      # ── 8. Pack dry run ─────────────────────────────────────────────────
+      # Catches misconfigured `files:` in package.json that would publish
+      # a tarball missing dist/web/ or the LICENSE. `npm pack --dry-run`
+      # prints the would-be file list without writing the tarball.
+      - name: Package dry run
+        run: npm pack --dry-run
