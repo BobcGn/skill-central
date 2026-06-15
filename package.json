@@ -1,6 +1,6 @@
 {
   "name": "@bobcgn/skill-central",
-  "version": "0.0.0-oidc-debug.1",
+  "version": "0.2.4",
   "private": false,
   "description": "Local MCP Server for cross-IDE AI skill distribution and reuse",
   "type": "module",
