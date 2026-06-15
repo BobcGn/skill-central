@@ -55,6 +55,12 @@ export interface ResolvedSkillView {
   description: string;
   type: "prompt" | "tool";
   prompt?: string;
+  /**
+   * Chinese-language variant of `prompt`. Present iff the underlying YAML
+   * declared `prompt_zh`. The composer is responsible for merging the two
+   * into a single bilingual message body when both exist.
+   */
+  prompt_zh?: string;
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
@@ -68,6 +74,7 @@ function toView(skill: {
   description: string;
   type: "prompt" | "tool";
   prompt?: string;
+  prompt_zh?: string;
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
@@ -79,6 +86,7 @@ function toView(skill: {
     description: skill.description,
     type: skill.type,
     prompt: skill.prompt,
+    prompt_zh: skill.prompt_zh,
     inputSchema: skill.inputSchema,
     arguments: skill.arguments,
     tags: skill.tags,

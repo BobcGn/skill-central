@@ -33,13 +33,7 @@ function composePrompt(
   skill: ResolvedSkill,
   args: Record<string, unknown>,
 ): ComposedPrompt {
-  let text = skill.prompt ?? "";
-  for (const [key, value] of Object.entries(args)) {
-    const placeholder = `{{${key}}}`;
-    if (text.includes(placeholder)) {
-      text = text.replaceAll(placeholder, String(value));
-    }
-  }
+  const text = renderBilingual(skill.prompt, skill.prompt_zh, args);
   const content: TextContent = { type: "text", text };
   return {
     messages: [{ role: "user", content }],
@@ -58,17 +52,47 @@ function composeTool(
     };
   }
 
-  let text = skill.prompt ?? "";
-  for (const [key, value] of Object.entries(args)) {
-    const placeholder = `{{${key}}}`;
-    if (text.includes(placeholder)) {
-      text = text.replaceAll(placeholder, String(value));
-    }
-  }
+  const text = renderBilingual(skill.prompt, skill.prompt_zh, args);
 
   return {
     content: [{ type: "text", text: text || JSON.stringify(args, null, 2) }],
   };
+}
+
+/**
+ * Render a (possibly bilingual) prompt body. Substitutes `{{placeholder}}`
+ * tokens against `args`. When both `en` and `zh` are present, emits them
+ * back-to-back with clear section headers so the IDE sees a single message
+ * that contains both languages.
+ *
+ * Substitution rule: each placeholder is applied to whichever language
+ * contains it. If only one language defines a placeholder, the other
+ * language keeps the literal `{{key}}` token (rare; usually means the
+ * translations drifted).
+ */
+function renderBilingual(
+  en: string | undefined,
+  zh: string | undefined,
+  args: Record<string, unknown>,
+): string {
+  const enRendered = substitute(en ?? "", args);
+  const zhRendered = substitute(zh ?? "", args);
+
+  if (enRendered && zhRendered) {
+    return `[English]\n${enRendered}\n\n[中文]\n${zhRendered}`;
+  }
+  return enRendered || zhRendered;
+}
+
+function substitute(text: string, args: Record<string, unknown>): string {
+  let out = text;
+  for (const [key, value] of Object.entries(args)) {
+    const placeholder = `{{${key}}}`;
+    if (out.includes(placeholder)) {
+      out = out.replaceAll(placeholder, String(value));
+    }
+  }
+  return out;
 }
 
 /**
@@ -132,6 +156,10 @@ function validateArgs(
 /**
  * Merge multiple skills by concatenating their prompt sections.
  * Skills are assumed to be pre-sorted by ascending layer priority.
+ *
+ * Bilingual handling: each skill section emits its English body first,
+ * then (if present) a `## 中文` sub-section with the Chinese body. When
+ * no skill in the batch has Chinese, the result is monolingual.
  */
 export function composeByTags(
   skills: ResolvedSkillView[],
@@ -139,10 +167,19 @@ export function composeByTags(
   const sections: string[] = [];
 
   for (const skill of skills) {
-    if (skill.type === "prompt" && skill.prompt) {
-      const header = `## ${skill.name}  (${skill.id})\n`;
-      sections.push(header + skill.prompt.trim());
+    if (skill.type !== "prompt") continue;
+    const en = skill.prompt?.trim();
+    const zh = skill.prompt_zh?.trim();
+    if (!en && !zh) continue;
+
+    const header = `## ${skill.name}  (${skill.id})\n`;
+    let body = "";
+    if (en) body += en;
+    if (zh) {
+      if (body) body += `\n\n### 中文\n${zh}`;
+      else body = `### 中文\n${zh}`;
     }
+    sections.push(header + body);
   }
 
   const merged = sections.join("\n\n---\n\n");

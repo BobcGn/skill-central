@@ -72,6 +72,19 @@ export function validateSkill(
     console.warn(`[skill-central] Invalid "type" in: ${filePath}`);
     return null;
   }
+  // A prompt-type skill must carry at least one prompt body (English or
+  // Chinese). Empty strings count as "missing" — half-migrated skills fail
+  // loudly here rather than silently sending empty strings to MCP.
+  if (obj.type === "prompt") {
+    const hasEn = typeof obj.prompt === "string" && obj.prompt.trim().length > 0;
+    const hasZh = typeof obj.prompt_zh === "string" && (obj.prompt_zh as string).trim().length > 0;
+    if (!hasEn && !hasZh) {
+      console.warn(
+        `[skill-central] prompt-type skill "${obj.id}" has neither "prompt" nor "prompt_zh" set (or both are empty): ${filePath}`,
+      );
+      return null;
+    }
+  }
 
   // Normalise tags: accept string or array, collapse to array.
   if (obj.tags !== undefined) {

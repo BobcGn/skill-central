@@ -27,8 +27,22 @@ export interface SkillSchema {
   type: SkillType;
 
   // ── Prompt-specific ──────────────────────────────────────────────────────
-  /** Prompt template with optional {{handlebars}} placeholders. */
+  /**
+   * Prompt template body (English by convention, but language-agnostic).
+   * Supports `{{handlebars}}` placeholders that get substituted from
+   * `prompts/get` / `tools/call` arguments at composition time.
+   *
+   * For bilingual skills, supply both `prompt` (English) and `prompt_zh`
+   * (Chinese). At least one of the two MUST be present on a prompt-type
+   * skill; the engine validates this and the composer merges them into a
+   * single bilingual message body at consumption time.
+   */
   prompt?: string;
+  /**
+   * Chinese-language variant of the prompt. Same placeholder rules apply.
+   * Optional — when absent, the engine exposes only `prompt`.
+   */
+  prompt_zh?: string;
 
   // ── Tool-specific ────────────────────────────────────────────────────────
   /** JSON Schema for tool input parameters. */

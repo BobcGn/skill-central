@@ -51,12 +51,26 @@ export async function cmdShow(id: string): Promise<void> {
       .map((l) => "    " + l)
       .join("\n"));
   }
-  if (resolved.type === "prompt" && resolved.prompt) {
-    console.log("");
-    console.log("  Prompt:");
-    console.log("  " + "-".repeat(72));
-    for (const line of resolved.prompt.split("\n")) {
-      console.log(`  ${line}`);
+  if (resolved.type === "prompt") {
+    if (resolved.prompt) {
+      console.log("");
+      console.log("  Prompt [English]:");
+      console.log("  " + "-".repeat(72));
+      for (const line of resolved.prompt.split("\n")) {
+        console.log(`  ${line}`);
+      }
+    }
+    if (resolved.prompt_zh) {
+      console.log("");
+      console.log("  Prompt [中文]:");
+      console.log("  " + "-".repeat(72));
+      for (const line of resolved.prompt_zh.split("\n")) {
+        console.log(`  ${line}`);
+      }
+    }
+    if (!resolved.prompt && !resolved.prompt_zh) {
+      console.log("");
+      console.log("  Prompt: (none)");
     }
   }
   console.log("");

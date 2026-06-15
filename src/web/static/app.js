@@ -86,6 +86,35 @@ function renderDetail(skill) {
     return;
   }
   const tags = (skill.tags || []).join(", ");
+  // Bilingual prompt: render English if present, plus a  中文 sub-section
+  // when prompt_zh is also present. If neither, fall back to the original
+  // "(no prompt)" placeholder.
+  const hasEn = !!(skill.prompt && skill.prompt.trim());
+  const hasZh = !!(skill.prompt_zh && skill.prompt_zh.trim());
+  let promptHtml;
+  if (hasEn && hasZh) {
+    promptHtml = `
+      <h3>Prompt <span class="muted">[English]</span></h3>
+      <pre id="prompt-body">${escapeHtml(skill.prompt)}</pre>
+      <h3>Prompt <span class="muted">[中文]</span></h3>
+      <pre id="prompt-body-zh">${escapeHtml(skill.prompt_zh)}</pre>
+    `;
+  } else if (hasEn) {
+    promptHtml = `
+      <h3>Prompt</h3>
+      <pre id="prompt-body">${escapeHtml(skill.prompt)}</pre>
+    `;
+  } else if (hasZh) {
+    promptHtml = `
+      <h3>Prompt <span class="muted">[中文]</span></h3>
+      <pre id="prompt-body-zh">${escapeHtml(skill.prompt_zh)}</pre>
+    `;
+  } else {
+    promptHtml = `
+      <h3>Prompt</h3>
+      <pre id="prompt-body"><span class="muted">(no prompt)</span></pre>
+    `;
+  }
   el.innerHTML = `
     <div class="detail-header">
       <div>
@@ -105,8 +134,7 @@ function renderDetail(skill) {
     </div>
     <p>${escapeHtml(skill.description || "")}</p>
     <p class="muted">tags: ${escapeHtml(tags || "(none)")}</p>
-    <h3>Prompt</h3>
-    <pre id="prompt-body">${escapeHtml(skill.prompt || "(no prompt)")}</pre>
+    ${promptHtml}
     <div id="backups-pane"></div>
   `;
   document.getElementById("btn-edit").addEventListener("click", () => enterEditMode(skill));
@@ -157,8 +185,12 @@ async function saveEdit(originalSkill) {
         expectedSha256: originalSkill.sha256,
       }),
     });
-    // Success — reload detail and re-render read-only.
+    // Success — server has already reloaded its engine, so the data is
+    // fresh. We must re-pull BOTH the list (in case name/description
+    // changed) and the detail (to get the new sha256). Doing only one of
+    // the two leaves the other view stale.
     state.editing = false;
+    await loadAll();
     await selectSkill(originalSkill.id);
     flash(`✓ Saved · new sha: ${res.sha256.slice(0, 12)}…`);
   } catch (err) {
@@ -274,4 +306,20 @@ function escapeHtml(s) {
     .replace(/'/g, "&#39;");
 }
 
-document.addEventListener("DOMContentLoaded", loadAll);
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("btn-refresh").addEventListener("click", async () => {
+    // Manual refresh: tell the server to reload its engine from disk,
+    // then re-pull the list and the active detail. Without the server
+    // reload, external file edits (e.g. in vim) wouldn't surface because
+    // the in-memory engine was populated at startup only.
+    try {
+      await api("/api/reload", { method: "POST" });
+      await loadAll();
+      if (state.activeId) await selectSkill(state.activeId);
+      flash("↻ Refreshed");
+    } catch (err) {
+      flash(`✗ ${err.message}`, true);
+    }
+  });
+  loadAll();
+});

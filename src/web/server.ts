@@ -100,6 +100,8 @@ interface SkillDto {
   priority: number;
   source: string;
   prompt?: string;
+  /** Chinese variant of the prompt. Omitted when the skill has none. */
+  prompt_zh?: string;
   inputSchema?: Record<string, unknown>;
   rawYaml?: string;
   sha256?: string;
@@ -126,6 +128,7 @@ async function buildSkillDto(
     tags?: string[];
     priority: number;
     prompt?: string;
+    prompt_zh?: string;
     inputSchema?: Record<string, unknown>;
   },
   config: SkillCentralConfig,
@@ -154,6 +157,7 @@ async function buildSkillDto(
     priority: resolvedSkill.priority,
     source: sourcePath,
     prompt: resolvedSkill.prompt,
+    prompt_zh: resolvedSkill.prompt_zh,
     inputSchema: resolvedSkill.inputSchema,
   };
 }
@@ -313,7 +317,21 @@ export function createBoardApp(deps: BoardDeps): Hono {
     // 5. Write.
     await writeFile(dto.source, body.rawYaml, "utf-8");
 
-    // 6. New sha256.
+    // 6. Reload the engine so the in-memory view reflects the new file.
+    // Without this, /api/skills continues to serve the pre-edit copy and
+    // the board UI looks stale immediately after Save (issue #2 — board
+    // not syncing after edit). For ~16 skills × 4 layers the cost is
+    // negligible; no need to surgically re-read just one file.
+    try {
+      await deps.engine.reload(deps.config.layers);
+    } catch (err) {
+      // A reload failure shouldn't fail the save — the file is on disk.
+      // Log it server-side; the UI will see the stale data until the
+      // user refreshes or another edit triggers another reload.
+      console.error("[skill-central] post-write reload failed:", err);
+    }
+
+    // 7. New sha256.
     const newSha = await sha256Of(body.rawYaml);
 
     return c.json({ ok: true, sha256: newSha });
@@ -364,6 +382,19 @@ export function createBoardApp(deps: BoardDeps): Hono {
       return c.json({ error: (err as Error).message }, 400);
     }
     return c.json({ ok: true });
+  });
+
+  // ── POST /api/reload — re-read all layers from disk ──────────────────
+  // Without this endpoint, edits made to .yaml files outside the board
+  // (e.g. in vim) don't surface until the server restarts. The board UI's
+  // "↻ Refresh" button POSTs here before re-fetching the list.
+  app.post("/api/reload", async (c) => {
+    try {
+      await deps.engine.reload(deps.config.layers);
+      return c.json({ ok: true, skills: deps.engine.listSkills().length });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 500);
+    }
   });
 
   // ── Static assets ─────────────────────────────────────────────────────
