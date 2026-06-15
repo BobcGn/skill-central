@@ -65,12 +65,7 @@ jobs:
           echo ""
           echo "▶ 2/4 JWT Claims:"
           JWT_PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null || echo "$OIDC_TOKEN" | cut -d. -f2 | python3 -c "import base64,sys; print(base64.urlsafe_b64decode(sys.stdin.read() + '==').decode())")
-          echo "$JWT_PAYLOAD" | python3 -c "
-import json, sys
-claims = json.load(sys.stdin)
-for k in ['aud', 'iss', 'sub', 'repository', 'repository_owner', 'workflow', 'ref']:
-    print(f'  {k}: {claims.get(k, \"(未设置)\")}')
-"
+          echo "$JWT_PAYLOAD" | python3 -c "import json,sys; claims=json.load(sys.stdin); [print(f'  {k}: {claims.get(k, \"(未设置)\")}') for k in ['aud','iss','sub','repository','repository_owner','workflow','ref']]"
 
           # 3. 写入 .npmrc
           echo ""
@@ -136,9 +131,10 @@ for k in ['aud', 'iss', 'sub', 'repository', 'repository_owner', 'workflow', 're
 
           echo ""
           echo "▶ npm publish --access public --dry-run:"
-          npm publish --access public --dry-run 2>&1
+          DRYRUN_EXIT=0
+          npm publish --access public --dry-run 2>&1 || DRYRUN_EXIT=$?
           echo ""
-          echo "  exit code: $?"
+          echo "  exit code: ${DRYRUN_EXIT}"
 
       # ── 总结 ────────────────────────────────────────────────────────────
       - name: 📊 诊断总结
