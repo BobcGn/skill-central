@@ -70,14 +70,15 @@ jobs:
       # ========================================================================
       # 第 2 步：设置 Node.js 环境
       # ========================================================================
-      # 使用 Node.js 22（当前 Active LTS，至 2026/10）。
+      # 使用 Node.js 24（当前稳定版，npm 11.x）。
+      # npm 11.x 修复了多个 OIDC + scoped package 的兼容性问题。
       # registry-url 是关键参数：setup-node@v4 会利用 OIDC 令牌自动生成
       # .npmrc 文件，写入 //registry.npmjs.org/:_authToken=${OIDC_TOKEN}。
       # 无需手动配置任何 NPM_TOKEN Secret。
-      - name: 🔧 设置 Node.js 22
+      - name: 🔧 设置 Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 

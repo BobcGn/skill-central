@@ -24,10 +24,10 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🔧 设置 Node.js 22（不带 registry-url）
+      - name: 🔧 设置 Node.js 24（不带 registry-url）
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           # 故意不传 registry-url，手动配置
 
       - name: 🔍 环境信息
