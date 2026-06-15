@@ -93,8 +93,20 @@ jobs:
       # End-to-end exercise of the CRUD + doctor flow that real users run.
       # We do this against a project-local .skills/ (the default) so the
       # test is hermetic; no writes to ~/.skill-central/.
+      #
+      # Note: on a clean runner there is no .skills/ at all (it is
+      # gitignored + untracked in v0.2.0). `add` only creates the layer
+      # directory it writes into, so without setup `doctor` would see
+      # 3 of 4 layers as MISSING and exit 1. We scaffold the 4 layer
+      # directories explicitly here — `init` would also work but is
+      # destructive (overwrites existing files), which is undesirable
+      # in a CI fixture.
       - name: CLI integration tests
         run: |
+          # Fixture: 4 layer directories so `doctor` reports all 4 as
+          # healthy. Use `mkdir -p` so re-runs are no-ops.
+          mkdir -p .skills/01-global .skills/02-workflows .skills/03-domains .skills/04-tech-stack
+
           # add: id is a --flag, not a positional. With explicit tags so
           # layer inference is deterministic.
           node dist/index.js add \
