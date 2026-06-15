@@ -65,7 +65,7 @@ jobs:
           echo ""
           echo "▶ 2/4 JWT Claims:"
           JWT_PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null || echo "$OIDC_TOKEN" | cut -d. -f2 | python3 -c "import base64,sys; print(base64.urlsafe_b64decode(sys.stdin.read() + '==').decode())")
-          echo "$JWT_PAYLOAD" | python3 -c "import json,sys; claims=json.load(sys.stdin); [print(f'  {k}: {claims.get(k, \"(未设置)\")}') for k in ['aud','iss','sub','repository','repository_owner','workflow','ref']]"
+          echo "$JWT_PAYLOAD" | python3 -c "import json,sys; claims=json.load(sys.stdin); [print(f'  {k}: {str(claims.get(k,\"(未设置)\"))[:120]}') for k in ['aud','iss','sub','event_name','repository','repository_owner','workflow','job_workflow_ref','ref','actor','run_id']]"
 
           # 3. 写入 .npmrc
           echo ""
