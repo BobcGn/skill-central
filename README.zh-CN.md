@@ -27,6 +27,7 @@ skill-central 是一个本地 [MCP (Model Context Protocol)](https://modelcontex
 - [自定义技能开发](#自定义技能开发)
 - [故障排查](#故障排查)
 - [参考文档](#参考文档)
+- [发布前自检](#发布前自检)
 - [开发指南](#开发指南)
 - [许可](#许可)
 
@@ -486,7 +487,7 @@ skill-central show typescript-conventions  # 检查渲染结果
 - [`docs/layered-override.md`](./docs/layered-override.md) — 层级机制详解
 - [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) — JSON-RPC 示例
 
-发布历史见 [`CHANGELOG.md`](./CHANGELOG.md)。
+发布历史见 [`CHANGELOG.md`](./CHANGELOG.md)。发布前自检清单：[`docs/release-testing.md`](./docs/release-testing.md)。
 
 ---
 

@@ -27,6 +27,7 @@ Since **v0.2.0** skill-central ships a complete local CRUD CLI, a Hono-based **w
 - [Custom Skill Development](#custom-skill-development)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
+- [Pre-release Testing](#pre-release-testing)
 - [Development](#development)
 - [License](#license)
 
@@ -504,7 +505,7 @@ Detailed reference pages live under [`docs/`](./docs/):
 - [`docs/layered-override.md`](./docs/layered-override.md) — layer mechanics
 - [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) — JSON-RPC examples
 
-Release history in [`CHANGELOG.md`](./CHANGELOG.md).
+Release history in [`CHANGELOG.md`](./CHANGELOG.md). Pre-publish verification checklist: [`docs/release-testing.md`](./docs/release-testing.md).
 
 ---
 
