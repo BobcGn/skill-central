@@ -15,7 +15,7 @@
 
 import { Command } from "commander";
 import { startMcpServer } from "./mcp.js";
-import { showBoard } from "./board.js";
+import { runBoard } from "./commands/board.js";
 import { runInit } from "./init.js";
 import { cmdAdd } from "./commands/add.js";
 import { cmdList } from "./commands/list.js";
@@ -43,10 +43,20 @@ program
 
 program
   .command("board")
-  .description("Display loaded skills and layer hierarchy")
-  .action(() => {
-    showBoard().catch((err) => {
-      console.error("[skill-central] Board error:", err);
+  .description("Start web dashboard (default) or show terminal table (--cli)")
+  .option("--cli", "Force terminal-table output (skip web UI)")
+  .option("--no-web", "Alias for --cli")
+  .option("--port <port>", "Web dashboard port (default 5417; auto +1 on conflict)")
+  .option("--host <addr>", "Bind address (default 127.0.0.1; non-loopback requires --i-understand-nonlocal)")
+  .option("--i-understand-nonlocal", "Acknowledge risk of binding to a non-loopback address")
+  .action((opts) => {
+    runBoard({
+      cli: !!(opts.cli || opts.web === false),
+      port: opts.port ? parseInt(opts.port, 10) : undefined,
+      host: opts.host,
+      iUnderstandNonlocal: opts.iUnderstandNonlocal,
+    }).catch((err) => {
+      console.error("[skill-central] Board error:", err.message ?? err);
       process.exit(1);
     });
   });
