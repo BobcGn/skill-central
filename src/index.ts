@@ -23,6 +23,9 @@ import { cmdShow } from "./commands/show.js";
 import { cmdRemove } from "./commands/remove.js";
 import { cmdValidate } from "./commands/validate.js";
 import { cmdDoctor } from "./commands/doctor.js";
+import { cmdInstall } from "./commands/install.js";
+import { cmdUpdate } from "./commands/update.js";
+import { cmdUninstall } from "./commands/uninstall.js";
 
 const program = new Command();
 
@@ -166,6 +169,53 @@ program
   .action(() => {
     cmdDoctor().catch((err) => {
       console.error("[skill-central] Doctor error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("install <source>")
+  .description("Install a skill from github: or npm: URL (P10 adds npm)")
+  .option("--layer <layer>", "Force target layer (bypasses tag inference)")
+  .option("--project", "Install into project .skills/ (default: user ~/.skill-central/skills/)")
+  .option("-y, --yes", "Skip installation confirmation")
+  .action((source: string, opts) => {
+    cmdInstall(source, {
+      layer: opts.layer,
+      project: opts.project,
+      yes: opts.yes,
+    }).catch((err) => {
+      console.error("[skill-central] Install error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("update [id]")
+  .description("Re-fetch installed skill(s) from their source. With no id, updates all.")
+  .option("--project", "Update into project scope (default: user)")
+  .option("-y, --yes", "Skip per-skill confirmation (default: non-interactive)")
+  .action((id: string | undefined, opts) => {
+    cmdUpdate(id, {
+      yes: opts.yes,
+      project: opts.project,
+    }).catch((err) => {
+      console.error("[skill-central] Update error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("uninstall <id>")
+  .description("Remove an installed skill (file + lock entry)")
+  .option("--purge-backups", "Also remove the .bak.* siblings")
+  .option("-y, --yes", "Skip confirmation")
+  .action((id: string, opts) => {
+    cmdUninstall(id, {
+      yes: opts.yes,
+      purgeBackups: opts.purgeBackups,
+    }).catch((err) => {
+      console.error("[skill-central] Uninstall error:", err.message ?? err);
       process.exit(1);
     });
   });
