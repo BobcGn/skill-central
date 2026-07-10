@@ -1,3 +1,5 @@
+[中文文档](./README.zh-CN.md)
+
 # skill-central
 
 **Local MCP Server for Cross-IDE AI Skill Distribution**
@@ -28,8 +30,8 @@ Since **v0.2.0** skill-central ships a complete local CRUD CLI, a Hono-based **w
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
 - [Pre-release Testing](#pre-release-testing)
-- [Trusted Publishing](./docs/trusted-publishing.md)
-- [Manual Publishing](./docs/manual-publishing.md)
+- [Trusted Publishing](./docs/en/trusted-publishing.md) / [受信任的发布](./docs/ch/trusted-publishing.md)
+- [Manual Publishing](./docs/en/manual-publishing.md) / [手动发布](./docs/ch/manual-publishing.md)
 - [Development](#development)
 - [License](#license)
 
@@ -134,7 +136,7 @@ skill-central board          # opens web dashboard
 skill-central mcp            # or start the MCP server
 ```
 
-See [`docs/cli-reference.md`](./docs/cli-reference.md) for the full flag reference.
+See [`docs/en/cli-reference.md`](./docs/en/cli-reference.md) / [`docs/ch/cli-reference.md`](./docs/ch/cli-reference.md) for the full flag reference.
 
 ---
 
@@ -163,7 +165,7 @@ skill-central remove review-pr --force
 
 1. an explicit `--layer` flag (always wins)
 2. an existing file with the same id (idempotent re-add)
-3. tag-based inference via [`LAYER_RULES`](./docs/cli-reference.md#layer-inference)
+3. tag-based inference via [`LAYER_RULES`](./docs/en/cli-reference.md#layer-inference)
 4. fallback to `02-workflows` if no tags match
 
 `doctor` is your diagnostic safety net:
@@ -204,7 +206,7 @@ Each save moves the previous content to `<file>.yaml.bak.<ISO-no-colons>`. Concu
 - **Port conflict retry.** `+1..+10` from the requested port.
 - **Static asset path traversal.** `GET /*` resolves under `dist/web/`; `..` returns 404.
 
-Full HTTP API and edit-flow walkthrough in [`docs/web-board.md`](./docs/web-board.md).
+Full HTTP API and edit-flow walkthrough in [`docs/en/web-board.md`](./docs/en/web-board.md) / [`docs/ch/web-board.md`](./docs/ch/web-board.md).
 
 ---
 
@@ -237,7 +239,7 @@ Every install writes a `~/.skill-central/lock.json` entry recording the source U
 - **Tar-slip defence.** npm tarball entries must start with `package/`; `..` and `\` are rejected.
 - **sha256 verification.** Every install + update computes and stores the sha256.
 
-Full grammar and manifest conventions in [`docs/remote-sources.md`](./docs/remote-sources.md).
+Full grammar and manifest conventions in [`docs/en/remote-sources.md`](./docs/en/remote-sources.md) / [`docs/ch/remote-sources.md`](./docs/ch/remote-sources.md).
 
 ---
 
@@ -288,7 +290,7 @@ Template interpolation is supported: placeholders like `{{name}}` in the skill's
 
 Tool arguments are validated against the skill's `inputSchema` — missing required fields or type mismatches return an error result with `isError: true`.
 
-See [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) for the full schema.
+See [`docs/en/mcp-protocol.md`](./docs/en/mcp-protocol.md) / [`docs/ch/mcp-protocol.md`](./docs/ch/mcp-protocol.md) for the full schema.
 
 ---
 
@@ -325,7 +327,7 @@ prompt: |
 | `arguments` | object[] | | Declared arguments (informational, for IDE UI). |
 | `version` | string | | Semver for change tracking. |
 
-Full schema reference in [`docs/skill-schema.md`](./docs/skill-schema.md).
+Full schema reference in [`docs/en/skill-schema.md`](./docs/en/skill-schema.md) / [`docs/ch/skill-schema.md`](./docs/ch/skill-schema.md).
 
 ---
 
@@ -374,7 +376,7 @@ This lets teams share a common skill repository while allowing individuals to la
 
 ### User-level baseline (v0.2.0)
 
-`add --user` and `install` (default scope) write to `~/.skill-central/skills/`. The four sub-directories mirror the project 1:1, with priorities `5 / 15 / 25 / 35` — always below the project, so a project can always shadow a global baseline. See [`docs/layered-override.md`](./docs/layered-override.md).
+`add --user` and `install` (default scope) write to `~/.skill-central/skills/`. The four sub-directories mirror the project 1:1, with priorities `5 / 15 / 25 / 35` — always below the project, so a project can always shadow a global baseline. See [`docs/en/layered-override.md`](./docs/en/layered-override.md) / [`docs/ch/layered-override.md`](./docs/ch/layered-override.md).
 
 ---
 
@@ -500,14 +502,14 @@ Refer to `.skills/04-tech-stack/_template.yaml` for a complete annotated example
 
 Detailed reference pages live under [`docs/`](./docs/):
 
-- [`docs/cli-reference.md`](./docs/cli-reference.md) — every command, every flag
-- [`docs/web-board.md`](./docs/web-board.md) — web dashboard walkthrough + API
-- [`docs/remote-sources.md`](./docs/remote-sources.md) — source URL grammar + manifest
-- [`docs/skill-schema.md`](./docs/skill-schema.md) — `SkillSchema` field reference
-- [`docs/layered-override.md`](./docs/layered-override.md) — layer mechanics
-- [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) — JSON-RPC examples
+- [`docs/en/cli-reference.md`](./docs/en/cli-reference.md) / [`docs/ch/cli-reference.md`](./docs/ch/cli-reference.md) — every command, every flag
+- [`docs/en/web-board.md`](./docs/en/web-board.md) / [`docs/ch/web-board.md`](./docs/ch/web-board.md) — web dashboard walkthrough + API
+- [`docs/en/remote-sources.md`](./docs/en/remote-sources.md) / [`docs/ch/remote-sources.md`](./docs/ch/remote-sources.md) — source URL grammar + manifest
+- [`docs/en/skill-schema.md`](./docs/en/skill-schema.md) / [`docs/ch/skill-schema.md`](./docs/ch/skill-schema.md) — `SkillSchema` field reference
+- [`docs/en/layered-override.md`](./docs/en/layered-override.md) / [`docs/ch/layered-override.md`](./docs/ch/layered-override.md) — layer mechanics
+- [`docs/en/mcp-protocol.md`](./docs/en/mcp-protocol.md) / [`docs/ch/mcp-protocol.md`](./docs/ch/mcp-protocol.md) — JSON-RPC examples
 
-Release history in [`CHANGELOG.md`](./CHANGELOG.md). Pre-publish verification checklist: [`docs/release-testing.md`](./docs/release-testing.md). Recommended release path (tag push → npm publish with provenance + GitHub Release, all automated): [`docs/trusted-publishing.md`](./docs/trusted-publishing.md). Fallback if Trusted Publishing is not yet configured: [`docs/manual-publishing.md`](./docs/manual-publishing.md).
+Release history in [`CHANGELOG.md`](./CHANGELOG.md). Pre-publish verification checklist: [`docs/en/release-testing.md`](./docs/en/release-testing.md) / [`docs/ch/release-testing.md`](./docs/ch/release-testing.md). Recommended release path (tag push → npm publish with provenance + GitHub Release, all automated): [`docs/en/trusted-publishing.md`](./docs/en/trusted-publishing.md) / [`docs/ch/trusted-publishing.md`](./docs/ch/trusted-publishing.md). Fallback if Trusted Publishing is not yet configured: [`docs/en/manual-publishing.md`](./docs/en/manual-publishing.md) / [`docs/ch/manual-publishing.md`](./docs/ch/manual-publishing.md).
 
 ---
 
@@ -550,3 +552,9 @@ npx tsc --noEmit
 ## License
 
 MIT
+
+---
+
+## Use as a Template
+
+You can use this repository as a template to create your own skill repository. Click the "Use this template" button at the top of the repository page to get started.

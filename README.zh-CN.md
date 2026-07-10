@@ -28,8 +28,8 @@ skill-central 是一个本地 [MCP (Model Context Protocol)](https://modelcontex
 - [故障排查](#故障排查)
 - [参考文档](#参考文档)
 - [发布前自检](#发布前自检)
-- [Trusted Publishing 自动发布](./docs/trusted-publishing.md)
-- [手动发布指南](./docs/manual-publishing.md)
+- [Trusted Publishing 自动发布](./docs/ch/trusted-publishing.md) / [Trusted Publishing](./docs/en/trusted-publishing.md)
+- [手动发布指南](./docs/ch/manual-publishing.md) / [Manual Publishing](./docs/en/manual-publishing.md)
 - [开发指南](#开发指南)
 - [许可](#许可)
 
@@ -134,7 +134,7 @@ skill-central board          # 打开 Web 看板
 skill-central mcp            # 或启动 MCP Server
 ```
 
-完整 flag 参考见 [`docs/cli-reference.md`](./docs/cli-reference.md)。
+完整 flag 参考见 [`docs/ch/cli-reference.md`](./docs/ch/cli-reference.md) / [`docs/en/cli-reference.md`](./docs/en/cli-reference.md)。
 
 ---
 
@@ -163,7 +163,7 @@ skill-central remove review-pr --force
 
 1. 显式 `--layer` 标志（最高优先级）
 2. 同 id 已存在文件的位置（幂等 re-add）
-3. tags 经 [`LAYER_RULES`](./docs/cli-reference.md#layer-inference) 推断
+3. tags 经 [`LAYER_RULES`](./docs/ch/cli-reference.md#layer-inference) 推断
 4. 无匹配时 fallback 到 `02-workflows`
 
 `doctor` 是诊断安全的兜底：
@@ -204,7 +204,7 @@ $ skill-central doctor
 - **端口冲突重试**。`+1..+10` 自动尝试。
 - **静态资源路径遍历防御**。`GET /*` 解析到 `dist/web/`；`..` 一律返回 404。
 
-完整的 HTTP API 和编辑流程见 [`docs/web-board.md`](./docs/web-board.md)。
+完整的 HTTP API 和编辑流程见 [`docs/ch/web-board.md`](./docs/ch/web-board.md) / [`docs/en/web-board.md`](./docs/en/web-board.md)。
 
 ---
 
@@ -237,7 +237,7 @@ skill-central uninstall review-pr --purge-backups
 - **Tar-slip 防御**。npm tarball 条目必须以 `package/` 开头；`..` 和 `\` 被拒绝。
 - **sha256 校验**。每次 install + update 都计算并存入 sha256。
 
-完整的 URL 语法和 manifest 约定见 [`docs/remote-sources.md`](./docs/remote-sources.md)。
+完整的 URL 语法和 manifest 约定见 [`docs/ch/remote-sources.md`](./docs/ch/remote-sources.md) / [`docs/en/remote-sources.md`](./docs/en/remote-sources.md)。
 
 ---
 
@@ -278,7 +278,7 @@ skill-central uninstall review-pr --purge-backups
 
 工具参数会根据 `inputSchema` 进行校验 — 缺少必填字段或类型不匹配会返回 `isError: true`。
 
-完整规范见 [`docs/mcp-protocol.md`](./docs/mcp-protocol.md)。
+完整规范见 [`docs/ch/mcp-protocol.md`](./docs/ch/mcp-protocol.md) / [`docs/en/mcp-protocol.md`](./docs/en/mcp-protocol.md)。
 
 ---
 
@@ -315,7 +315,7 @@ prompt: |
 | `arguments` | object[] | | 声明的参数（供 IDE UI 参考） |
 | `version` | string | | 版本号 |
 
-完整 schema 参考 [`docs/skill-schema.md`](./docs/skill-schema.md)。
+完整 schema 参考 [`docs/ch/skill-schema.md`](./docs/ch/skill-schema.md) / [`docs/en/skill-schema.md`](./docs/en/skill-schema.md)。
 
 ---
 
@@ -364,7 +364,7 @@ layers:
 
 ### 用户级基线（v0.2.0 起）
 
-`add --user` 和 `install`（默认 scope）写入 `~/.skill-central/skills/`。四个子目录与项目 1:1 对应，优先级为 `5 / 15 / 25 / 35`——始终低于项目层，因此项目可以随时覆盖全局基线。详见 [`docs/layered-override.md`](./docs/layered-override.md)。
+`add --user` 和 `install`（默认 scope）写入 `~/.skill-central/skills/`。四个子目录与项目 1:1 对应，优先级为 `5 / 15 / 25 / 35`——始终低于项目层，因此项目可以随时覆盖全局基线。详见 [`docs/ch/layered-override.md`](./docs/ch/layered-override.md) / [`docs/en/layered-override.md`](./docs/en/layered-override.md)。
 
 ---
 
@@ -482,14 +482,14 @@ skill-central show typescript-conventions  # 检查渲染结果
 
 详细参考页位于 [`docs/`](./docs/)：
 
-- [`docs/cli-reference.md`](./docs/cli-reference.md) — 每个命令、每个 flag
-- [`docs/web-board.md`](./docs/web-board.md) — Web 仪表盘使用 + API
-- [`docs/remote-sources.md`](./docs/remote-sources.md) — 源 URL 语法 + manifest
-- [`docs/skill-schema.md`](./docs/skill-schema.md) — `SkillSchema` 字段参考
-- [`docs/layered-override.md`](./docs/layered-override.md) — 层级机制详解
-- [`docs/mcp-protocol.md`](./docs/mcp-protocol.md) — JSON-RPC 示例
+- [`docs/ch/cli-reference.md`](./docs/ch/cli-reference.md) / [`docs/en/cli-reference.md`](./docs/en/cli-reference.md) — 每个命令、每个 flag
+- [`docs/ch/web-board.md`](./docs/ch/web-board.md) / [`docs/en/web-board.md`](./docs/en/web-board.md) — Web 仪表盘使用 + API
+- [`docs/ch/remote-sources.md`](./docs/ch/remote-sources.md) / [`docs/en/remote-sources.md`](./docs/en/remote-sources.md) — 源 URL 语法 + manifest
+- [`docs/ch/skill-schema.md`](./docs/ch/skill-schema.md) / [`docs/en/skill-schema.md`](./docs/en/skill-schema.md) — `SkillSchema` 字段参考
+- [`docs/ch/layered-override.md`](./docs/ch/layered-override.md) / [`docs/en/layered-override.md`](./docs/en/layered-override.md) — 层级机制详解
+- [`docs/ch/mcp-protocol.md`](./docs/ch/mcp-protocol.md) / [`docs/en/mcp-protocol.md`](./docs/en/mcp-protocol.md) — JSON-RPC 示例
 
-发布历史见 [`CHANGELOG.md`](./CHANGELOG.md)。发布前自检清单：[`docs/release-testing.md`](./docs/release-testing.md)。推荐的发布路径（tag push → 自动 npm publish + provenance + 自动 GitHub Release）：[`docs/trusted-publishing.md`](./docs/trusted-publishing.md)。若 Trusted Publishing 尚未配置，回退到：[`docs/manual-publishing.md`](./docs/manual-publishing.md)。
+发布历史见 [`CHANGELOG.md`](./CHANGELOG.md)。发布前自检清单：[`docs/ch/release-testing.md`](./docs/ch/release-testing.md) / [`docs/en/release-testing.md`](./docs/en/release-testing.md)。推荐的发布路径（tag push → 自动 npm publish + provenance + 自动 GitHub Release）：[`docs/ch/trusted-publishing.md`](./docs/ch/trusted-publishing.md) / [`docs/en/trusted-publishing.md`](./docs/en/trusted-publishing.md)。若 Trusted Publishing 尚未配置，回退到：[`docs/ch/manual-publishing.md`](./docs/ch/manual-publishing.md) / [`docs/en/manual-publishing.md`](./docs/en/manual-publishing.md)。
 
 ---
 
@@ -532,3 +532,9 @@ npx tsc --noEmit
 ## 许可
 
 MIT
+
+---
+
+## 作为模板使用
+
+您可以使用此仓库作为模板来创建您自己的技能仓库。点击仓库页面顶部的 “Use this template” 按钮即可开始。
