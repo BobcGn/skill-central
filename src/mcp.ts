@@ -17,13 +17,15 @@ import { VERSION } from "./version.js";
  * 此函数不会正常返回，进程会持续监听 stdin 上的 JSON-RPC 消息。
  */
 export async function startMcpServer(): Promise<void> {
-  // ── 抑制 console.log ──────────────────────────────────────────────────
-  // MCP Stdio 协议以 stdout 作为 JSON-RPC 传输通道。任何 console.log 输出
+  // ── 抑制 console.log 等 stdout 输出 ─────────────────────────────────────
+  // MCP Stdio 协议以 stdout 作为 JSON-RPC 传输通道。任何输出到 stdout 的数据
   // 都会破坏协议帧，导致 IDE 无法解析响应。所有调试信息一律走 stderr。
   const log = console.log;
-  console.log = (...args: unknown[]) => {
-    console.error("[mcp]", ...args);
-  };
+  const info = console.info;
+  const debug = console.debug;
+  console.log = (...args: unknown[]) => console.error("[mcp]", ...args);
+  console.info = (...args: unknown[]) => console.error("[mcp:info]", ...args);
+  console.debug = (...args: unknown[]) => console.error("[mcp:debug]", ...args);
 
   const config = loadConfig();
 

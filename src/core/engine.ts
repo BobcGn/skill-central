@@ -12,14 +12,24 @@ import type { SkillLayer, SkillSchema } from "../storage/schemas.js";
 
 export class SkillEngine {
   private tree = new OverrideTree();
+  private readyPromise: Promise<void> | null = null;
 
   /** Rebuild the override tree from a list of layer definitions. */
   async reload(layers: SkillLayer[]): Promise<void> {
-    const entries = await readAllLayers(layers);
-    this.tree.reset(entries);
-    console.warn(
-      `[skill-central] Loaded ${this.tree.getAll().length} skills across ${layers.length} layer(s)`,
-    );
+    this.readyPromise = readAllLayers(layers).then((entries) => {
+      this.tree.reset(entries);
+      console.error(
+        `[skill-central] Loaded ${this.tree.getAll().length} skills across ${layers.length} layer(s)`
+      );
+    });
+    await this.readyPromise;
+  }
+
+  /** Wait until the engine has finished loading skills. */
+  async waitForReady(): Promise<void> {
+    if (this.readyPromise) {
+      await this.readyPromise;
+    }
   }
 
   /** Return every resolved skill (id → resolved entry). */

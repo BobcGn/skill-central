@@ -20,6 +20,7 @@ import type { ComposedPrompt } from "../core/composer.js";
 
 export function buildListPromptsHandler(engine: SkillEngine) {
   return async (): Promise<ListPromptsResult> => {
+    await engine.waitForReady();
     const skills = engine.listSkills().filter((s) => s.type === "prompt");
     return { prompts: skills.map(toPromptMeta) };
   };
@@ -29,6 +30,7 @@ export function buildGetPromptHandler(engine: SkillEngine) {
   return async (
     request: { params: { name: string; arguments?: Record<string, string | undefined> } },
   ): Promise<GetPromptResult> => {
+    await engine.waitForReady();
     const { name, arguments: args } = request.params;
 
     // ── Special: tag-based composition ───────────────────────────────────
@@ -70,7 +72,7 @@ export function buildGetPromptHandler(engine: SkillEngine) {
 function toPromptMeta(skill: ResolvedSkillView) {
   return {
     name: skill.id,
-    description: skill.description,
+    description: skill.description || `Execute the ${skill.id} prompt.`,
     arguments: skill.arguments,
   };
 }
