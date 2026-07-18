@@ -3,6 +3,15 @@
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
 
+## [0.3.0] - 2026-07-18
+
+### Fixed
+
+- **MCP Stdio Protocol**: Redirected `console.info` and `console.debug` to `stderr` to prevent JSON-RPC stdout pollution.
+- **MCP Tool Discovery**: Ensured `inputSchema` format strictly adheres to JSON schema requirements (removed empty arrays for `required`, strictly enforced `type: "object"`).
+- **MCP Async Timing**: Added `waitForReady` lock in prompt and tool handlers to prevent returning empty lists before the engine finishes initializing.
+- **MCP Descriptor Strictness**: Provided reliable fallback descriptions for tools and prompts to ensure full LLM compatibility.
+
 ## [0.2.5] - 2026-06-16
 
 ### Added
