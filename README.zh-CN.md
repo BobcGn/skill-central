@@ -37,10 +37,20 @@ skill-central 是一个本地 [MCP (Model Context Protocol)](https://modelcontex
 
 ## 快速开始
 
-### 安装
+> **提示：** `skill-central` 是一个模板仓库。你可以直接使用我已经发布的服务（`@bobcgn/skill-central`），也可以使用本模板自行构建和发布你的专属版本。
+
+### 安装与初始化
 
 ```bash
+# 若使用我发布的默认服务：
 npx @bobcgn/skill-central init
+
+# 若使用你自己发布的包：
+# npx your-package-name init
+
+# 若在本地克隆代码库后使用：
+# npm run build && npm link
+# skill-central init
 ```
 
 这将创建一个 `.skills/` 目录（包含 4 层层级文件夹）和一个 `skill-central.yaml` 配置文件。
@@ -48,6 +58,7 @@ npx @bobcgn/skill-central init
 ### 打开 Web 看板
 
 ```bash
+# 使用默认发布的包
 npx @bobcgn/skill-central board
 ```
 
@@ -380,6 +391,10 @@ layers:
 
 ## IDE 集成
 
+将 skill-central 作为 MCP 工具接入你的 AI IDE。
+
+> **提示：** 如果你使用了该模板自行发布，请把 `@bobcgn/skill-central` 替换成你自己的 npm 包名。如果在本地 link，可以直接填写 `skill-central mcp` 命令。
+
 ### Cursor — `.cursor/mcp.json`
 
 ```json
@@ -387,7 +402,7 @@ layers:
   "mcpServers": {
     "skill-central": {
       "command": "npx",
-      "args": ["@bobcgn/skill-central", "mcp"]
+      "args": ["-y", "@bobcgn/skill-central", "mcp"]
     }
   }
 }
@@ -400,7 +415,7 @@ layers:
   "mcpServers": {
     "skill-central": {
       "command": "npx",
-      "args": ["@bobcgn/skill-central", "mcp"]
+      "args": ["-y", "@bobcgn/skill-central", "mcp"]
     }
   }
 }
@@ -409,7 +424,7 @@ layers:
 ### Claude Code
 
 ```bash
-claude mcp add skill-central -- npx @bobcgn/skill-central mcp
+claude mcp add skill-central -- npx -y @bobcgn/skill-central mcp
 ```
 
 ---

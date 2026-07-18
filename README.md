@@ -39,10 +39,20 @@ Since **v0.2.0** skill-central ships a complete local CRUD CLI, a Hono-based **w
 
 ## Quick Start
 
-### Install
+> **Note:** `skill-central` is a template repository. You can either use the pre-published package (`@bobcgn/skill-central`) directly, or clone/fork this repository to publish your own custom MCP server. 
+
+### Install / Initialize
 
 ```bash
+# If using the default published service:
 npx @bobcgn/skill-central init
+
+# If you published your own package:
+# npx your-package-name init
+
+# If running from a cloned repo locally:
+# npm run build && npm link
+# skill-central init
 ```
 
 This scaffolds a `.skills/` directory with 4 layered skill directories and a `skill-central.yaml` config file.
@@ -50,10 +60,11 @@ This scaffolds a `.skills/` directory with 4 layered skill directories and a `sk
 ### Open the web board
 
 ```bash
+# Using the default published service
 npx @bobcgn/skill-central board
 ```
 
-Prints `http://127.0.0.1:5417/` and opens a Hono dashboard in your terminal — browse, preview, edit, and restore skills from the browser. Use `board --cli` (or `--no-web`) for the v0.1.0 terminal-table fallback.
+Prints `http://127.0.0.1:5417/` and opens a Hono dashboard in your terminal — browse, preview, edit, and restore skills from the browser. Use `board --cli` (or `--no-web`) for the terminal-table fallback.
 
 ### Start the MCP server
 
@@ -394,7 +405,9 @@ Layers with the same name are merged (later sources overwrite path/priority).
 
 ## IDE Integration
 
-Connect skill-central to your AI IDE as an MCP tool.
+Connect skill-central to your AI IDE as an MCP tool. 
+
+> **Tip:** If you published your own version from this template, replace `@bobcgn/skill-central` with your own npm package name. If you linked the repo locally, use `skill-central mcp` as the command.
 
 ### Cursor
 
@@ -405,7 +418,7 @@ Connect skill-central to your AI IDE as an MCP tool.
   "mcpServers": {
     "skill-central": {
       "command": "npx",
-      "args": ["@bobcgn/skill-central", "mcp"]
+      "args": ["-y", "@bobcgn/skill-central", "mcp"]
     }
   }
 }
@@ -420,7 +433,7 @@ Connect skill-central to your AI IDE as an MCP tool.
   "mcpServers": {
     "skill-central": {
       "command": "npx",
-      "args": ["@bobcgn/skill-central", "mcp"]
+      "args": ["-y", "@bobcgn/skill-central", "mcp"]
     }
   }
 }
@@ -429,7 +442,7 @@ Connect skill-central to your AI IDE as an MCP tool.
 ### Claude Code
 
 ```bash
-claude mcp add skill-central -- npx @bobcgn/skill-central mcp
+claude mcp add skill-central -- npx -y @bobcgn/skill-central mcp
 ```
 
 ---

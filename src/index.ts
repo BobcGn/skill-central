@@ -33,7 +33,7 @@ const program = new Command();
 program
   .name("skill-central")
   .description("Local MCP Server for cross-IDE AI skill distribution")
-  .version(VERSION);
+  .version(VERSION, "-v, --version");
 
 program
   .command("mcp")
