@@ -27,7 +27,7 @@ Since **v0.2.0** skill-central ships a complete local CRUD CLI, a Hono-based **w
 - [Config Resolution Order](#config-resolution-order)
 - [IDE Integration](#ide-integration)
 - [Custom Skill Development](#custom-skill-development)
-- [Troubleshooting](#troubleshooting)
+- [Deployment & Troubleshooting](#deployment--troubleshooting)
 - [Documentation](#documentation)
 - [Pre-release Testing](#pre-release-testing)
 - [Trusted Publishing](./docs/en/trusted-publishing.md) / [受信任的发布](./docs/ch/trusted-publishing.md)
@@ -495,12 +495,152 @@ Refer to `.skills/04-tech-stack/_template.yaml` for a complete annotated example
 
 ---
 
-## Troubleshooting
+## Deployment & Troubleshooting
+
+> **This section is critical.** MCP clients (Cursor, Windsurf, Claude Code, etc.) communicate with the server process over **stdio (standard input/output)**. stdout is the exclusive JSON-RPC data channel. Any non-protocol data on stdout causes the connection to fail silently — no error, no warning, just an empty tool list. The following two issues are the most common "invisible killers."
+
+### Issue 1: `npx` Interactive Prompt Blocks Startup
+
+#### Symptom
+
+When you start the server with `npx @bobcgn/skill-central mcp` in your MCP config, `npx` may print an interactive prompt on **stdout** if the package isn't cached locally:
+
+```
+Need to install the following packages:
+  @bobcgn/skill-central@0.3.0
+Ok to proceed? (y)
+```
+
+#### Why It's Fatal
+
+This prompt appears on **stdout**. The MCP client is waiting for a valid JSON-RPC response but receives plain text instead. Strict parsers (used by Claude Code, Cursor, etc.) immediately判定 the connection as failed and **silently discard the entire tool list** — your IDE won't show any error, it just sees "no tools available."
+
+#### Solution
+
+**Option A (Recommended): Add `-y` to args**
+
+The `-y` flag tells `npx` to auto-confirm installation, bypassing the interactive prompt:
+
+```json
+{
+  "mcpServers": {
+    "skill-central": {
+      "command": "npx",
+      "args": ["-y", "@bobcgn/skill-central", "mcp"]
+    }
+  }
+}
+```
+
+> ⚠️ **Note:** `-y` must be the first element in the args array, before the package name.
+
+**Option B (Recommended for production): Run directly with node**
+
+Bypass `npx` entirely to eliminate the possibility of interactive prompts:
+
+```json
+{
+  "mcpServers": {
+    "skill-central": {
+      "command": "node",
+      "args": ["/absolute/path/to/skill-central/dist/index.js", "mcp"]
+    }
+  }
+}
+```
+
+Find the absolute path:
+
+```bash
+# Global install path
+npm root -g
+# Or find the specific package
+npm list -g @bobcgn/skill-central --depth=0
+```
+
+**Option C: Pre-install globally**
+
+```bash
+npm install -g @bobcgn/skill-central
+```
+
+Then use `skill-central mcp` directly as the command in your config — no `npx` needed.
+
+---
+
+### Issue 2: `console.log` Pollutes stdout (Strictly Prohibited)
+
+#### Symptom
+
+Developers instinctively add debug logging:
+
+```typescript
+// ❌ NEVER do this
+console.log("Starting MCP server...");
+console.log("Loaded 12 skills");
+console.log("Connection established");
+```
+
+#### Why It's Fatal
+
+In MCP stdio mode, **stdout is a pure JSON-RPC channel**. The client reads every line from stdout expecting valid JSON-RPC messages. A single line of non-JSON text (like `"Starting MCP server..."`) immediately breaks the protocol frame, causing:
+
+- JSON parser throws an exception
+- Client disconnects
+- Tool list returns empty
+- In some implementations, previously valid messages are also discarded
+
+#### Solution
+
+**Hard rule: ALL debug/status output MUST use `console.error()` — never output non-protocol data to stdout.**
+
+```typescript
+// ✅ Correct: output to stderr, does not affect JSON-RPC channel
+console.error("[skill-central] Starting MCP server...");
+console.error("[skill-central] Loaded 12 skills");
+
+// ❌ Wrong: pollutes stdout, breaks JSON-RPC protocol
+console.log("Starting MCP server...");
+```
+
+**Third-party libraries using `console.log` are equally dangerous.** If a dependency you import uses `console.log` internally, it will also pollute stdout. `skill-central` includes built-in protection in MCP mode (redirecting `console.log` to `stderr`), but if you build on this project for二次开发, you must be vigilant about this risk.
+
+---
+
+### Architecture: Why stdio Mode Is So Fragile
+
+```
+┌──────────────────────────────────────────────────────────┐
+│              MCP Client (Cursor / Windsurf / Claude)      │
+│                                                          │
+│  Read stdout  ──→ JSON Parser  ──→ Tool / Prompt List    │
+│  Write stdin  ──→ JSON-RPC Request                       │
+└──────────────┬───────────────────────┬───────────────────┘
+               │ stdin                 │ stdout
+               ▼                       ▲
+┌──────────────────────────────────────────────────────────┐
+│              MCP Server Process                           │
+│                                                          │
+│  stdin  ──→ Protocol Handler ──→ JSON-RPC Response ──→ stdout
+│                                                          │
+│  ⚠️ Any console.log / process log / npx prompt           │
+│     will leak into stdout and break the protocol frame   │
+└──────────────────────────────────────────────────────────┘
+```
+
+**The core constraint:** stdio is a **byte stream channel** with no message boundaries. The JSON-RPC protocol uses newlines to delimit messages, and the client parses line by line. Once a single line is not valid JSON, all subsequent messages will be misaligned or discarded outright. That's why a single `console.log` can kill an entire connection.
+
+**Contrast with HTTP mode:** If MCP ever supports HTTP/SSE transport, this problem is greatly mitigated (HTTP has natural message boundaries and multiplexing). But under the current stdio mode, this is an iron rule every MCP service developer must strictly follow.
+
+---
+
+### Quick Diagnostic Reference
 
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
-| Server starts but no response | stdout pollution | Check for rogue `console.log` calls. All output must go to stderr. |
-| IDE can't connect | Wrong command in MCP config | Use `npx @bobcgn/skill-central mcp` as the command. |
+| Server starts but no response / empty tool list | stdout contaminated with non-JSON data | Check all `console.log` calls — change to `console.error()`. Confirm `-y` is in npx args. |
+| IDE can't connect | Wrong command in MCP config | Use `npx -y @bobcgn/skill-central mcp` or specify an absolute path. |
+| First connection works, fails on restart | npx cache exists but package version updated | Clear npx cache: `npx clear-npx-cache`, or use `-y` to force update. |
 | Skills not loading | YAML syntax error | Run `skill-central doctor` to see parse errors with file paths. |
 | Tag composition returns empty | Tags missing or mismatched | Verify skill YAML has `tags:`. Use `list --tag X` to confirm. Pass comma-separated: `"tags":"kmp,android"`. |
 | Tool call returns error | Missing or invalid arguments | Check the skill's `inputSchema.required` field. Arguments are validated against declared types. |

@@ -25,7 +25,7 @@ skill-central 是一个本地 [MCP (Model Context Protocol)](https://modelcontex
 - [配置加载顺序](#配置加载顺序)
 - [IDE 集成](#ide-集成)
 - [自定义技能开发](#自定义技能开发)
-- [故障排查](#故障排查)
+- [部署与常见问题排查](#部署与常见问题排查)
 - [参考文档](#参考文档)
 - [发布前自检](#发布前自检)
 - [Trusted Publishing 自动发布](./docs/ch/trusted-publishing.md) / [Trusted Publishing](./docs/en/trusted-publishing.md)
@@ -477,12 +477,152 @@ skill-central show typescript-conventions  # 检查渲染结果
 
 ---
 
-## 故障排查
+## 部署与常见问题排查
+
+> **本节内容至关重要。** MCP 客户端（Cursor、Windsurf、Claude Code 等）通过 **stdio（标准输入/输出）** 与服务进程通信，stdout 是唯一的 JSON-RPC 数据通道。任何非协议数据混入 stdout 都会导致连接静默失败——没有报错，没有提示，只是工具列表为空。以下两个问题是最常见的"隐形杀手"。
+
+### 问题一：`npx` 首次运行的交互式提示
+
+#### 现象
+
+当你在 MCP 配置中使用 `npx @bobcgn/skill-central mcp` 启动服务时，如果本地尚未缓存该包，`npx` 会在 stdout 打印如下交互提示：
+
+```
+Need to install the following packages:
+  @bobcgn/skill-central@0.3.0
+Ok to proceed? (y)
+```
+
+#### 为什么致命
+
+这个提示出现在 **stdout** 上。MCP 客户端正在等待一个合法的 JSON-RPC 响应，却收到了一段纯文本。严格模式的解析器（如 Claude Code、Cursor 的 MCP 客户端）会直接判定连接异常并**静默丢弃整个工具列表**——你的 IDE 不会报错，只是"看不到任何工具"。
+
+#### 解决方案
+
+**方案 A（推荐）：在 args 中强制传入 `-y`**
+
+`-y` 告诉 `npx` 自动确认安装，跳过交互提示：
+
+```json
+{
+  "mcpServers": {
+    "skill-central": {
+      "command": "npx",
+      "args": ["-y", "@bobcgn/skill-central", "mcp"]
+    }
+  }
+}
+```
+
+> ⚠️ **注意：** `-y` 必须是 args 数组的第一个元素，排在包名之前。
+
+**方案 B（生产环境推荐）：直接指定 node 路径运行**
+
+绕过 `npx`，从根本上消除交互提示的可能：
+
+```json
+{
+  "mcpServers": {
+    "skill-central": {
+      "command": "node",
+      "args": ["/absolute/path/to/skill-central/dist/index.js", "mcp"]
+    }
+  }
+}
+```
+
+获取绝对路径：
+
+```bash
+# 查找全局安装路径
+npm root -g
+# 或查找当前项目路径
+npm list -g @bobcgn/skill-central --depth=0
+```
+
+**方案 C：预先全局安装**
+
+```bash
+npm install -g @bobcgn/skill-central
+```
+
+然后在配置中直接使用 `skill-central mcp` 作为 command，无需 `npx`。
+
+---
+
+### 问题二：严禁使用 `console.log` 污染标准输出
+
+#### 现象
+
+开发者习惯性地在代码中加入调试日志：
+
+```typescript
+// ❌ 绝对禁止
+console.log("Starting MCP server...");
+console.log("Loaded 12 skills");
+console.log("Connection established");
+```
+
+#### 为什么致命
+
+MCP stdio 模式下，**stdout 是一个纯粹的 JSON-RPC 通道**。客户端通过 stdout 读取每一行，期望全部是合法的 JSON-RPC 消息。一行非 JSON 文本（比如 `"Starting MCP server..."`）会立即破坏协议帧，导致：
+
+- JSON 解析器抛出异常
+- 客户端断开连接
+- 工具列表返回为空
+- 在某些实现中，之前的合法消息也会被丢弃
+
+#### 解决方案
+
+**硬性规范：所有调试/状态输出必须使用 `console.error()`，绝对禁止向 stdout 输出非协议数据。**
+
+```typescript
+// ✅ 正确：输出到 stderr，不影响 JSON-RPC 通道
+console.error("[skill-central] Starting MCP server...");
+console.error("[skill-central] Loaded 12 skills");
+
+// ❌ 错误：污染 stdout，破坏 JSON-RPC 协议
+console.log("Starting MCP server...");
+```
+
+**第三方库的 `console.log` 同样危险。** 如果你引入的依赖包内部使用了 `console.log`，同样会污染 stdout。`skill-central` 在 MCP 模式下已内置防护（将 `console.log` 重定向到 `stderr`），但如果你基于此项目二次开发，务必注意这一风险。
+
+---
+
+### 架构原理：为什么 stdio 模式如此脆弱
+
+```
+┌──────────────────────────────────────────────────────────┐
+│              MCP 客户端（Cursor / Windsurf / Claude）      │
+│                                                          │
+│  读取 stdout ──→ JSON 解析器 ──→ 工具/提示列表            │
+│  写入 stdin  ──→ JSON-RPC 请求                            │
+└──────────────┬───────────────────────┬───────────────────┘
+               │ stdin                 │ stdout
+               ▼                       ▲
+┌──────────────────────────────────────────────────────────┐
+│              MCP Server 进程                              │
+│                                                          │
+│  stdin  ──→ 协议处理器 ──→ JSON-RPC 响应 ──→ stdout       │
+│                                                          │
+│  ⚠️ 任何 console.log / 进程日志 / npx 提示               │
+│     都会混入 stdout，破坏协议帧                            │
+└──────────────────────────────────────────────────────────┘
+```
+
+**核心约束：** stdio 是一个**字节流通道**，没有消息边界。JSON-RPC 协议通过换行符分隔消息，客户端逐行解析。一旦某一行不是合法 JSON，后续所有消息都会被错位解析或直接丢弃。这就是为什么一个 `console.log` 就能毁掉整个连接。
+
+**与 HTTP 模式的对比：** 如果 MCP 未来支持 HTTP/SSE 传输，这个问题会大幅缓解（HTTP 有天然的消息边界和多路复用能力）。但在当前的 stdio 模式下，这是每个 MCP 服务开发者都必须严格遵守的铁律。
+
+---
+
+### 快速诊断清单
 
 | 现象 | 可能原因 | 解决 |
 |------|---------|------|
-| Server 启动但无响应 | stdout 被污染 | 检查第三方库的 `console.log`。MCP 模式已重定向，但仍有遗漏。 |
-| IDE 无法连接 | MCP 配置命令错误 | 使用 `npx @bobcgn/skill-central mcp` 作为命令。 |
+| Server 启动但无响应 / 工具列表为空 | stdout 被非 JSON 数据污染 | 检查所有 `console.log` 调用，全部改为 `console.error()`。确认 npx args 中有 `-y`。 |
+| IDE 无法连接 | MCP 配置命令错误 | 使用 `npx -y @bobcgn/skill-central mcp` 或指定绝对路径。 |
+| 首次连接成功，重启后失败 | npx 缓存已存在，但包版本已更新 | 清除 npx 缓存：`npx clear-npx-cache`，或使用 `-y` 强制更新。 |
 | 技能未加载 | YAML 语法错误 | 运行 `skill-central doctor` 查看带文件路径的解析错误。 |
 | 标签组合无返回 | 标签缺失或不匹配 | 确认技能 YAML 中有 `tags` 字段，用 `list --tag X` 验证。传参使用逗号字符串。 |
 | 工具调用返回错误 | 参数缺失或类型错误 | 检查 `inputSchema.required`。参数会按声明类型校验。 |
