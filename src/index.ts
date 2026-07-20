@@ -26,6 +26,7 @@ import { cmdDoctor } from "./commands/doctor.js";
 import { cmdInstall } from "./commands/install.js";
 import { cmdUpdate } from "./commands/update.js";
 import { cmdUninstall } from "./commands/uninstall.js";
+import { cmdRegister } from "./commands/register.js";
 import { VERSION } from "./version.js";
 
 const program = new Command();
@@ -217,6 +218,19 @@ program
       purgeBackups: opts.purgeBackups,
     }).catch((err) => {
       console.error("[skill-central] Uninstall error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("register [ide]")
+  .description("Automatically register skill-central into IDE MCP configurations (claude, cursor, windsurf, cline). Omitting [ide] will auto-detect and register in all found.")
+  .option("--remove", "Remove the skill-central registration from the IDE config")
+  .action((ide: string | undefined, opts) => {
+    cmdRegister(ide, {
+      remove: opts.remove,
+    }).catch((err) => {
+      console.error("[skill-central] Register error:", err.message ?? err);
       process.exit(1);
     });
   });

@@ -1,0 +1,8 @@
+{
+    "mcpServers": {
+        "skill-central": {
+            "command": "skill-central",
+            "args": ["mcp"]
+        }
+    }
+}
