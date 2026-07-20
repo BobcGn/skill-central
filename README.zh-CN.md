@@ -53,7 +53,7 @@ npx @bobcgn/skill-central init
 # skill-central init
 ```
 
-这将创建一个 `.skills/` 目录（包含 4 层层级文件夹）和一个 `skill-central.yaml` 配置文件。
+这将创建一个 `.skills/` 目录（包含 4 层层级文件夹）和一个 `skill-central.yaml` 配置文件，并会尝试自动将本服务注册到你本地已安装的 AI IDE 中。
 
 ### 打开 Web 看板
 
@@ -125,7 +125,8 @@ npx @bobcgn/skill-central <command>
 |------|------|
 | `mcp` | 启动 Stdio MCP Server（IDE 集成用，stdout 静默） |
 | `board` | 打开 **Web 看板**（默认），或打印终端表格（`--cli`） |
-| `init` | 生成 `.skills/` 示例目录和层级配置 |
+| `init` | 生成 `.skills/` 示例目录和层级配置，并尝试自动注册 MCP 到本地 IDE |
+| `register` | 自动将 skill-central 注册到本地的 IDE MCP 配置中 (Claude/Cursor/Windsurf) |
 | `add` | 创建新技能（基于 tags 自动推断 layer） |
 | `list` | 列出已加载技能（过滤项：`--layer`、`--tag`、`--type`） |
 | `show <id>` | 打印技能完整信息和 prompt 正文 |

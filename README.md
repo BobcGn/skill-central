@@ -55,7 +55,7 @@ npx @bobcgn/skill-central init
 # skill-central init
 ```
 
-This scaffolds a `.skills/` directory with 4 layered skill directories and a `skill-central.yaml` config file.
+This scaffolds a `.skills/` directory with 4 layered skill directories and a `skill-central.yaml` config file, and will attempt to auto-register the MCP server into your local AI IDEs.
 
 ### Open the web board
 
@@ -127,7 +127,8 @@ npx @bobcgn/skill-central <command>
 |---------|-------------|
 | `mcp` | Start the Stdio MCP Server (IDE-facing, silent on stdout) |
 | `board` | Open the **web dashboard** (default) or print terminal table (`--cli`) |
-| `init` | Scaffold `.skills/` with sample skills and `skill-central.yaml` |
+| `init` | Scaffold `.skills/` with sample skills, config, and attempt auto-registration to local IDEs |
+| `register` | Auto-inject skill-central into local IDE MCP configurations (Claude/Cursor/Windsurf) |
 | `add` | Create a new skill definition (auto-selects layer from tags) |
 | `list` | List loaded skills (filters: `--layer`, `--tag`, `--type`) |
 | `show <id>` | Print full skill details + prompt body |
