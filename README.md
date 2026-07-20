@@ -708,6 +708,51 @@ MIT
 
 ---
 
-## Use as a Template
+## Use as a Template & Sync Across Devices (Best Practice)
 
-You can use this repository as a template to create your own skill repository. Click the "Use this template" button at the top of the repository page to get started.
+The most robust way to manage and sync your AI skills across multiple devices is to use this repository as a template for a private skill repository.
+
+### 1. Create your private repository
+1. Click the **"Use this template"** button at the top of this repository to create your own private repository.
+2. Clone it to your local machine: `git clone https://github.com/YOUR_USERNAME/skill-central.git`
+3. Enter the directory: `cd skill-central`
+
+### 2. Isolate your skills in a dedicated branch
+To avoid conflicts when pulling future engine updates from the upstream repository, keep the `main` branch clean (it acts as the engine template) and store your personal skills in a separate branch (e.g., `my-skills`):
+
+```bash
+# Create and switch to your skills branch
+git checkout -b my-skills
+
+# Modify .gitignore to allow tracking your skills
+# Remove or comment out the '.skills/' and 'skill-central.yaml' lines in .gitignore
+
+# Add your skills and commit
+git add .gitignore .skills/ skill-central.yaml
+git commit -m "feat: track personal skills"
+git push -u origin my-skills
+```
+
+### 3. Initialize and Link on a New Device
+When setting up a new device, follow these steps to perfectly restore your environment:
+
+```bash
+# 1. Clone your private repository
+git clone https://github.com/YOUR_USERNAME/skill-central.git ~/Projects/skill-central
+cd ~/Projects/skill-central
+
+# 2. Switch to your skills branch
+git checkout my-skills
+
+# 3. Install dependencies and build
+npm install
+npm run build && npm run build:web
+
+# 4. Expose the command globally
+npm link
+
+# 5. Set as your global skill library (CRITICAL for IDEs like Claude to find your skills)
+ln -s "$(pwd)" ~/.skill-central
+```
+
+After step 5, any MCP client (like Claude Desktop) will automatically discover your skills when it launches `skill-central mcp`, no matter what directory it runs from.

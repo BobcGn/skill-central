@@ -690,6 +690,51 @@ MIT
 
 ---
 
-## 作为模板使用
+## 作为模板使用与多设备同步（最佳实践）
 
-您可以使用此仓库作为模板来创建您自己的技能仓库。点击仓库页面顶部的 “Use this template” 按钮即可开始。
+管理和在多台设备间同步 AI 技能的最稳妥方式，是将本仓库作为模板，创建一个你的私有技能仓库。
+
+### 1. 创建你的私有仓库
+1. 点击本仓库顶部的 **"Use this template"** 按钮，创建一个你自己的私有仓库。
+2. 将其克隆到本地：`git clone https://github.com/你的用户名/skill-central.git`
+3. 进入目录：`cd skill-central`
+
+### 2. 在专属分支中隔离你的技能数据
+为了避免未来拉取上游引擎代码更新时产生冲突，请保持 `main` 分支的纯净（作为引擎代码模板），并将你的个人技能存放在一个独立的分支（例如 `my-skills`）中：
+
+```bash
+# 创建并切换到你的技能分支
+git checkout -b my-skills
+
+# 修改 .gitignore 以允许追踪技能文件
+# 在 .gitignore 中删除或注释掉 '.skills/' 和 'skill-central.yaml' 这两行
+
+# 添加你的技能并提交
+git add .gitignore .skills/ skill-central.yaml
+git commit -m "feat: track personal skills"
+git push -u origin my-skills
+```
+
+### 3. 在新设备上初始化与链接
+当你在新设备上配置环境时，只需执行以下步骤即可完美还原你的技能环境：
+
+```bash
+# 1. 克隆你的私有仓库
+git clone https://github.com/你的用户名/skill-central.git ~/Projects/skill-central
+cd ~/Projects/skill-central
+
+# 2. 切换到你的技能分支
+git checkout my-skills
+
+# 3. 安装依赖并构建代码
+npm install
+npm run build && npm run build:web
+
+# 4. 将命令暴露到全局
+npm link
+
+# 5. 设置为全局技能库（关键：让 Claude 等 IDE 能够识别到你的技能）
+ln -s "$(pwd)" ~/.skill-central
+```
+
+执行完第 5 步后，任何 MCP 客户端（如 Claude Desktop）在后台启动 `skill-central mcp` 时，无论它从哪个目录启动，都能自动顺着软链接找到并加载你的所有技能！
