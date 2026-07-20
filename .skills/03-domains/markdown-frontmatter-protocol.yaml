@@ -1,0 +1,467 @@
+# ============================================================================
+# 03-domains / Markdown Frontmatter Protocol (文档结构与元数据协议)
+# ----------------------------------------------------------------------------
+# 确立基于 Obsidian 双链笔记的 Markdown 编写规范，强制要求结构化文档
+# 包含符合 Quartz / 静态站引擎解析标准的 YAML Frontmatter。
+# 规范内部链接格式，构建网状知识图谱。
+#
+# Priority 30 — 领域级规范，被 02-workflows 层的
+# docs-knowledge-garden-workflow 依赖。
+#
+# 本规范是文档基础设施层的契约，所有准备发布的文档必须遵守。
+# ============================================================================
+id: markdown-frontmatter-protocol
+name: Markdown Frontmatter Protocol (文档结构与元数据协议)
+description: >
+  确立基于 Obsidian 双链笔记的 Markdown 编写规范，强制要求 YAML Frontmatter
+  包含 title / date / tags / draft / aliases 等核心字段，规范 [[双向链接]] 格式，
+  构建网状知识图谱。
+type: prompt
+priority: 30
+tags:
+  - markdown
+  - frontmatter
+  - obsidian
+  - quartz
+  - knowledge-graph
+  - documentation
+  - metadata
+prompt: |
+  # Markdown Frontmatter Protocol (文档结构与元数据协议)
+
+  本规范确立了基于 Obsidian 双链笔记生态的 Markdown 编写标准。所有准备发布到
+  个人博客、知识花园或团队文档库的结构化文档，必须严格遵守本协议。
+
+  本协议兼容 Quartz v4 / VitePress / Docusaurus 等主流静态站引擎的 Frontmatter
+  解析标准。
+
+  ---
+
+  ## 1. YAML Frontmatter 规范
+
+  ### 1.1 文件结构
+
+  每个结构化 Markdown 文件必须以 YAML Frontmatter 开头：
+
+  ```yaml
+  ---
+  # 必填字段
+  title: "文章标题"
+  date: 2026-07-18
+
+  # 强烈推荐字段
+  tags: [architecture, kotlin, multiplatform]
+  draft: true
+  aliases: ["别名1", "别名2"]
+
+  # 可选字段
+  description: "文章摘要，用于 SEO 和社交分享预览"
+  author: "作者名"
+  category: "技术分类"
+  series: "系列文章名称"
+  up: "[[上级概念]]"
+  related: ["[[相关文档1]]", "[[相关文档2]]"]
+  ---
+  ```
+
+  ### 1.2 核心字段定义
+
+  #### 必填字段
+
+  | 字段 | 类型 | 约束 | 说明 |
+  |------|------|------|------|
+  | `title` | string | 非空，≤100 字符 | 文档标题。使用中文或英文，保持项目内一致 |
+  | `date` | date | `YYYY-MM-DD` 格式 | 文档创建日期。使用 ISO 8601 格式 |
+
+  #### 强烈推荐字段
+
+  | 字段 | 类型 | 约束 | 说明 |
+  |------|------|------|------|
+  | `tags` | array[string] | 至少 1 个，≤10 个 | 标签列表。**必须包含至少一个技术栈或架构类标签** |
+  | `draft` | boolean | 默认 `true` | 草稿状态。`true` = 不公开发布，`false` = 可发布 |
+  | `aliases` | array[string] | 可选 | 文档别名，用于 Obsidian 双链引用和 URL 友好化 |
+
+  #### 可选字段
+
+  | 字段 | 类型 | 约束 | 说明 |
+  |------|------|------|------|
+  | `description` | string | ≤200 字符 | 文档摘要，用于 SEO meta description 和社交分享卡片 |
+  | `author` | string | 可选 | 作者名。单人项目可省略 |
+  | `category` | string | 可选 | 技术分类（如 "架构设计"、"性能优化"、"踩坑记录"） |
+  | `series` | string | 可选 | 系列文章名称，用于关联同系列的多篇文档 |
+  | `up` | string | 可选 | 上级概念的双向链接，用于知识图谱的层级导航 |
+  | `related` | array[string] | 可选 | 相关文档的双向链接列表 |
+  | `created` | datetime | 可选 | 精确创建时间（含时分秒），ISO 8601 格式 |
+  | `updated` | datetime | 可选 | 最后更新时间，ISO 8601 格式 |
+  | `lang` | string | 默认 `zh-CN` | 文档语言，用于多语言路由 |
+
+  ### 1.3 标签体系（Taxonomy）
+
+  标签是知识图谱的关键维度。本规范定义以下标签层级：
+
+  #### 技术栈标签（必须包含至少一个）
+
+  ```
+  # 编程语言
+  kotlin, java, python, typescript, javascript, go, rust, swift
+
+  # 框架
+  compose, jetpack-compose, spring, ktor, fastapi, vue, react, fluttermultiplatform
+
+  # 基础设施
+  docker, kubernetes, github-actions, ci-cd, terraform
+  ```
+
+  #### 架构/设计标签（强烈推荐包含）
+
+  ```
+  architecture, design-pattern, microservices, monolith,
+  event-driven, cqrs, clean-architecture, hexagonal,
+  state-management, dependency-injection
+  ```
+
+  #### 问题域标签（根据内容选用）
+
+  ```
+  performance, security, testing, debugging, migration,
+  refactoring, scalability, observability, logging
+  ```
+
+  #### 文档类型标签
+
+  ```
+  tutorial, guide, adr (架构决策记录), rfc, postmortem,
+  comparison, deep-dive, cheatsheet
+  ```
+
+  ### 1.4 标签命名规则
+
+  | 规则 | 正确示例 | 错误示例 |
+  |------|---------|---------|
+  | 全小写 | `jetpack-compose` | `JetpackCompose` |
+  | 用连字符分隔 | `event-driven` | `event_driven` 或 `eventdriven` |
+  | 保持简洁 | `kotlin` | `kotlin-programming-language` |
+  | 英文为主 | `performance` | `性能优化`（中文可作别名） |
+
+  ---
+
+  ## 2. 双向链接规范（Wikilinks）
+
+  ### 2.1 链接语法
+
+  本规范**强制要求**在文档间关联时使用 `[[双向链接]]` 语法，替代传统的
+  Markdown 相对路径链接。
+
+  | 场景 | ✅ 正确写法 | ❌ 错误写法 |
+  |------|-----------|-----------|
+  | 引用其他文档 | `[[架构决策记录]]` | `[架构决策](../adr/001-xxx.md)` |
+  | 引用并显示别名 | `[[架构决策\|ADR]]` | `[ADR](../adr/001-xxx.md)` |
+  | 引用文档中的标题 | `[[架构决策#方案分析]]` | — |
+  | 引用特定文件 | `[[docs/adr/001-xxx]]` | — |
+
+  ### 2.2 链接目标解析规则
+
+  双向链接的解析优先级：
+
+  ```
+  1. 精确匹配文档 title
+  2. 精确匹配文档 aliases 中的别名
+  3. 匹配文件名（不含扩展名）
+  4. 匹配文件路径
+
+  如果多个文档匹配同一查询，Obsidian 会提示消歧。
+  编写时应确保链接目标唯一。
+  ```
+
+  ### 2.3 链接使用场景
+
+  | 场景 | 推荐做法 |
+  |------|---------|
+  | 引用架构决策 | `[[ADR-001-选择Ktor而非Spring]]` |
+  | 引用相关技术文档 | `[[Kotlin协程最佳实践]]` |
+  | 引用项目组件 | `[[UserRepository]]`、`[[AuthModule]]` |
+  | 引用系列文章的上一篇/下一篇 | 在 frontmatter 中使用 `series` 字段 |
+  | 构建知识图谱层级 | 使用 `up` 字段指向父概念 |
+
+  ### 2.4 禁止使用的链接格式
+
+  在结构化文档的正文引用中，**禁止**使用以下格式：
+
+  ```
+  ❌ [文本](https://内部URL)        # 禁止引用内部服务
+  ❌ [文本](/绝对路径/文件.md)       # 禁止使用绝对路径
+  ❌ [文本](../相对路径/文件.md)     # 禁止使用相对路径（跨文档引用时）
+  ```
+
+  **例外：** 以下场景允许使用标准 Markdown 链接：
+  - 引用外部 URL（GitHub、Stack Overflow、官方文档）
+  - 图片引用：`![alt](./images/xxx.png)`
+  - 同一文件内的锚点跳转
+
+  ---
+
+  ## 3. 文档结构规范
+
+  ### 3.1 标题层级
+
+  | 规则 | 说明 |
+  |------|------|
+  | 每个文件只有一个 `#`（H1） | 即 Frontmatter 中 `title` 对应的标题 |
+  | `##`（H2）用于主要章节 | 如"问题背景"、"方案分析"、"实现细节" |
+  | `###`（H3）用于子章节 | 不超过 3 层嵌套 |
+  | 标题使用名词短语 | "方案分析"而非"让我们来分析方案" |
+  | 标题中可包含 emoji | 用于视觉区分（如 🔍 方案分析） |
+
+  ### 3.2 文档骨架
+
+  一份完整的结构化文档应包含以下章节（可根据内容裁剪）：
+
+  ```markdown
+  ---
+  title: "..."
+  date: YYYY-MM-DD
+  tags: [...]
+  draft: true/false
+  aliases: [...]
+  ---
+
+  # [标题]
+
+  ## TL;DR
+  [一段话核心结论，3-5 句。读者只看这一段就能决定是否继续阅读。]
+
+  ## 问题与背景
+  [要解决什么问题？为什么重要？当前的痛点是什么？]
+
+  ## 方案分析
+  ### 方案 A
+  ### 方案 B
+  ### 选定方案
+  [对比分析，最终选择及理由。记录被拒绝的方案。]
+
+  ## 实现细节
+  [核心实现路径。使用代码块展示关键代码。]
+
+  ## 实践与验证
+  [实际效果、性能数据、踩坑记录。]
+
+  ## 经验总结
+  [可复用的最佳实践。通用建议。决策框架。]
+
+  ## 参考资料
+  [[相关文档1]]
+  [[相关文档2]]
+  ```
+
+  ### 3.3 代码块规范
+
+  | 规则 | 说明 |
+  |------|------|
+  | 始终指定语言 | ` ```kotlin ` 而非 ` ``` ` |
+  | 代码块前加注释 | 说明这段代码的目的 |
+  | 敏感信息脱敏 | API Key 用 `YOUR_API_KEY` 替代 |
+  | 大段代码加行号 | 便于引用特定行 |
+
+  ---
+
+  ## 4. Frontmatter 校验规则
+
+  ### 4.1 必填字段校验
+
+  ```
+  校验流程:
+  1. 检测文件是否包含 YAML Frontmatter（以 --- 开头和结尾）
+  2. 解析 YAML 内容
+  3. 检查必填字段: title, date
+  4. 检查推荐字段: tags（至少 1 个技术栈标签）, draft
+  5. 校验字段类型和约束
+  ```
+
+  ### 4.2 标签校验
+
+  ```
+  FOR each tag in tags:
+    IF tag 包含大写字母:
+      → WARNING: 标签应全小写，建议改为 "{tag_lowercase}"
+    IF tag 包含空格:
+      → ERROR: 标签不得包含空格，使用连字符分隔
+    IF tag 是中文:
+      → WARNING: 建议使用英文标签，中文可放在 aliases 中
+
+  IF tags 不包含任何技术栈标签（参考 §1.3 的技术栈标签列表）:
+    → WARNING: 建议添加至少一个技术栈标签
+  ```
+
+  ### 4.3 链接校验
+
+  ```
+  FOR each [[link]] in document body:
+    IF link 指向的文档不存在:
+      → WARNING: 链接目标 "{link}" 未找到匹配文档
+    IF link 使用了相对路径或绝对路径格式:
+      → ERROR: 跨文档引用必须使用 [[双向链接]] 语法
+  ```
+
+  ---
+
+  ## 5. 与知识花园工作流的集成
+
+  本规范是 `docs-knowledge-garden-workflow`（02-workflows）的基础设施依赖。
+
+  | 知识花园动作 | 本规范对应的执行 |
+  |-------------|-----------------|
+  | Phase 5 发布到开源知识花园 | 生成符合本规范的 YAML Frontmatter |
+  | 质量门禁 G1 | 校验 Frontmatter 必填字段完整性 |
+  | 质量门禁 G4 | 校验双向链接格式 |
+  | 质量门禁 G5 | 校验标签包含技术栈/架构关键词 |
+
+  ---
+
+  ## 6. 迁移指南
+
+  对于已有的无 Frontmatter 的 Markdown 文件：
+
+  ```
+  迁移步骤:
+  1. 根据文件内容推断 title（从第一个 H1 标题提取）
+  2. 使用文件的 git 创建日期作为 date
+  3. 根据文件内容自动生成 tags（至少添加技术栈标签）
+  4. 设置 draft: true（确保不会意外发布）
+  5. 检查并转换相对路径链接为 [[双向链接]]
+  6. 检查并转换标题链接格式
+  ```
+
+  ---
+
+  ## 7. 版本与演进
+
+  | 版本 | 变更 | 日期 |
+  |------|------|------|
+  | 1.0.0 | 初始版本：定义 Frontmatter Schema、标签体系、双向链接规范 | 2026-07-18 |
+
+  **演进原则：**
+  - 必填字段不减少（向后兼容）
+  - 新增可选字段不影响现有文档
+  - 标签体系可扩展，但已有标签不改名
+  - 链接语法保持 `[[wikilink]]` 格式不变
+
+prompt_zh: |
+  # Markdown Frontmatter 协议（文档结构与元数据协议）
+
+  本规范确立了基于 Obsidian 双链笔记生态的 Markdown 编写标准。所有准备发布到
+  个人博客、知识花园或团队文档库的结构化文档，必须严格遵守本协议。
+
+  ---
+
+  ## 1. YAML Frontmatter 规范
+
+  ### 1.1 文件结构
+
+  每个结构化 Markdown 文件必须以 YAML Frontmatter 开头：
+
+  ```yaml
+  ---
+  title: "文章标题"
+  date: 2026-07-18
+  tags: [architecture, kotlin]
+  draft: true
+  aliases: ["别名1", "别名2"]
+  description: "文章摘要"
+  ---
+  ```
+
+  ### 1.2 核心字段
+
+  | 字段 | 类型 | 必填 | 说明 |
+  |------|------|------|------|
+  | `title` | string | ✅ | 文档标题，≤100 字符 |
+  | `date` | date | ✅ | 创建日期，YYYY-MM-DD 格式 |
+  | `tags` | array | 推荐 | 标签列表，**必须含技术栈或架构标签** |
+  | `draft` | boolean | 推荐 | 草稿状态，true=不发布 |
+  | `aliases` | array | 可选 | 别名，用于双链引用 |
+  | `description` | string | 可选 | 摘要，≤200 字符 |
+  | `category` | string | 可选 | 技术分类 |
+  | `series` | string | 可选 | 系列文章名 |
+  | `up` | string | 可选 | 上级概念的双向链接 |
+  | `related` | array | 可选 | 相关文档的双向链接 |
+
+  ### 1.3 标签体系
+
+  **技术栈标签（必须包含至少一个）：**
+  kotlin, java, python, typescript, compose, spring, ktor, docker, kubernetes
+
+  **架构标签（强烈推荐）：**
+  architecture, design-pattern, microservices, clean-architecture, event-driven
+
+  **文档类型标签：**
+  tutorial, guide, adr, rfc, postmortem, comparison, deep-dive
+
+  **命名规则：** 全小写，连字符分隔，英文为主。
+
+  ---
+
+  ## 2. 双向链接规范
+
+  **强制要求**使用 `[[双向链接]]` 语法，替代传统相对路径链接。
+
+  | 场景 | ✅ 正确 | ❌ 错误 |
+  |------|---------|---------|
+  | 引用文档 | `[[架构决策记录]]` | `[链接](../adr/001.md)` |
+  | 引用并显示别名 | `[[架构决策\|ADR]]` | — |
+  | 引用标题 | `[[架构决策#方案分析]]` | — |
+
+  **解析优先级：** title → aliases → 文件名 → 文件路径
+
+  **允许使用标准 Markdown 链接的例外场景：**
+  - 外部 URL
+  - 图片引用
+  - 同文件内锚点
+
+  ---
+
+  ## 3. 文档结构规范
+
+  ### 标题层级
+  - 每文件只有一个 H1
+  - H2 用于主要章节，H3 用于子章节
+  - 不超过 3 层嵌套
+
+  ### 文档骨架
+  TL;DR → 问题与背景 → 方案分析 → 实现细节 → 实践与验证 → 经验总结 → 参考资料
+
+  ### 代码块
+  始终指定语言，敏感信息脱敏。
+
+  ---
+
+  ## 4. Frontmatter 校验
+
+  校验流程：
+  1. 检测 YAML Frontmatter 存在性
+  2. 校验必填字段: title, date
+  3. 校验推荐字段: tags, draft
+  4. 标签全小写、无空格
+  5. 至少一个技术栈标签
+  6. 双向链接目标存在性检查
+
+  ---
+
+  ## 5. 与知识花园工作流的集成
+
+  本规范是 `docs-knowledge-garden-workflow` 的基础设施依赖。
+
+  | 知识花园动作 | 本规范执行 |
+  |-------------|-----------|
+  | 发布到开源区 | 生成符合规范的 Frontmatter |
+  | 质量门禁 G1 | 校验 Frontmatter 完整性 |
+  | 质量门禁 G4 | 校验双向链接格式 |
+  | 质量门禁 G5 | 校验技术栈标签 |
+
+  ---
+
+  ## 6. 版本与演进
+
+  - 必填字段不减少（向后兼容）
+  - 新增可选字段不影响现有文档
+  - 标签体系可扩展，已有标签不改名
+  - 链接语法保持 `[[wikilink]]` 不变

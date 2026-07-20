@@ -1,0 +1,678 @@
+# ============================================================================
+# 03-domains / MCP Agent Spawner Infrastructure (点将台基础设施规范)
+# ----------------------------------------------------------------------------
+# 定义 spawn_sub_agent MCP 工具的标准入参 Schema、沙盒隔离原则、
+# 防无限套娃机制、以及子 Agent 的标准回调数据结构。
+#
+# Priority 30 — 领域级规范，被 02-workflows 层的 multi-agent-orchestrator 依赖。
+#
+# 本规范是基础设施层的契约，所有 Multi-Agent 协作场景必须遵守。
+# ============================================================================
+id: mcp-agent-spawner-infrastructure
+name: MCP Agent Spawner Infrastructure (点将台基础设施规范)
+description: >
+  定义 spawn_sub_agent 工具的入参 Schema、沙盒隔离原则、防无限套娃机制
+  （max_depth=1）、以及子 Agent 完成后的标准回调数据结构。
+type: prompt
+priority: 30
+tags:
+  - mcp
+  - agent
+  - spawner
+  - infrastructure
+  - sandbox
+  - schema
+prompt: |
+  # MCP Agent Spawner Infrastructure (点将台基础设施规范)
+
+  本规范定义了 `spawn_sub_agent` MCP 工具的完整技术契约，包括入参 Schema、
+  沙盒隔离原则、防无限套娃机制、以及子 Agent 的标准回调数据结构。
+  所有使用 Multi-Agent 协作模式的场景必须严格遵守本规范。
+
+  ---
+
+  ## 1. spawn_sub_agent 工具 Schema
+
+  ### 1.1 完整入参定义
+
+  ```json
+  {
+    "name": "spawn_sub_agent",
+    "description": "创建一个独立沙盒中运行的子 Agent，执行特定角色的聚焦任务",
+    "inputSchema": {
+      "type": "object",
+      "required": ["role_name", "system_prompt", "task_context", "allowed_tools"],
+      "properties": {
+        "role_name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+          "description": "子 Agent 的角色标识符。用于日志追踪和结果归因。命名规则：PascalCase 或 kebab-case，只能包含字母、数字、下划线、连字符。"
+        },
+        "system_prompt": {
+          "type": "string",
+          "minLength": 50,
+          "maxLength": 8000,
+          "description": "子 Agent 的完整 System Prompt。必须包含：角色定义、任务上下文、接口契约、输出格式要求。禁止包含 spawn_sub_agent 的调用指令。"
+        },
+        "task_context": {
+          "type": "object",
+          "description": "子任务的具体上下文信息",
+          "properties": {
+            "task_id": {
+              "type": "string",
+              "pattern": "^T-[0-9]{3,}$",
+              "description": "子任务 ID，格式为 T-XXX（至少 3 位数字）。由尚书令在 Phase 1 分配。"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "子任务的一句话描述"
+            },
+            "target_files": {
+              "type": "array",
+              "items": { "type": "string" },
+              "maxItems": 20,
+              "description": "该子任务允许操作的文件路径列表。子 Agent 不得操作此列表之外的文件。"
+            },
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "task_id": { "type": "string" },
+                  "interface_name": { "type": "string" },
+                  "expected_signature": { "type": "string" }
+                }
+              },
+              "description": "该子任务依赖的前置任务及其接口约定"
+            },
+            "constraints": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "额外的技术约束（如：'使用 Kotlin Coroutines 而非 RxJava'、'禁止引入新依赖'）"
+            }
+          },
+          "required": ["task_id", "description", "target_files"]
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Read",
+              "Write",
+              "Edit",
+              "Bash",
+              "Grep",
+              "Glob",
+              "LSP",
+              "WebFetch",
+              "WebSearch"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 9,
+          "description": "子 Agent 可使用的工具白名单。子 Agent 不能使用此列表之外的任何工具。特别注意：spawn_sub_agent 不在此列表中。"
+        },
+        "output_schema": {
+          "type": "object",
+          "description": "期望子 Agent 返回的结构化输出 Schema（JSON Schema 格式）。如果未提供，使用默认输出格式（见 §4）。"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 300,
+          "default": 120,
+          "description": "子任务最大执行时间（秒）。超时后子 Agent 被强制终止。"
+        },
+        "model_override": {
+          "type": "string",
+          "enum": ["sonnet", "opus", "haiku", "fable"],
+          "description": "可选的模型覆盖。不填则继承主 Agent 的模型。简单任务建议 haiku，复杂推理任务建议 opus。"
+        }
+      }
+    }
+  }
+  ```
+
+  ### 1.2 入参校验规则
+
+  | 字段 | 校验规则 | 违反时行为 |
+  |------|---------|-----------|
+  | `role_name` | 必须匹配 `^[A-Za-z][A-Za-z0-9_-]*$`，长度 3-64 | 拒绝创建，返回校验错误 |
+  | `system_prompt` | 长度 50-8000 字符，不得包含 `spawn_sub_agent` 字符串 | 拒绝创建，返回安全违规 |
+  | `task_context.target_files` | 数组非空，最多 20 个路径 | 拒绝创建 |
+  | `allowed_tools` | 至少 1 个，最多 9 个，必须在枚举范围内 | 拒绝创建 |
+  | `timeout_seconds` | 范围 30-300 | 使用默认值 120 |
+
+  ---
+
+  ## 2. 沙盒隔离原则（Sandbox Isolation）
+
+  ### 2.1 隔离层级
+
+  | 层级 | 隔离内容 | 实现方式 |
+  |------|---------|---------|
+  | **上下文隔离** | 对话历史、System Prompt | 每个子 Agent 拥有独立的上下文窗口，不继承主 Agent 的对话历史 |
+  | **工具隔离** | 可用工具集 | 仅允许 `allowed_tools` 白名单中的工具，运行时强制执行 |
+  | **文件系统隔离** | 可操作的文件范围 | 仅允许操作 `task_context.target_files` 中列出的路径 |
+  | **权限隔离** | 网络访问、系统命令 | 子 Agent 的 Bash 工具默认以 `--restricted` 模式运行 |
+  | **输出隔离** | 返回值与主 Agent 分离 | 子 Agent 的输出不直接进入主 Agent 的上下文，仅通过结构化回调返回 |
+
+  ### 2.2 隔离执行规则
+
+  | # | 规则 | 执行等级 | 说明 |
+  |---|------|----------|------|
+  | S1 | **子 Agent 不得访问主 Agent 的对话历史** | HARD | 上下文完全隔离 |
+  | S2 | **子 Agent 不得使用 `allowed_tools` 之外的工具** | HARD | 运行时拦截 |
+  | S3 | **子 Agent 不得操作 `target_files` 之外的文件** | HARD | 文件路径白名单校验 |
+  | S4 | **子 Agent 的输出必须通过标准回调结构返回** | HARD | 不允许直接修改主 Agent 的状态 |
+  | S5 | **子 Agent 不得向外部服务发送未经审计的数据** | HARD | 网络请求需经主 Agent 审计 |
+
+  ### 2.3 违规处理
+
+  ```
+  IF 子 Agent 尝试访问不在 allowed_tools 中的工具:
+    → 拦截该调用
+    → 记录违规日志
+    → 终止子 Agent
+    → 向尚书令返回 violation_callback
+
+  IF 子 Agent 尝试操作不在 target_files 中的文件:
+    → 拦截该操作
+    → 记录违规日志
+    → 终止子 Agent
+    → 向尚书令返回 violation_callback
+  ```
+
+  ---
+
+  ## 3. 防无限套娃机制（Anti-Recursion Guard）
+
+  ### 3.1 核心约束
+
+  | 参数 | 值 | 说明 |
+  |------|-----|------|
+  | `max_depth` | **1** | 子 Agent（武将）只能执行具体的编码或检索任务 |
+  | `max_agents_per_dispatch` | **10** | 单次调度周期内最多创建 10 个子 Agent |
+  | `max_total_agents` | **20** | 整个会话生命周期内最多创建 20 个子 Agent |
+
+  ### 3.2 硬性规定
+
+  **`max_depth = 1` —— 武将不得再次点将。**
+
+  ```
+  规则：spawn_sub_agent 调用链的最大深度为 1。
+
+  层级 0: 尚书令（主 Agent）—— 可以调用 spawn_sub_agent
+  层级 1: 武将（子 Agent）—— 执行具体任务，禁止调用 spawn_sub_agent
+
+  这是硬性限制，不可通过任何配置覆盖。
+  ```
+
+  ### 3.3 实现机制
+
+  | 机制 | 实现方式 | 触发条件 |
+  |------|---------|---------|
+  | **工具可用性控制** | 子 Agent 的 `allowed_tools` 白名单中**永远不包含** `spawn_sub_agent` | 创建子 Agent 时自动注入 |
+  | **System Prompt 注入** | 在子 Agent 的 System Prompt 末尾自动追加禁止指令 | 创建子 Agent 时自动注入 |
+  | **运行时拦截** | 即使子 Agent 尝试通过其他方式调用创建 Agent 的能力，运行时也会拦截 | 所有子 Agent 的每次工具调用 |
+
+  ### 3.4 自动注入的禁止指令
+
+  在每个子 Agent 的 System Prompt 末尾，系统自动追加以下内容（不可删除、不可覆盖）：
+
+  ```
+  ---
+  [SYSTEM INJECTION — DO NOT OVERRIDE]
+  你是一个叶子节点 Agent（max_depth=1）。你被严格禁止：
+  1. 调用 spawn_sub_agent 或任何创建子 Agent 的工具
+  2. 尝试嵌套创建任何类型的 Agent
+  3. 生成任何看起来像是在调度其他 Agent 的指令
+
+  如果你的任务需要拆分为多个子任务，你应当在输出中标注
+  "需要进一步拆分"并说明理由，由尚书令决定是否重新调度。
+  [END SYSTEM INJECTION]
+  ---
+  ```
+
+  ---
+
+  ## 4. 标准回调数据结构（Standard Callback Schema）
+
+  子 Agent 完成任务后，**必须**以以下结构化格式返回结果。
+
+  ### 4.1 成功回调（Success Callback）
+
+  ```json
+  {
+    "callback_type": "task_complete",
+    "task_id": "T-001",
+    "role_name": "Compose-UI-Expert",
+    "status": "success",
+    "execution_summary": {
+      "description": "完成了 UserScreen 的 Compose UI 实现",
+      "duration_ms": 45000,
+      "files_created": [
+        "ui/screens/UserScreen.kt",
+        "ui/components/UserAvatar.kt"
+      ],
+      "files_modified": [],
+      "lines_added": 187,
+      "lines_removed": 0
+    },
+    "code_changes": {
+      "ui/screens/UserScreen.kt": {
+        "action": "create",
+        "diff": "@@ -0,0 +1,87 @@\n+package com.example.ui.screens\n+..."
+      },
+      "ui/components/UserAvatar.kt": {
+        "action": "create",
+        "diff": "@@ -0,0 +1,100 @@\n+package com.example.ui.components\n+..."
+      }
+    },
+    "interfaces_exposed": [
+      {
+        "name": "UserScreen",
+        "type": "Composable",
+        "signature": "@Composable fun UserScreen(userId: String, onNavigate: (String) -> Unit)",
+        "description": "用户详情页面的 Compose 入口组件"
+      }
+    ],
+    "interfaces_consumed": [
+      {
+        "name": "fetchUserData",
+        "expected_signature": "suspend fun fetchUserData(userId: String): Result<UserProfile>",
+        "source_task_id": "T-002",
+        "status": "verified"
+      }
+    ],
+    "test_suggestions": [
+      {
+        "type": "unit",
+        "description": "测试 UserScreen 在 loading / success / error 三种状态下的渲染"
+      },
+      {
+        "type": "integration",
+        "description": "测试 UserScreen 与 UserViewModel 的数据流绑定"
+      }
+    ],
+    "warnings": [],
+    "notes": "UserAvatar 组件预留了 badge 插槽，后续可用于通知标记"
+  }
+  ```
+
+  ### 4.2 失败回调（Failure Callback）
+
+  ```json
+  {
+    "callback_type": "task_failed",
+    "task_id": "T-002",
+    "role_name": "Network-Layer-Specialist",
+    "status": "failed",
+    "error": {
+      "code": "DEPENDENCY_NOT_SATISFIED",
+      "message": "依赖的 UserApi 接口定义文件不存在：data/api/UserApi.kt",
+      "recoverable": true,
+      "suggested_action": "请先由 T-003 创建 data/api/UserApi.kt，或在 task_context 中提供接口定义"
+    },
+    "execution_summary": {
+      "description": "尝试实现网络层但缺少依赖接口定义",
+      "duration_ms": 15000,
+      "files_created": [],
+      "files_modified": [],
+      "lines_added": 0,
+      "lines_removed": 0
+    },
+    "partial_output": {
+      "description": "已完成请求模型定义，但无法继续实现 API 调用",
+      "completed_files": ["data/model/UserProfile.kt"],
+      "incomplete_files": ["data/api/UserApi.kt"]
+    }
+  }
+  ```
+
+  ### 4.3 违规回调（Violation Callback）
+
+  ```json
+  {
+    "callback_type": "violation",
+    "task_id": "T-003",
+    "role_name": "State-Management-Architect",
+    "status": "terminated",
+    "violation": {
+      "type": "UNAUTHORIZED_TOOL_ACCESS",
+      "detail": "子 Agent 尝试调用 spawn_sub_agent，违反 max_depth=1 约束",
+      "severity": "critical",
+      "action_taken": "子 Agent 已被强制终止"
+    },
+    "execution_summary": {
+      "description": "子 Agent 在执行过程中尝试创建嵌套 Agent",
+      "duration_ms": 8000,
+      "files_created": [],
+      "files_modified": [],
+      "lines_added": 0,
+      "lines_removed": 0
+    }
+  }
+  ```
+
+  ### 4.4 超时回调（Timeout Callback）
+
+  ```json
+  {
+    "callback_type": "timeout",
+    "task_id": "T-004",
+    "role_name": "Database-Schema-Designer",
+    "status": "terminated",
+    "error": {
+      "code": "TASK_TIMEOUT",
+      "message": "子任务执行超过 120 秒限制",
+      "timeout_ms": 120000,
+      "recoverable": true,
+      "suggested_action": "增加 timeout_seconds 或拆分为更小的子任务"
+    },
+    "execution_summary": {
+      "description": "子 Agent 在处理大型数据库迁移时超时",
+      "duration_ms": 120000,
+      "files_created": [],
+      "files_modified": [],
+      "lines_added": 0,
+      "lines_removed": 0
+    },
+    "partial_output": {
+      "description": "已完成表结构设计，但未生成迁移 SQL",
+      "completed_files": ["data/schema/UserSchema.kt"],
+      "incomplete_files": ["migrations/V2__create_user_table.sql"]
+    }
+  }
+  ```
+
+  ---
+
+  ## 5. 错误码枚举（Error Code Registry）
+
+  | 错误码 | 含义 | 是否可恢复 | 建议操作 |
+  |--------|------|-----------|---------|
+  | `DEPENDENCY_NOT_SATISFIED` | 前置依赖未完成 | ✅ 可恢复 | 调整执行顺序或补充依赖 |
+  | `TOOL_ACCESS_DENIED` | 尝试使用未授权的工具 | ❌ 不可恢复 | 检查 allowed_tools 配置 |
+  | `FILE_ACCESS_DENIED` | 尝试操作未授权的文件 | ❌ 不可恢复 | 检查 target_files 配置 |
+  | `RECURSION_VIOLATION` | 尝试嵌套创建 Agent | ❌ 不可恢复 | max_depth=1 不可覆盖 |
+  | `TASK_TIMEOUT` | 执行超时 | ✅ 可恢复 | 增加超时或拆分任务 |
+  | `OUTPUT_FORMAT_ERROR` | 输出不符合预期格式 | ✅ 可恢复 | 重新执行并修正输出格式 |
+  | `SYSTEM_PROMPT_VIOLATION` | System Prompt 包含非法内容 | ❌ 不可恢复 | 修正 prompt 内容 |
+  | `CONCURRENT_LIMIT_REACHED` | 并发子 Agent 数量达上限 | ✅ 可恢复 | 等待现有子 Agent 完成 |
+
+  ---
+
+  ## 6. 审计日志（Audit Trail）
+
+  每次 spawn_sub_agent 调用必须记录以下审计信息：
+
+  ```json
+  {
+    "audit_event": "agent_spawned",
+    "timestamp": "2026-07-18T15:30:00Z",
+    "parent_agent_id": "main-agent-001",
+    "child_agent_id": "sub-agent-T-001-abc123",
+    "task_id": "T-001",
+    "role_name": "Compose-UI-Expert",
+    "allowed_tools": ["Read", "Write", "Edit", "LSP"],
+    "target_files_count": 3,
+    "timeout_seconds": 120,
+    "depth": 1
+  }
+  ```
+
+  ```json
+  {
+    "audit_event": "agent_completed",
+    "timestamp": "2026-07-18T15:30:45Z",
+    "child_agent_id": "sub-agent-T-001-abc123",
+    "task_id": "T-001",
+    "status": "success",
+    "duration_ms": 45000,
+    "files_created": 2,
+    "files_modified": 0,
+    "violations": 0
+  }
+  ```
+
+  ---
+
+  ## 7. 与尚书令调度工作流的集成
+
+  本规范是 `multi-agent-orchestrator`（02-workflows）的基础设施依赖。
+
+  | 尚书令动作 | 本规范对应的执行 |
+  |-----------|-----------------|
+  | Phase 2 分发子任务 | 调用 `spawn_sub_agent`，传入符合 §1 Schema 的参数 |
+  | System Prompt 生成 | 必须包含 §4.1 要求的四个区块 |
+  | 接口对齐验证 | 解析子 Agent 回调中的 `interfaces_exposed` 和 `interfaces_consumed` |
+  | 违规处理 | 根据回调中的 `callback_type: "violation"` 执行 §2.3 的违规处理流程 |
+
+  ---
+
+  ## 8. 版本与演进
+
+  | 版本 | 变更 | 日期 |
+  |------|------|------|
+  | 1.0.0 | 初始版本：定义完整 Schema、沙盒隔离、防套娃机制、回调结构 | 2026-07-18 |
+
+  **演进原则：**
+  - `max_depth` 的值 **永远为 1**，不随版本演进
+  - 新增 `allowed_tools` 枚举值需经架构评审
+  - 回调结构的新增字段必须是可选的（向后兼容）
+  - 删除或修改现有字段需要 major version bump
+
+prompt_zh: |
+  # MCP Agent Spawner 基础设施规范（点将台）
+
+  本规范定义了 `spawn_sub_agent` MCP 工具的完整技术契约，包括入参 Schema、
+  沙盒隔离原则、防无限套娃机制、以及子 Agent 的标准回调数据结构。
+
+  ---
+
+  ## 1. spawn_sub_agent 工具 Schema
+
+  ### 1.1 完整入参定义
+
+  ```json
+  {
+    "name": "spawn_sub_agent",
+    "description": "创建一个独立沙盒中运行的子 Agent，执行特定角色的聚焦任务",
+    "inputSchema": {
+      "type": "object",
+      "required": ["role_name", "system_prompt", "task_context", "allowed_tools"],
+      "properties": {
+        "role_name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+          "description": "子 Agent 角色标识符。PascalCase 或 kebab-case，仅含字母、数字、下划线、连字符。"
+        },
+        "system_prompt": {
+          "type": "string",
+          "minLength": 50,
+          "maxLength": 8000,
+          "description": "子 Agent 的完整 System Prompt。必须包含：角色定义、任务上下文、接口契约、输出格式要求。禁止包含 spawn_sub_agent 调用指令。"
+        },
+        "task_context": {
+          "type": "object",
+          "properties": {
+            "task_id": { "type": "string", "pattern": "^T-[0-9]{3,}$" },
+            "description": { "type": "string", "maxLength": 2000 },
+            "target_files": { "type": "array", "items": { "type": "string" }, "maxItems": 20 },
+            "dependencies": { "type": "array" },
+            "constraints": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["task_id", "description", "target_files"]
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["Read","Write","Edit","Bash","Grep","Glob","LSP","WebFetch","WebSearch"] },
+          "minItems": 1,
+          "maxItems": 9
+        },
+        "output_schema": { "type": "object" },
+        "timeout_seconds": { "type": "integer", "minimum": 30, "maximum": 300, "default": 120 },
+        "model_override": { "type": "string", "enum": ["sonnet","opus","haiku","fable"] }
+      }
+    }
+  }
+  ```
+
+  ### 1.2 入参校验规则
+
+  | 字段 | 校验规则 | 违反时行为 |
+  |------|---------|-----------|
+  | `role_name` | 匹配 `^[A-Za-z][A-Za-z0-9_-]*$`，3-64 字符 | 拒绝创建 |
+  | `system_prompt` | 50-8000 字符，不含 `spawn_sub_agent` | 拒绝创建（安全违规） |
+  | `target_files` | 非空数组，最多 20 个路径 | 拒绝创建 |
+  | `allowed_tools` | 1-9 个，在枚举范围内 | 拒绝创建 |
+  | `timeout_seconds` | 30-300 | 使用默认值 120 |
+
+  ---
+
+  ## 2. 沙盒隔离原则
+
+  ### 2.1 隔离层级
+
+  | 层级 | 隔离内容 | 实现方式 |
+  |------|---------|---------|
+  | 上下文隔离 | 对话历史、System Prompt | 独立上下文窗口 |
+  | 工具隔离 | 可用工具集 | 白名单强制执行 |
+  | 文件系统隔离 | 可操作的文件范围 | 路径白名单校验 |
+  | 权限隔离 | 网络访问、系统命令 | restricted 模式 |
+  | 输出隔离 | 返回值与主 Agent 分离 | 结构化回调 |
+
+  ### 2.2 隔离执行规则
+
+  | # | 规则 | 等级 |
+  |---|------|------|
+  | S1 | 子 Agent 不得访问主 Agent 的对话历史 | HARD |
+  | S2 | 子 Agent 不得使用 allowed_tools 之外的工具 | HARD |
+  | S3 | 子 Agent 不得操作 target_files 之外的文件 | HARD |
+  | S4 | 子 Agent 的输出必须通过标准回调结构返回 | HARD |
+  | S5 | 子 Agent 不得向外部服务发送未经审计的数据 | HARD |
+
+  ---
+
+  ## 3. 防无限套娃机制
+
+  ### 3.1 核心约束
+
+  | 参数 | 值 | 说明 |
+  |------|-----|------|
+  | `max_depth` | **1** | 子 Agent 只执行具体任务，不得再次创建 Agent |
+  | `max_agents_per_dispatch` | **10** | 单次调度最多 10 个子 Agent |
+  | `max_total_agents` | **20** | 会话生命周期最多 20 个子 Agent |
+
+  ### 3.2 硬性规定
+
+  **`max_depth = 1` —— 武将不得再次点将。这是硬性限制，不可覆盖。**
+
+  - 层级 0: 尚书令 —— 可以调用 spawn_sub_agent
+  - 层级 1: 武将 —— 执行任务，禁止调用 spawn_sub_agent
+
+  ### 3.3 实现机制
+
+  | 机制 | 说明 |
+  |------|------|
+  | 工具可用性控制 | allowed_tools 白名单中永远不包含 spawn_sub_agent |
+  | System Prompt 注入 | 自动追加禁止嵌套创建的指令 |
+  | 运行时拦截 | 即使绕过前两层，运行时也会拦截 |
+
+  ---
+
+  ## 4. 标准回调数据结构
+
+  ### 4.1 成功回调
+
+  ```json
+  {
+    "callback_type": "task_complete",
+    "task_id": "T-001",
+    "role_name": "Compose-UI-Expert",
+    "status": "success",
+    "execution_summary": {
+      "description": "...",
+      "duration_ms": 45000,
+      "files_created": ["..."],
+      "files_modified": [],
+      "lines_added": 187,
+      "lines_removed": 0
+    },
+    "code_changes": { ... },
+    "interfaces_exposed": [ { "name": "...", "signature": "..." } ],
+    "interfaces_consumed": [ { "name": "...", "expected_signature": "..." } ],
+    "test_suggestions": [ { "type": "unit", "description": "..." } ],
+    "warnings": [],
+    "notes": "..."
+  }
+  ```
+
+  ### 4.2 失败回调
+
+  ```json
+  {
+    "callback_type": "task_failed",
+    "task_id": "T-002",
+    "status": "failed",
+    "error": {
+      "code": "DEPENDENCY_NOT_SATISFIED",
+      "message": "...",
+      "recoverable": true,
+      "suggested_action": "..."
+    },
+    "execution_summary": { ... },
+    "partial_output": { ... }
+  }
+  ```
+
+  ### 4.3 违规回调
+
+  ```json
+  {
+    "callback_type": "violation",
+    "task_id": "T-003",
+    "status": "terminated",
+    "violation": {
+      "type": "RECURSION_VIOLATION",
+      "detail": "子 Agent 尝试调用 spawn_sub_agent",
+      "severity": "critical"
+    }
+  }
+  ```
+
+  ---
+
+  ## 5. 错误码枚举
+
+  | 错误码 | 含义 | 可恢复 |
+  |--------|------|--------|
+  | `DEPENDENCY_NOT_SATISFIED` | 前置依赖未完成 | ✅ |
+  | `TOOL_ACCESS_DENIED` | 未授权的工具访问 | ❌ |
+  | `FILE_ACCESS_DENIED` | 未授权的文件访问 | ❌ |
+  | `RECURSION_VIOLATION` | 嵌套创建 Agent | ❌ |
+  | `TASK_TIMEOUT` | 执行超时 | ✅ |
+  | `OUTPUT_FORMAT_ERROR` | 输出格式错误 | ✅ |
+
+  ---
+
+  ## 6. 审计日志
+
+  每次 spawn_sub_agent 调用必须记录审计信息：agent_spawned 事件和 agent_completed 事件，
+  包含时间戳、Agent ID、任务 ID、工具列表、文件数、耗时、违规数等字段。
+
+  ---
+
+  ## 7. 版本与演进
+
+  - `max_depth` 永远为 1，不随版本变化
+  - 新增 `allowed_tools` 枚举值需架构评审
+  - 回调结构新增字段必须可选（向后兼容）
+  - 删除或修改现有字段需 major version bump

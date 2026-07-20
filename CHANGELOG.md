@@ -3,6 +3,13 @@
 All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
 
+## [0.4.0] - 2026-07-20
+
+### Added
+
+- **`register` command**: New CLI command (`skill-central register [ide]`) to automatically inject skill-central into IDE MCP configurations (Claude Desktop, Cursor, Windsurf, Cline).
+- **Auto-registration on `init`**: The `skill-central init` command now attempts to auto-register the MCP server in detected local IDEs.
+
 ## [0.3.0] - 2026-07-18
 
 ### Fixed

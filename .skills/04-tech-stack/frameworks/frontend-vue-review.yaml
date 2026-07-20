@@ -1,0 +1,845 @@
+---
+id: frontend-vue-review
+name: Frontend Vue Code Review
+description: 审查和优化前端Vue代码，涵盖JavaScript、TypeScript语言和Vue 2、Vue 3框架。当用户需要代码审查、性能优化或架构改进时调用。
+type: prompt
+tags:
+  - review
+  - frontend
+  - vue
+  - javascript
+  - typescript
+prompt: |
+  # Frontend Vue Code Review, Optimisation, Polishing Guide
+
+  ## 1. Language Layer
+
+  ### 1.1 JavaScript
+
+  #### 1.1.1 Code conventions
+
+  **Review focus:**
+  - Check variable naming conventions
+  - Verify function naming and parameter usage
+  - Check indentation and formatting
+
+  **Suggested improvements:**
+  ```javascript
+  // Not recommended
+  function get_data() {
+    var userData = {name: 'John', age: 30};
+    return userData;
+  }
+
+  // Recommended
+  function getUserData() {
+    const userData = { name: 'John', age: 30 };
+    return userData;
+  }
+  ```
+
+  #### 1.1.2 Async programming
+
+  **Review focus:**
+  - Check correct use of Promises
+  - Verify reasonable application of async/await
+
+  **Suggested improvements:**
+  ```javascript
+  // Not recommended
+  function fetchData() {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        resolve('data');
+      }, 1000);
+    });
+  }
+
+  fetchData().then(data => {
+    console.log(data);
+  });
+
+  // Recommended
+  async function fetchData() {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve('data');
+      }, 1000);
+    });
+  }
+
+  async function processData() {
+    const data = await fetchData();
+    console.log(data);
+  }
+  ```
+
+  ### 1.2 TypeScript
+
+  #### 1.2.1 Type definitions
+
+  **Review focus:**
+  - Check completeness of type definitions
+  - Verify reasonable use of interfaces and types
+
+  **Suggested improvements:**
+  ```typescript
+  // Recommended
+  interface User {
+    id: number;
+    name: string;
+    email: string;
+  }
+
+  function getUserById(id: number): User {
+    // implementation
+  }
+  ```
+
+  #### 1.2.2 Generics usage
+
+  **Review focus:**
+  - Check reasonable application of generics
+  - Verify correctness of type constraints
+
+  ## 2. Framework Layer
+
+  ### 2.1 Vue 2
+
+  #### 2.1.1 Component design
+
+  **Review focus:**
+  - Check separation of component responsibilities
+  - Verify props and events design of components
+
+  **Suggested improvements:**
+  ```vue
+  <!-- Recommended -->
+  <template>
+    <div class="user-card">
+      <h2>{{ user.name }}</h2>
+      <p>{{ user.email }}</p>
+      <button @click="$emit('edit', user.id)">Edit</button>
+    </div>
+  </template>
+
+  <script>
+  export default {
+    name: 'UserCard',
+    props: {
+      user: {
+        type: Object,
+        required: true
+      }
+    },
+    emits: ['edit']
+  }
+  </script>
+  ```
+
+  #### 2.1.2 Reactive data
+
+  **Review focus:**
+  - Check reasonable use of data properties
+  - Verify correct implementation of computed properties and watchers
+
+  **Suggested improvements:**
+  ```javascript
+  // Recommended
+  export default {
+    data() {
+      return {
+        users: []
+      };
+    },
+    computed: {
+      activeUsers() {
+        return this.users.filter(user => user.active);
+      }
+    },
+    watch: {
+      users: {
+        handler(newUsers) {
+          console.log('Users changed:', newUsers);
+        },
+        deep: true
+      }
+    }
+  };
+  ```
+
+  ### 2.2 Vue 3
+
+  #### 2.2.1 Composition API
+
+  **Review focus:**
+  - Check correct use of the Composition API
+  - Verify reasonableness of logic composition
+
+  **Suggested improvements:**
+  ```vue
+  <template>
+    <div>
+      <h1>{{ title }}</h1>
+      <ul>
+        <li v-for="item in items" :key="item.id">{{ item.name }}</li>
+      </ul>
+    </div>
+  </template>
+
+  <script setup>
+  import { ref, computed } from 'vue';
+
+  // Reactive data
+  const items = ref([]);
+
+  // Computed property
+  const title = computed(() => `Items (${items.value.length})`);
+
+  // Method
+  async function fetchItems() {
+    // implementation
+  }
+  </script>
+  ```
+
+  #### 2.2.2 Reactivity API
+
+  **Review focus:**
+  - Check reasonable use of `ref` and `reactive`
+  - Verify correct application of `toRefs` and `toRef`
+
+  ## 3. Performance Optimisation
+
+  ### 3.1 Rendering optimisation
+
+  **Review focus:**
+  - Check correct use of `v-for`
+  - Verify reasonable setting of the `key` attribute
+  - Check virtual DOM optimisations
+
+  **Suggested improvements:**
+  ```vue
+  <!-- Recommended -->
+  <ul>
+    <li v-for="item in items" :key="item.id">{{ item.name }}</li>
+  </ul>
+  ```
+
+  ### 3.2 Network optimisation
+
+  **Review focus:**
+  - Check HTTP request optimisations
+  - Verify reasonable use of caching strategies
+  - Check resource loading optimisations
+
+  ### 3.3 Memory management
+
+  **Review focus:**
+  - Check correct cleanup of event listeners
+  - Verify reasonable management of timers
+
+  ## 4. Security
+
+  ### 4.1 XSS protection
+
+  **Review focus:**
+  - Check safe handling of user input
+  - Verify reasonable use of `v-html`
+
+  ### 4.2 CSRF protection
+
+  **Review focus:**
+  - Check correct use of CSRF tokens
+  - Verify secure configuration of request headers
+
+  ### 4.3 Sensitive information protection
+
+  **Review focus:**
+  - Check storage of sensitive information
+  - Verify secure management of API keys
+
+  ## 5. Code Quality
+
+  ### 5.1 Code style
+
+  **Review focus:**
+  - Check adherence to ESLint rules
+  - Verify consistency with Prettier formatting
+
+  ### 5.2 Test coverage
+
+  **Review focus:**
+  - Check completeness of unit tests
+  - Verify reasonable coverage of E2E tests
+
+  ### 5.3 Documentation
+
+  **Review focus:**
+  - Check completeness of component documentation
+  - Verify accuracy of API documentation
+
+  ## 6. Architectural Design
+
+  ### 6.1 Componentisation
+
+  **Review focus:**
+  - Check reasonable division of components
+  - Verify component reusability
+
+  ### 6.2 State management
+
+  **Review focus:**
+  - Check reasonable use of Vuex/Pinia
+  - Verify best practices for state management
+
+  ### 6.3 Routing management
+
+  **Review focus:**
+  - Check how routes are organised
+  - Verify correct implementation of route guards
+
+  ## 7. Review Workflow
+
+  ### 7.1 Preparation
+
+  1. Understand the project architecture
+  2. Determine the review scope
+  3. Prepare review tools
+
+  ### 7.2 Performing the review
+
+  1. Static code analysis
+  2. Code walkthrough
+  3. Test verification
+
+  ### 7.3 Report generation
+
+  1. Consolidate findings
+  2. Provide optimisation suggestions
+  3. Track issue resolution
+
+  ## 8. Recommended Tools
+
+  ### 8.1 Static analysis tools
+
+  - ESLint
+  - Prettier
+  - Stylelint
+
+  ### 8.2 Performance profiling tools
+
+  - Lighthouse
+  - Chrome DevTools
+  - Vue DevTools
+
+  ### 8.3 Testing tools
+
+  - Jest
+  - Vue Test Utils
+  - Cypress
+
+  ## 9. Best Practices
+
+  ### 9.1 Vue 2 best practices
+
+  - Use componentisation appropriately
+  - Prefer computed properties over watchers
+  - Use the `key` attribute correctly with `v-for`
+
+  ### 9.2 Vue 3 best practices
+
+  - Prefer the Composition API
+  - Use `<script setup>` appropriately
+  - Use the reactivity API correctly
+
+  ### 9.3 General best practices
+
+  - Follow the single responsibility principle
+  - Prefer functional components
+  - Use asynchronous components appropriately
+
+  ## 10. Common Problems and Solutions
+
+  ### 10.1 Memory leaks
+
+  **Symptoms:**
+  - Application memory usage keeps growing
+  - Page jank / sluggishness
+
+  **Solutions:**
+  - Clean up event listeners correctly
+  - Manage timers appropriately
+  - Configure `keep-alive` appropriately
+
+  ### 10.2 Performance bottlenecks
+
+  **Symptoms:**
+  - Slow page rendering
+  - Delayed interaction response
+
+  **Solutions:**
+  - Use virtual scrolling
+  - Optimise rendering of large lists
+  - Use caching appropriately
+
+  ### 10.3 Reactive data issues
+
+  **Symptoms:**
+  - Data updates but the view does not refresh
+  - Computed properties do not recompute
+
+  **Solutions:**
+  - Use Vue's reactivity API correctly
+  - Avoid directly modifying array indices
+  - Use `Vue.set` or `this.$set`
+
+  ## 11. Review Checklist
+
+  ### 11.1 Language layer
+
+  - [ ] JavaScript code conventions
+  - [ ] TypeScript type definitions
+  - [ ] Async programming best practices
+
+  ### 11.2 Framework layer
+
+  - [ ] Vue component design
+  - [ ] Reactive data management
+  - [ ] Composition API usage
+
+  ### 11.3 Performance and security
+
+  - [ ] Rendering optimisation
+  - [ ] Network optimisation
+  - [ ] XSS protection
+
+  ### 11.4 Code quality
+
+  - [ ] Code style consistency
+  - [ ] Test coverage
+  - [ ] Documentation completeness
+
+  ## 12. Summary
+
+  Frontend Vue code review is an important means of ensuring code quality. Through systematic review, you can discover and resolve potential problems and improve the performance, security, and maintainability of the application. This guide provides comprehensive review points and optimisation suggestions that can be adjusted and extended to fit the specific needs of a project.
+
+  Regular code review not only improves code quality but also promotes knowledge sharing among team members and raises the overall level of development. It is recommended that code review be incorporated into the daily development workflow as part of continuous integration.
+
+prompt_zh: |
+  # 前端Vue代码审查、优化、美化指南
+
+  ## 1. 语言层面
+
+  ### 1.1 JavaScript
+
+  #### 1.1.1 代码规范
+
+  **审查要点：**
+  - 检查变量命名规范
+  - 验证函数命名和参数使用
+  - 检查代码缩进和格式
+
+  **优化建议：**
+  ```javascript
+  // 不推荐
+  function get_data() {
+    var userData = {name: 'John', age: 30};
+    return userData;
+  }
+
+  // 推荐
+  function getUserData() {
+    const userData = { name: 'John', age: 30 };
+    return userData;
+  }
+  ```
+
+  #### 1.1.2 异步编程
+
+  **审查要点：**
+  - 检查Promise的正确使用
+  - 验证async/await的合理应用
+
+  **优化建议：**
+  ```javascript
+  // 不推荐
+  function fetchData() {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        resolve('data');
+      }, 1000);
+    });
+  }
+
+  fetchData().then(data => {
+    console.log(data);
+  });
+
+  // 推荐
+  async function fetchData() {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve('data');
+      }, 1000);
+    });
+  }
+
+  async function processData() {
+    const data = await fetchData();
+    console.log(data);
+  }
+  ```
+
+  ### 1.2 TypeScript
+
+  #### 1.2.1 类型定义
+
+  **审查要点：**
+  - 检查类型定义的完整性
+  - 验证接口和类型的合理使用
+
+  **优化建议：**
+  ```typescript
+  // 推荐
+  interface User {
+    id: number;
+    name: string;
+    email: string;
+  }
+
+  function getUserById(id: number): User {
+    // 实现
+  }
+  ```
+
+  #### 1.2.2 泛型使用
+
+  **审查要点：**
+  - 检查泛型的合理应用
+  - 验证类型约束的正确性
+
+  ## 2. 框架层面
+
+  ### 2.1 Vue 2
+
+  #### 2.1.1 组件设计
+
+  **审查要点：**
+  - 检查组件的职责分离
+  - 验证组件的props和events设计
+
+  **优化建议：**
+  ```vue
+  <!-- 推荐 -->
+  <template>
+    <div class="user-card">
+      <h2>{{ user.name }}</h2>
+      <p>{{ user.email }}</p>
+      <button @click="$emit('edit', user.id)">编辑</button>
+    </div>
+  </template>
+
+  <script>
+  export default {
+    name: 'UserCard',
+    props: {
+      user: {
+        type: Object,
+        required: true
+      }
+    },
+    emits: ['edit']
+  }
+  </script>
+  ```
+
+  #### 2.1.2 响应式数据
+
+  **审查要点：**
+  - 检查data属性的合理使用
+  - 验证计算属性和侦听器的正确实现
+
+  **优化建议：**
+  ```javascript
+  // 推荐
+  export default {
+    data() {
+      return {
+        users: []
+      };
+    },
+    computed: {
+      activeUsers() {
+        return this.users.filter(user => user.active);
+      }
+    },
+    watch: {
+      users: {
+        handler(newUsers) {
+          console.log('Users changed:', newUsers);
+        },
+        deep: true
+      }
+    }
+  };
+  ```
+
+  ### 2.2 Vue 3
+
+  #### 2.2.1 Composition API
+
+  **审查要点：**
+  - 检查Composition API的正确使用
+  - 验证逻辑组合的合理性
+
+  **优化建议：**
+  ```vue
+  <template>
+    <div>
+      <h1>{{ title }}</h1>
+      <ul>
+        <li v-for="item in items" :key="item.id">{{ item.name }}</li>
+      </ul>
+    </div>
+  </template>
+
+  <script setup>
+  import { ref, computed } from 'vue';
+
+  // 响应式数据
+  const items = ref([]);
+
+  // 计算属性
+  const title = computed(() => `Items (${items.value.length})`);
+
+  // 方法
+  async function fetchItems() {
+    // 实现
+  }
+  </script>
+  ```
+
+  #### 2.2.2 响应式API
+
+  **审查要点：**
+  - 检查ref和reactive的合理使用
+  - 验证toRefs和toRef的正确应用
+
+  ## 3. 性能优化
+
+  ### 3.1 渲染优化
+
+  **审查要点：**
+  - 检查v-for的正确使用
+  - 验证key属性的合理设置
+  - 检查虚拟DOM的优化
+
+  **优化建议：**
+  ```vue
+  <!-- 推荐 -->
+  <ul>
+    <li v-for="item in items" :key="item.id">{{ item.name }}</li>
+  </ul>
+  ```
+
+  ### 3.2 网络优化
+
+  **审查要点：**
+  - 检查HTTP请求的优化
+  - 验证缓存策略的合理使用
+  - 检查资源加载优化
+
+  ### 3.3 内存管理
+
+  **审查要点：**
+  - 检查事件监听器的正确清理
+  - 验证定时器的合理管理
+
+  ## 4. 安全性
+
+  ### 4.1 XSS防护
+
+  **审查要点：**
+  - 检查用户输入的安全处理
+  - 验证v-html的合理使用
+
+  ### 4.2 CSRF防护
+
+  **审查要点：**
+  - 检查CSRF令牌的正确使用
+  - 验证请求头的安全设置
+
+  ### 4.3 敏感信息保护
+
+  **审查要点：**
+  - 检查敏感信息的存储
+  - 验证API密钥的安全管理
+
+  ## 5. 代码质量
+
+  ### 5.1 代码风格
+
+  **审查要点：**
+  - 检查ESLint规则的遵循
+  - 验证Prettier格式的一致性
+
+  ### 5.2 测试覆盖
+
+  **审查要点：**
+  - 检查单元测试的完整性
+  - 验证E2E测试的合理覆盖
+
+  ### 5.3 文档
+
+  **审查要点：**
+  - 检查组件文档的完整性
+  - 验证API文档的准确性
+
+  ## 6. 架构设计
+
+  ### 6.1 组件化
+
+  **审查要点：**
+  - 检查组件的合理划分
+  - 验证组件的复用性
+
+  ### 6.2 状态管理
+
+  **审查要点：**
+  - 检查Vuex/Pinia的合理使用
+  - 验证状态管理的最佳实践
+
+  ### 6.3 路由管理
+
+  **审查要点：**
+  - 检查路由的组织方式
+  - 验证路由守卫的正确实现
+
+  ## 7. 审查流程
+
+  ### 7.1 准备工作
+
+  1. 了解项目架构
+  2. 确定审查范围
+  3. 准备审查工具
+
+  ### 7.2 执行审查
+
+  1. 代码静态分析
+  2. 代码走查
+  3. 测试验证
+
+  ### 7.3 报告生成
+
+  1. 整理发现的问题
+  2. 提供优化建议
+  3. 跟踪问题解决
+
+  ## 8. 工具推荐
+
+  ### 8.1 静态分析工具
+
+  - ESLint
+  - Prettier
+  - Stylelint
+
+  ### 8.2 性能分析工具
+
+  - Lighthouse
+  - Chrome DevTools
+  - Vue DevTools
+
+  ### 8.3 测试工具
+
+  - Jest
+  - Vue Test Utils
+  - Cypress
+
+  ## 9. 最佳实践
+
+  ### 9.1 Vue 2最佳实践
+
+  - 合理使用组件化
+  - 优先使用计算属性而非侦听器
+  - 正确使用v-for的key属性
+
+  ### 9.2 Vue 3最佳实践
+
+  - 优先使用Composition API
+  - 合理使用<script setup>
+  - 正确使用响应式API
+
+  ### 9.3 通用最佳实践
+
+  - 遵循单一职责原则
+  - 优先使用函数式组件
+  - 合理使用异步组件
+
+  ## 10. 常见问题与解决方案
+
+  ### 10.1 内存泄漏
+
+  **症状：**
+  - 应用内存使用持续增长
+  - 页面卡顿
+
+  **解决方案：**
+  - 正确清理事件监听器
+  - 合理管理定时器
+  - 使用keep-alive的合理配置
+
+  ### 10.2 性能瓶颈
+
+  **症状：**
+  - 页面渲染缓慢
+  - 交互响应延迟
+
+  **解决方案：**
+  - 使用虚拟滚动
+  - 优化大型列表渲染
+  - 合理使用缓存
+
+  ### 10.3 响应式数据问题
+
+  **症状：**
+  - 数据更新但视图不刷新
+  - 计算属性不重新计算
+
+  **解决方案：**
+  - 正确使用Vue的响应式API
+  - 避免直接修改数组索引
+  - 使用Vue.set或this.$set
+
+  ## 11. 审查清单
+
+  ### 11.1 语言层面
+
+  - [ ] JavaScript代码规范
+  - [ ] TypeScript类型定义
+  - [ ] 异步编程最佳实践
+
+  ### 11.2 框架层面
+
+  - [ ] Vue组件设计
+  - [ ] 响应式数据管理
+  - [ ] Composition API使用
+
+  ### 11.3 性能与安全
+
+  - [ ] 渲染优化
+  - [ ] 网络优化
+  - [ ] XSS防护
+
+  ### 11.4 代码质量
+
+  - [ ] 代码风格一致性
+  - [ ] 测试覆盖率
+  - [ ] 文档完整性
+
+  ## 12. 总结
+
+  前端Vue代码审查是保证代码质量的重要手段，通过系统性的审查可以发现并解决潜在的问题，提高应用的性能、安全性和可维护性。本指南提供了全面的审查要点和优化建议，可根据具体项目的需求进行调整和扩展。
+
+  定期的代码审查不仅可以改善代码质量，还可以促进团队成员之间的知识共享，提高整体开发水平。建议将代码审查纳入日常开发流程，作为持续集成的一部分。
+  

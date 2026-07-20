@@ -346,6 +346,22 @@ layers:
 `,
   );
 
+  console.log("✅ Initialized .skills/ directory with recommended templates.");
+  console.log("✅ Created skill-central.yaml.");
+  console.log("\nYou're ready to start building skills!");
+  console.log("Try: skill-central list");
+
+  // Attempt to auto-register into known IDEs
+  try {
+    const { cmdRegister } = await import("./commands/register.js");
+    console.log("\n--- MCP IDE Registration ---");
+    await cmdRegister(undefined, {});
+    console.log("----------------------------\n");
+  } catch (err: any) {
+    console.log("\n⚠️  Auto-registration for IDEs failed or was skipped:", err.message);
+    console.log("You can manually register later by running: skill-central register");
+  }
+
   console.log("");
   console.log("  [skill-central] Project initialized successfully.");
   console.log(`  ├─ .skills/              — skill definitions (${countFiles(skillsDir)} files)`);
