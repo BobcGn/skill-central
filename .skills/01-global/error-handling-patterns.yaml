@@ -1,0 +1,134 @@
+---
+id: error-handling-patterns
+name: Error Handling Patterns
+description: 统一的错误处理范式指南，跨语言/框架通用。指导何时抛出、何时捕获、如何分类、如何传递上下文。
+type: prompt
+tags:
+  - error-handling
+  - global
+  - patterns
+prompt: |
+  # Error Handling Patterns
+
+  Goal of error handling: let the caller know clearly *what* happened,
+  *why*, and *how to respond*.
+
+  ## Core principles
+
+  1. **Fail fast** — Validate inputs at the function boundary; do not
+     propagate invalid state deeper into the call stack.
+  2. **Explicit semantics** — Each error type maps to one scenario and one
+     recovery strategy.
+  3. **Preserve context** — Error messages must include enough diagnostic
+     information (which operation, which input, what cause).
+  4. **Never swallow exceptions** — Unless you have an explicit recovery
+     path, do not silently catch.
+  5. **Uniform boundaries** — Translate to a uniform error format at module
+     / service boundaries; internally keep the language-native style.
+
+  ## Error categories
+
+  | Category | Example | Strategy |
+  |---|---|---|
+  | Bad input | Validation failed | Return 400; point at the offending field |
+  | Business rule | Insufficient balance, illegal state | Return a specific business code the caller can branch on |
+  | Not found | User / file missing | Return 404 |
+  | Auth / permission | Unauthenticated / unauthorized | Return 401 / 403 |
+  | Dependency failure | DB timeout, third-party API down | Retry / degrade / circuit-break |
+  | Internal error | Unexpected bug | Log full stack, return generic 500 |
+
+  ## What a complete error message must contain
+
+  - **What** happened (one short sentence)
+  - **Where** (which operation / endpoint)
+  - **Why** (root cause — key collision? timeout? validation?)
+  - **Action** (suggested next step, unless it's an internal error)
+
+  ## Layering
+
+  ```
+  Controller → catches uniformly → maps to HTTP status
+       ↑
+  Service    → throws business-meaningful exceptions
+       ↑
+  Repository → throws technical exceptions (timeout, constraint conflict…)
+  ```
+
+  - Lowest layer throws raw exceptions
+  - Middle layer translates to business semantics
+  - Outermost layer handles uniformly and returns to the caller
+
+  ## Logging policy
+
+  - **WARN**: Recoverable exceptions (retry succeeded, graceful degradation)
+  - **ERROR**: Requires human intervention (payment failure, data inconsistency)
+  - Always include: traceId, userId, operation type, key parameters
+  - Never print full stack traces to the client in production (security risk)
+
+  ## Anti-patterns
+
+  - ❌ Catch and only log — silently swallows the exception
+  - ❌ Returning `null` instead of throwing — the caller forgets to check, NPE ensues
+  - ❌ Using exceptions for control flow — exceptions are exceptional, expensive
+  - ❌ Dropping the cause chain — always keep `cause`
+  - ❌ Returning "An error occurred" to the user — zero diagnostic value
+prompt_zh: |
+  # 错误处理范式
+
+  错误处理的目标：让调用方清楚知道发生了什么、为什么发生、以及如何响应。
+
+  ## 核心原则
+
+  1. **尽早失败** — 参数校验在函数入口处完成，不要把无效状态传播下去
+  2. **明确语义** — 每种错误类型对应一种明确的场景和恢复策略
+  3. **保留上下文** — 错误信息需包含足够的诊断信息（什么操作、什么输入、什么原因）
+  4. **不吞噬异常** — 除非你有明确的恢复路径，否则不要吞掉异常
+  5. **边界统一** — 在模块/服务边界统一错误格式，内部保持语言原生风格
+
+  ## 错误分类
+
+  | 类别 | 示例 | 处理策略 |
+  |------|------|---------|
+  | 参数错误 | 输入校验失败 | 返回 400，清晰指出哪个参数有问题 |
+  | 业务规则错误 | 余额不足、状态不允许 | 返回具体业务错误码，调用方可据此决策 |
+  | 资源不存在 | 用户未找到、文件不存在 | 返回 404 |
+  | 权限错误 | 未认证/未授权 | 返回 401/403 |
+  | 依赖失败 | 数据库超时、第三方 API 不可用 | 重试/降级/熔断 |
+  | 内部错误 | 未预期的 bug | 记录完整堆栈，返回通用 500 |
+
+  ## 错误信息要素
+
+  一个完整的错误信息应包含：
+  - **What**: 发生了什么（简短描述）
+  - **Where**: 在哪个操作/端点中发生
+  - **Why**: 根因（key 冲突？超时？校验失败？）
+  - **Action**: 建议的解决方式（如果不是内部错误）
+
+  ## 分层策略
+
+  ```
+  Controller 层 → 统一捕获 → 映射为 HTTP 状态码
+       ↓
+  Service 层   → 抛出自定义业务异常
+       ↓
+  Repository   → 抛出技术异常（连接超时、约束冲突等）
+  ```
+
+  - 底层抛出原始异常
+  - 中间层转换为业务语义的异常
+  - 最外层统一处理并返回给客户端
+
+  ## 日志策略
+
+  - **WARN**: 可恢复的异常（重试后成功、降级处理）
+  - **ERROR**: 需要人工介入的异常（支付失败、数据不一致）
+  - 日志中始终包含：traceId、userId、操作类型、关键参数
+  - 不要在生产环境打印完整堆栈到客户端（安全风险）
+
+  ## 反模式
+
+  - ❌ catch 后只 log 不处理——静默吞异常
+  - ❌ 返回 null 替代抛异常——调用方忘记检查导致 NPE
+  - ❌ 用异常做流程控制——异常是例外情况，成本高
+  - ❌ 丢弃原始异常链——永远保留 cause
+  - ❌ 返回 "An error occurred" 给用户——毫无诊断价值

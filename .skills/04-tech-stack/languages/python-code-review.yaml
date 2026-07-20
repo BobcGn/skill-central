@@ -1,0 +1,2542 @@
+---
+id: python-code-review
+name: Python Code Review
+description: 审查和优化Python代码，涵盖Python脚本、Web程序（Django等框架）。当用户需要代码审查、性能优化或架构改进时调用。
+type: prompt
+tags:
+  - review
+  - python
+  - django
+  - flask
+prompt: |
+  # Python Code Review & Optimisation Guide
+
+  ## 1. Language Layer
+
+  ### 1.1 Python basics
+
+  **Reference docs:**
+  - [Python official docs](https://docs.python.org/zh-cn/3/)
+  - [PEP 8 – Python Style Guide](https://peps.python.org/pep-0008/)
+  - [PEP 257 – Docstring Conventions](https://peps.python.org/pep-0257/)
+
+  #### 1.1.1 Code style
+
+  **Review focus:**
+  - Check whether the code follows PEP 8
+  - Verify consistency of naming conventions
+  - Check code indentation and whitespace usage
+
+  **Suggested improvements:**
+  ```python
+  # Not recommended
+  def calculate_interest(principal,rate,time):
+      return principal*rate*time/100
+
+  # Recommended
+  def calculate_interest(principal, rate, time):
+      """计算利息
+
+      Args:
+          principal: 本金
+          rate: 利率
+          time: 时间
+
+      Returns:
+          计算后的利息
+      """
+      return principal * rate * time / 100
+  ```
+
+  #### 1.1.2 Async programming
+
+  **Review focus:**
+  - Check correct implementation of async operations
+  - Verify reasonable use of async/await
+  - Check event-loop management
+
+  **Suggested improvements:**
+  ```python
+  # Not recommended
+  import requests
+
+  def fetch_data(url):
+      response = requests.get(url)
+      return response.json()
+
+  # Recommended
+  import aiohttp
+  import asyncio
+
+  async def fetch_data(url):
+      """异步获取数据
+
+      Args:
+          url: 请求URL
+
+      Returns:
+          响应的JSON数据
+      """
+      async with aiohttp.ClientSession() as session:
+          async with session.get(url) as response:
+              return await response.json()
+
+  # Usage example
+  async def main():
+      data = await fetch_data("https://api.example.com/data")
+      print(data)
+
+  asyncio.run(main())
+  ```
+
+  #### 1.1.3 Exception handling
+
+  **Review focus:**
+  - Check that exceptions are caught appropriately
+  - Verify that exception information is complete
+  - Check that bare `except` is avoided
+
+  **Suggested improvements:**
+  ```python
+  # Not recommended
+  try:
+      result = 10 / 0
+  except:
+      print("出错了")
+
+  # Recommended
+  try:
+      result = 10 / 0
+  except ZeroDivisionError as e:
+      print(f"除以零错误: {e}")
+  except Exception as e:
+      print(f"发生错误: {e}")
+  ```
+
+  #### 1.1.4 Resource management
+
+  **Review focus:**
+  - Check that resources are closed correctly
+  - Verify use of the `with` statement
+
+  **Suggested improvements:**
+  ```python
+  # Not recommended
+  file = open("example.txt", "r")
+  data = file.read()
+  file.close()
+
+  # Recommended
+  with open("example.txt", "r") as file:
+      data = file.read()
+  # File is closed automatically
+  ```
+
+  ### 1.2 Python scripts
+
+  #### 1.2.1 Script structure
+
+  **Review focus:**
+  - Check the script's organisation
+  - Verify use of a `main` function
+  - Check command-line argument handling
+
+  **Suggested improvements:**
+  ```python
+  #!/usr/bin/env python3
+  """示例脚本
+
+  这个脚本展示了Python脚本的标准结构
+  """
+
+  import argparse
+
+  def process_data(data):
+      """处理数据
+
+      Args:
+          data: 要处理的数据
+
+      Returns:
+          处理后的数据
+      """
+      return [item * 2 for item in data]
+
+  def main():
+      """主函数
+      """
+      parser = argparse.ArgumentParser(description="处理数据的脚本")
+      parser.add_argument("--input", type=str, required=True, help="输入文件路径")
+      parser.add_argument("--output", type=str, required=True, help="输出文件路径")
+      args = parser.parse_args()
+
+      # Read data
+      with open(args.input, "r") as f:
+          data = [int(line.strip()) for line in f]
+
+      # Process data
+      processed_data = process_data(data)
+
+      # Write results
+      with open(args.output, "w") as f:
+          for item in processed_data:
+              f.write(f"{item}\n")
+
+  if __name__ == "__main__":
+      main()
+  ```
+
+  #### 1.2.2 Performance optimisation
+
+  **Review focus:**
+  - Check loop efficiency
+  - Verify the choice of data structures
+  - Check memory usage
+
+  **Suggested improvements:**
+  ```python
+  # Not recommended
+  def process_large_list(items):
+      result = []
+      for item in items:
+          if item > 0:
+              result.append(item * 2)
+      return result
+
+  # Recommended
+  def process_large_list(items):
+      """处理大型列表
+
+      使用生成器表达式提高内存效率
+
+      Args:
+          items: 要处理的列表
+
+      Returns:
+          处理后的结果
+      """
+      return (item * 2 for item in items if item > 0)
+  ```
+
+  ## 2. Web Framework Layer
+
+  ### 2.1 Django
+
+  **Reference docs:**
+  - [Django official docs](https://docs.djangoproject.com/zh-hans/)
+
+  #### 2.1.1 Model design
+
+  **Review focus:**
+  - Check whether the model is designed reasonably
+  - Verify the choice of field types
+  - Check reasonable use of indexes
+
+  **Suggested improvements:**
+  ```python
+  # Recommended
+  from django.db import models
+
+  class User(models.Model):
+      """用户模型
+      """
+      username = models.CharField(max_length=150, unique=True, db_index=True)
+      email = models.EmailField(unique=True, db_index=True)
+      created_at = models.DateTimeField(auto_now_add=True)
+      updated_at = models.DateTimeField(auto_now=True)
+
+      class Meta:
+          indexes = [
+              models.Index(fields=['created_at']),
+          ]
+
+      def __str__(self):
+          return self.username
+  ```
+
+  #### 2.1.2 View design
+
+  **Review focus:**
+  - Check separation of view responsibilities
+  - Verify validation of request parameters
+  - Check that responses are returned appropriately
+
+  **Suggested improvements:**
+  ```python
+  # Recommended
+  from django.shortcuts import render, get_object_or_404
+  from django.http import JsonResponse
+  from django.views.decorators.csrf import csrf_exempt
+  from django.views import View
+  from django.utils.decorators import method_decorator
+
+  from .models import User
+  from .forms import UserForm
+
+  # Function-based view
+  def user_list(request):
+      """用户列表视图
+
+      Returns:
+          用户列表的HTML页面
+      """
+      users = User.objects.all()
+      return render(request, 'users/user_list.html', {'users': users})
+
+  # Class-based view
+  class UserDetailView(View):
+      """用户详情视图
+      """
+      def get(self, request, pk):
+          """处理GET请求
+
+          Args:
+              request: HTTP请求对象
+              pk: 用户ID
+
+          Returns:
+              用户详情的HTML页面或404响应
+          """
+          user = get_object_or_404(User, pk=pk)
+          return render(request, 'users/user_detail.html', {'user': user})
+
+  # API view
+  @method_decorator(csrf_exempt, name='dispatch')
+  class UserApiView(View):
+      """用户API视图
+      """
+      def post(self, request):
+          """处理POST请求
+
+          Args:
+              request: HTTP请求对象
+
+          Returns:
+              JSON响应
+          """
+          form = UserForm(request.POST)
+          if form.is_valid():
+              user = form.save()
+              return JsonResponse({'id': user.id, 'username': user.username}, status=201)
+          return JsonResponse(form.errors, status=400)
+  ```
+
+  #### 2.1.3 Template design
+
+  **Review focus:**
+  - Check template organisation
+  - Verify reasonable use of template tags
+  - Check correct implementation of template inheritance
+
+  **Suggested improvements:**
+  ```html
+  <!-- Recommended: base template -->
+  <!-- base.html -->
+  <!DOCTYPE html>
+  <html>
+  <head>
+      <title>{% block title %}My Site{% endblock %}</title>
+  </head>
+  <body>
+      <header>
+          <h1>My Site</h1>
+      </header>
+      <main>
+          {% block content %}{% endblock %}
+      </main>
+      <footer>
+          <p>&copy; 2023 My Site</p>
+      </footer>
+  </body>
+  </html>
+
+  <!-- Recommended: child template -->
+  <!-- user_list.html -->
+  {% extends "base.html" %}
+
+  {% block title %}User List{% endblock %}
+
+  {% block content %}
+      <h2>User List</h2>
+      <ul>
+          {% for user in users %}
+              <li><a href="{% url 'user_detail' user.id %}">{{ user.username }}</a></li>
+          {% endfor %}
+      </ul>
+  {% endblock %}
+  ```
+
+  #### 2.1.4 Middleware
+
+  **Review focus:**
+  - Check correct implementation of middleware
+  - Verify middleware execution order
+  - Check middleware's performance impact
+
+  **Suggested improvements:**
+  ```python
+  # Recommended
+  class RequestLoggingMiddleware:
+      """请求日志中间件
+
+      记录每个请求的信息
+      """
+      def __init__(self, get_response):
+          self.get_response = get_response
+
+      def __call__(self, request):
+          # Pre-request processing
+          print(f"请求路径: {request.path}")
+          print(f"请求方法: {request.method}")
+
+          # Process request
+          response = self.get_response(request)
+
+          # Post-request processing
+          print(f"响应状态码: {response.status_code}")
+
+          return response
+  ```
+
+  ### 2.2 Flask
+
+  **Reference docs:**
+  - [Flask official docs](https://flask.palletsprojects.com/)
+
+  #### 2.2.1 Application structure
+
+  **Review focus:**
+  - Check the application's organisation
+  - Verify reasonable use of blueprints
+  - Check configuration management
+
+  **Suggested improvements:**
+  ```python
+  # Recommended: application structure
+  """
+  myapp/
+  ├── app/
+  │   ├── __init__.py
+  │   ├── routes.py
+  │   ├── models.py
+  │   ├── templates/
+  │   └── static/
+  ├── config.py
+  └── run.py
+  """
+
+  # __init__.py
+  from flask import Flask
+  from .routes import main_bp
+
+  app = Flask(__name__)
+  app.config.from_object('config.Config')
+
+  app.register_blueprint(main_bp)
+
+  # routes.py
+  from flask import Blueprint, render_template
+
+  main_bp = Blueprint('main', __name__)
+
+  @main_bp.route('/')
+  def index():
+      """首页视图
+
+      Returns:
+          首页的HTML页面
+      """
+      return render_template('index.html')
+
+  # run.py
+  from app import app
+
+  if __name__ == '__main__':
+      app.run()
+  ```
+
+  #### 2.2.2 Routes and views
+
+  **Review focus:**
+  - Check how routes are defined
+  - Verify view function design
+  - Check the completeness of request handling
+
+  **Suggested improvements:**
+  ```python
+  # Recommended
+  from flask import Flask, request, jsonify
+
+  app = Flask(__name__)
+
+  @app.route('/api/users', methods=['GET'])
+  def get_users():
+      """获取用户列表API
+
+      Returns:
+          用户列表的JSON响应
+      """
+      users = [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}]
+      return jsonify(users)
+
+  @app.route('/api/users/<int:user_id>', methods=['GET'])
+  def get_user(user_id):
+      """获取用户详情API
+
+      Args:
+          user_id: 用户ID
+
+      Returns:
+          用户详情的JSON响应或404响应
+      """
+      user = {'id': user_id, 'name': 'Alice'}
+      return jsonify(user)
+
+  @app.route('/api/users', methods=['POST'])
+  def create_user():
+      """创建用户API
+
+      Returns:
+          创建的用户的JSON响应或错误响应
+      """
+      if not request.is_json:
+          return jsonify({'error': '请求必须是JSON格式'}), 400
+
+      data = request.get_json()
+      if 'name' not in data:
+          return jsonify({'error': '缺少name字段'}), 400
+
+      # Assume user creation logic
+      user = {'id': 3, 'name': data['name']}
+      return jsonify(user), 201
+  ```
+
+  ## 3. Performance Optimisation
+
+  ### 3.1 Code optimisation
+
+  **Review focus:**
+  - Check loop efficiency
+  - Verify the choice of algorithms
+  - Check memory usage
+
+  **Suggested improvements:**
+  ```python
+  # Not recommended
+  def find_duplicates(items):
+      """查找重复项
+
+      时间复杂度: O(n²)
+      """
+      duplicates = []
+      for i in range(len(items)):
+          for j in range(i + 1, len(items)):
+              if items[i] == items[j] and items[i] not in duplicates:
+                  duplicates.append(items[i])
+      return duplicates
+
+  # Recommended
+  def find_duplicates(items):
+      """查找重复项
+
+      时间复杂度: O(n)
+
+      Args:
+          items: 要检查的列表
+
+      Returns:
+          重复项的列表
+      """
+      seen = set()
+      duplicates = set()
+      for item in items:
+          if item in seen:
+              duplicates.add(item)
+          else:
+              seen.add(item)
+      return list(duplicates)
+  ```
+
+  ### 3.2 Database optimisation
+
+  **Review focus:**
+  - Check the efficiency of SQL queries
+  - Verify reasonable use of indexes
+  - Check correct use of the ORM
+
+  **Suggested improvements:**
+  ```python
+  # Django ORM optimisation examples
+
+  # Not recommended
+  users = User.objects.all()
+  for user in users:
+      # Each iteration triggers a separate database query
+      posts = user.post_set.all()
+      print(f"{user.username} 有 {posts.count()} 篇文章")
+
+  # Recommended: use select_related (one-to-one and many-to-one relations)
+  users = User.objects.select_related('profile').all()
+  for user in users:
+      # No extra database query
+      print(f"{user.username} 的年龄是 {user.profile.age}")
+
+  # Recommended: use prefetch_related (many-to-many and reverse ForeignKey relations)
+  users = User.objects.prefetch_related('post_set').all()
+  for user in users:
+      # No extra database query
+      print(f"{user.username} 有 {user.post_set.count()} 篇文章")
+
+  # Recommended: use values or values_list to reduce data transfer
+  user_names = User.objects.values_list('username', flat=True)
+  print(list(user_names))
+  ```
+
+  ### 3.3 Caching strategy
+
+  **Review focus:**
+  - Check reasonable use of caching
+  - Verify the cache invalidation strategy
+  - Check the design of cache keys
+
+  **Suggested improvements:**
+  ```python
+  # Django cache example
+  from django.core.cache import cache
+
+  def get_user_data(user_id):
+      """获取用户数据
+
+      使用缓存减少数据库查询
+
+      Args:
+          user_id: 用户ID
+
+      Returns:
+          用户数据
+      """
+      cache_key = f"user_data:{user_id}"
+      user_data = cache.get(cache_key)
+
+      if user_data is None:
+          # Fetch from database
+          user = User.objects.get(id=user_id)
+          user_data = {
+              'id': user.id,
+              'username': user.username,
+              'email': user.email
+          }
+          # Cache data with expiration
+          cache.set(cache_key, user_data, 3600)  # 1 hour
+
+      return user_data
+
+  # Flask cache example
+  from flask import Flask
+  from flask_caching import Cache
+
+  app = Flask(__name__)
+  app.config['CACHE_TYPE'] = 'simple'
+  cache = Cache(app)
+
+  @app.route('/api/data')
+  @cache.cached(timeout=60)
+  def get_data():
+      """获取数据
+
+      使用缓存减少处理时间
+
+      Returns:
+          JSON响应
+      """
+      # Assume this is a time-consuming operation
+      data = {'key': 'value'}
+      return jsonify(data)
+  ```
+
+  ## 4. Security
+
+  ### 4.1 Input validation
+
+  **Review focus:**
+  - Check validation of user input
+  - Verify form handling
+  - Check that injection attacks are prevented
+
+  **Suggested improvements:**
+  ```python
+  # Django form validation
+  from django import forms
+
+  class UserForm(forms.Form):
+      """用户表单
+      """
+      username = forms.CharField(max_length=150, required=True)
+      email = forms.EmailField(required=True)
+      password = forms.CharField(widget=forms.PasswordInput, required=True)
+
+  # Usage example
+  def register(request):
+      if request.method == 'POST':
+          form = UserForm(request.POST)
+          if form.is_valid():
+              # Process valid data
+              username = form.cleaned_data['username']
+              email = form.cleaned_data['email']
+              # Create user, etc.
+              return redirect('success')
+      else:
+          form = UserForm()
+      return render(request, 'register.html', {'form': form})
+
+  # Flask input validation
+  from flask import Flask, request, jsonify
+  from wtforms import Form, StringField, EmailField, validators
+
+  app = Flask(__name__)
+
+  class UserForm(Form):
+      """用户表单
+      """
+      username = StringField('Username', [validators.Length(min=4, max=25)])
+      email = EmailField('Email Address', [validators.DataRequired(), validators.Email()])
+
+  @app.route('/register', methods=['POST'])
+  def register():
+      form = UserForm(request.form)
+      if form.validate():
+          # Process valid data
+          return jsonify({'message': '注册成功'})
+      return jsonify({'errors': form.errors}), 400
+  ```
+
+  ### 4.2 Authentication and authorisation
+
+  **Review focus:**
+  - Check implementation of authentication mechanisms
+  - Verify completeness of authorisation strategy
+  - Check secure storage of passwords
+
+  **Suggested improvements:**
+  ```python
+  # Django authentication
+  from django.contrib.auth.decorators import login_required, permission_required
+  from django.contrib.auth.models import User
+  from django.contrib.auth.hashers import make_password
+
+  # Use password hashing when creating users
+  def create_user(username, password, email):
+      """创建用户
+
+      Args:
+          username: 用户名
+          password: 密码
+          email: 邮箱
+
+      Returns:
+          创建的用户对象
+      """
+      user = User.objects.create(
+          username=username,
+          email=email,
+          password=make_password(password)  # Use password hashing
+      )
+      return user
+
+  # Use decorators to protect views
+  @login_required
+  def profile(request):
+      """用户个人资料视图
+
+      需要用户登录
+      """
+      return render(request, 'profile.html')
+
+  @permission_required('app.change_user')
+  def edit_user(request, user_id):
+      """编辑用户视图
+
+      需要change_user权限
+      """
+      # Edit user logic
+      pass
+
+  # Flask authentication
+  from flask import Flask, request, jsonify, g
+  from flask_httpauth import HTTPBasicAuth
+  from werkzeug.security import generate_password_hash, check_password_hash
+
+  app = Flask(__name__)
+  auth = HTTPBasicAuth()
+
+  users = {
+      "alice": generate_password_hash("secret"),
+      "bob": generate_password_hash("password")
+  }
+
+  @auth.verify_password
+  def verify_password(username, password):
+      """验证密码
+      """
+      if username in users and check_password_hash(users.get(username), password):
+          g.user = username
+          return True
+      return False
+
+  @app.route('/api/protected')
+  @auth.login_required
+  def protected():
+      """受保护的API
+
+      需要认证
+      """
+      return jsonify({'message': f'Hello, {g.user}!'})
+  ```
+
+  ### 4.3 Sensitive information protection
+
+  **Review focus:**
+  - Check storage of sensitive information
+  - Verify use of environment variables
+  - Check for sensitive information in logs
+
+  **Suggested improvements:**
+  ```python
+  # Not recommended
+  # Hard-coded sensitive information
+  SECRET_KEY = 'your-secret-key-here'
+  DATABASE_URL = 'postgresql://user:password@localhost/dbname'
+
+  # Recommended
+  # Use environment variables
+  import os
+  from dotenv import load_dotenv
+
+  # Load .env file
+  load_dotenv()
+
+  # Get sensitive information from environment variables
+  SECRET_KEY = os.environ.get('SECRET_KEY')
+  DATABASE_URL = os.environ.get('DATABASE_URL')
+
+  # Avoid logging sensitive information
+  def log_user_action(user_id, action, sensitive_data=None):
+      """记录用户操作
+
+      Args:
+          user_id: 用户ID
+          action: 操作类型
+          sensitive_data: 敏感数据（不会被记录）
+      """
+      # Log only non-sensitive information
+      print(f"用户 {user_id} 执行了 {action} 操作")
+      # Sensitive data is not written to the log
+      if sensitive_data:
+          print("操作包含敏感数据，已省略")
+  ```
+
+  ## 5. Code Quality
+
+  ### 5.1 Code style
+
+  **Review focus:**
+  - Check whether the code follows PEP 8
+  - Verify consistency of naming conventions
+  - Check code readability
+
+  **Suggested improvements:**
+  - Use tools such as flake8, black, and isort to check and auto-fix code style issues
+  - Configure pre-commit hooks to check code style before committing
+
+  ### 5.2 Test coverage
+
+  **Review focus:**
+  - Check completeness of test cases
+  - Verify test coverage
+  - Check test readability
+
+  **Suggested improvements:**
+  ```python
+  # Using pytest for tests
+  import pytest
+  from myapp.utils import calculate_interest
+
+  def test_calculate_interest():
+      """测试计算利息函数
+      """
+      # Normal case
+      assert calculate_interest(1000, 5, 1) == 50
+      # Edge cases
+      assert calculate_interest(0, 5, 1) == 0
+      assert calculate_interest(1000, 0, 1) == 0
+      assert calculate_interest(1000, 5, 0) == 0
+
+  # Django tests
+  from django.test import TestCase
+  from myapp.models import User
+
+  class UserModelTest(TestCase):
+      """用户模型测试
+      """
+      def setUp(self):
+          """设置测试数据
+          """
+          self.user = User.objects.create(username='testuser', email='test@example.com')
+
+      def test_user_creation(self):
+          """测试用户创建
+          """
+          self.assertEqual(self.user.username, 'testuser')
+          self.assertEqual(self.user.email, 'test@example.com')
+
+      def test_user_str_method(self):
+          """测试用户的__str__方法
+          """
+          self.assertEqual(str(self.user), 'testuser')
+  ```
+
+  ### 5.3 Documentation
+
+  **Review focus:**
+  - Check completeness of code comments
+  - Verify docstring conventions
+  - Check accuracy of API documentation
+
+  **Suggested improvements:**
+  ```python
+  # Module docstring
+  """用户工具模块
+
+  这个模块提供了与用户相关的工具函数
+  """
+
+  # Function docstring
+  def calculate_interest(principal, rate, time):
+      """计算利息
+
+      Args:
+          principal: 本金
+          rate: 利率
+          time: 时间
+
+      Returns:
+          计算后的利息
+
+      Examples:
+          >>> calculate_interest(1000, 5, 1)
+          50
+      """
+      return principal * rate * time / 100
+
+  # Class docstring
+  class UserService:
+      """用户服务类
+
+      提供用户相关的业务逻辑
+      """
+
+      def __init__(self, user_repository):
+          """初始化用户服务
+
+          Args:
+              user_repository: 用户仓库对象
+          """
+          self.user_repository = user_repository
+
+      def get_user(self, user_id):
+          """获取用户
+
+          Args:
+              user_id: 用户ID
+
+          Returns:
+              用户对象
+
+          Raises:
+              UserNotFoundError: 当用户不存在时
+          """
+          user = self.user_repository.find_by_id(user_id)
+          if not user:
+              raise UserNotFoundError(f"用户 {user_id} 不存在")
+          return user
+  ```
+
+  ## 6. Architecture Design
+
+  ### 6.1 Modularisation
+
+  **Review focus:**
+  - Check that modules are divided reasonably
+  - Verify dependencies between modules
+  - Check code organisation
+
+  **Suggested improvements:**
+  ```python
+  # Recommended project structure
+  """
+  myproject/
+  ├── myproject/
+  │   ├── __init__.py
+  │   ├── settings.py
+  │   ├── urls.py
+  │   ├── wsgi.py
+  │   ├── apps/
+  │   │   ├── __init__.py
+  │   │   ├── users/
+  │   │   │   ├── __init__.py
+  │   │   │   ├── models.py
+  │   │   │   ├── views.py
+  │   │   │   ├── urls.py
+  │   │   │   ├── forms.py
+  │   │   │   └── templates/
+  │   │   └── products/
+  │   │       ├── __init__.py
+  │   │       ├── models.py
+  │   │       ├── views.py
+  │   │       ├── urls.py
+  │   │       ├── forms.py
+  │   │       └── templates/
+  │   └── utils/
+  │       ├── __init__.py
+  │       └── helpers.py
+  ├── manage.py
+  ├── requirements.txt
+  └── README.md
+  """
+  ```
+
+  ### 6.2 Design patterns
+
+  **Review focus:**
+  - Check reasonable use of design patterns
+  - Verify code extensibility
+  - Check code maintainability
+
+  **Suggested improvements:**
+  ```python
+  # Singleton pattern example
+  class DatabaseConnection:
+      """数据库连接类
+
+      使用单例模式确保只有一个数据库连接实例
+      """
+      _instance = None
+
+      def __new__(cls):
+          if cls._instance is None:
+              cls._instance = super().__new__(cls)
+              # Initialise the database connection
+              cls._instance.connect()
+          return cls._instance
+
+      def connect(self):
+          """连接到数据库
+          """
+          print("连接到数据库")
+
+      def query(self, sql):
+          """执行SQL查询
+
+          Args:
+              sql: SQL查询语句
+          """
+          print(f"执行查询: {sql}")
+
+  # Factory pattern example
+  class Animal:
+      """动物基类
+      """
+      def speak(self):
+          """发出声音
+          """
+          pass
+
+  class Dog(Animal):
+      """狗类
+      """
+      def speak(self):
+          return "汪汪"
+
+  class Cat(Animal):
+      """猫类
+      """
+      def speak(self):
+          return "喵喵"
+
+  class AnimalFactory:
+      """动物工厂类
+      """
+      @staticmethod
+      def create_animal(animal_type):
+          """创建动物实例
+
+          Args:
+              animal_type: 动物类型
+
+          Returns:
+              动物实例
+
+          Raises:
+              ValueError: 当动物类型不支持时
+          """
+          if animal_type == "dog":
+              return Dog()
+          elif animal_type == "cat":
+              return Cat()
+          else:
+              raise ValueError(f"不支持的动物类型: {animal_type}")
+  ```
+
+  ## 7. Review Process
+
+  ### 7.1 Preparation
+
+  1. Understand the project architecture
+  2. Define the review scope
+  3. Prepare review tools
+
+  ### 7.2 Conducting the review
+
+  1. Static code analysis
+  2. Code walkthrough
+  3. Test verification
+
+  ### 7.3 Report generation
+
+  1. Compile the issues found
+  2. Provide optimisation suggestions
+  3. Track issue resolution
+
+  ## 8. Recommended Tools
+
+  ### 8.1 Static analysis tools
+
+  - flake8: checks code style and common errors
+  - black: auto-formats code
+  - isort: auto-sorts import statements
+  - pylint: more comprehensive code analysis
+  - mypy: static type checking
+
+  ### 8.2 Profiling tools
+
+  - cProfile: Python's built-in profiler
+  - line_profiler: line-level profiling
+  - memory_profiler: memory usage profiling
+  - py-spy: sampling profiler
+
+  ### 8.3 Testing tools
+
+  - pytest: a powerful testing framework
+  - unittest: Python's built-in testing framework
+  - mock: for mocking objects
+  - coverage: test coverage analysis
+
+  ### 8.4 Other tools
+
+  - pre-commit: Git hook management
+  - pip-tools: dependency management
+  - poetry: dependency management and packaging
+
+  ## 9. Best Practices
+
+  ### 9.1 Python basics best practices
+
+  - Follow PEP 8 code style
+  - Use type hints to improve readability
+  - Use list comprehensions and generator expressions appropriately
+  - Prefer built-in functions and the standard library
+  - Avoid global variables
+
+  ### 9.2 Web framework best practices
+
+  - Django:
+    - Use model managers to encapsulate database queries
+    - Use signals appropriately
+    - Configure storage for static and media files
+    - Use middleware to handle cross-cutting concerns
+
+  - Flask:
+    - Use blueprints to organise routes
+    - Use context processors appropriately
+    - Configure the application factory pattern
+    - Use extensions to add functionality
+
+  ### 9.3 Performance best practices
+
+  - Use appropriate data structures
+  - Avoid repeated computation
+  - Use caching appropriately
+  - Optimise database queries
+  - Use async programming for I/O operations
+
+  ### 9.4 Security best practices
+
+  - Validate all user input
+  - Use parameterised queries to prevent SQL injection
+  - Store passwords securely
+  - Use HTTPS
+  - Implement proper authentication and authorisation
+
+  ## 10. Common Issues and Solutions
+
+  ### 10.1 Memory leaks
+
+  **Symptoms:**
+  - Application memory usage keeps growing
+  - Program runs more slowly over time
+
+  **Solutions:**
+  - Check for circular references
+  - Verify correct resource release
+  - Use weak references for caching
+  - Use memory_profiler to analyse memory usage
+
+  ### 10.2 Performance bottlenecks
+
+  **Symptoms:**
+  - Response time is too long
+  - CPU usage is too high
+
+  **Solutions:**
+  - Use profiling tools to locate bottlenecks
+  - Optimise algorithms and data structures
+  - Use caching appropriately
+  - Consider multithreading or async programming
+
+  ### 10.3 Circular imports
+
+  **Symptoms:**
+  - Import errors
+  - Module initialisation failures
+
+  **Solutions:**
+  - Refactor code to reduce inter-module dependencies
+  - Use deferred imports
+  - Extract shared code into separate modules
+
+  ### 10.4 Database connection leaks
+
+  **Symptoms:**
+  - Number of database connections keeps growing
+  - Unable to establish new database connections
+
+  **Solutions:**
+  - Use context managers to ensure connections are closed properly
+  - Configure connection pooling
+  - Monitor database connection usage
+
+  ## 11. Review Checklist
+
+  ### 11.1 Language layer
+
+  - [ ] Code style (PEP 8)
+  - [ ] Async programming conventions
+  - [ ] Exception handling
+  - [ ] Resource management
+  - [ ] Naming conventions
+
+  ### 11.2 Web framework layer
+
+  - [ ] Django model design
+  - [ ] Django view design
+  - [ ] Django template design
+  - [ ] Flask application structure
+  - [ ] Flask routes and views
+
+  ### 11.3 Performance and security
+
+  - [ ] Code optimisation
+  - [ ] Database optimisation
+  - [ ] Caching strategy
+  - [ ] Input validation
+  - [ ] Authentication and authorisation
+  - [ ] Sensitive information protection
+
+  ### 11.4 Code quality
+
+  - [ ] Code style consistency
+  - [ ] Test coverage
+  - [ ] Completeness of code comments
+  - [ ] Completeness of documentation
+
+  ## 12. Summary
+
+  Python code review is an important means of ensuring code quality. Through systematic review, potential issues can be discovered and resolved, improving system reliability, performance, and maintainability. This guide provides comprehensive review focus areas and optimisation suggestions, which can be adjusted and extended according to the needs of specific projects.
+
+  Regular code review not only improves code quality but also promotes knowledge sharing among team members, raising the overall level of development. It is recommended to incorporate code review into the daily development workflow, as part of continuous integration.
+
+  For Python projects, special attention should be paid to:
+  1. Following the PEP 8 code style guidelines
+  2. Using async programming appropriately for I/O operations
+  3. Optimising database queries to improve performance
+  4. Implementing strict input validation and security measures
+  5. Writing comprehensive test cases
+
+  By following these best practices, you can develop high-quality, high-performance, secure, and reliable Python applications.
+
+prompt_zh: |
+  # Python代码审查与优化指南
+
+  ## 1. 语言层面
+
+  ### 1.1 Python基础
+
+  **参考文档：**
+  - [Python官方文档](https://docs.python.org/zh-cn/3/)
+  - [PEP 8 - Python代码风格指南](https://peps.python.org/pep-0008/)
+  - [PEP 257 - 文档字符串约定](https://peps.python.org/pep-0257/)
+
+  #### 1.1.1 代码风格
+
+  **审查要点：**
+  - 检查代码是否遵循PEP 8规范
+  - 验证命名规范的一致性
+  - 检查代码缩进和空白使用
+
+  **优化建议：**
+  ```python
+  # 不推荐
+  def calculate_interest(principal,rate,time):
+      return principal*rate*time/100
+
+  # 推荐
+  def calculate_interest(principal, rate, time):
+      """计算利息
+      
+      Args:
+          principal: 本金
+          rate: 利率
+          time: 时间
+      
+      Returns:
+          计算后的利息
+      """
+      return principal * rate * time / 100
+  ```
+
+  #### 1.1.2 异步编程
+
+  **审查要点：**
+  - 检查异步操作的正确实现
+  - 验证async/await的合理使用
+  - 检查事件循环的管理
+
+  **优化建议：**
+  ```python
+  # 不推荐
+  import requests
+
+  def fetch_data(url):
+      response = requests.get(url)
+      return response.json()
+
+  # 推荐
+  import aiohttp
+  import asyncio
+
+  async def fetch_data(url):
+      """异步获取数据
+      
+      Args:
+          url: 请求URL
+      
+      Returns:
+          响应的JSON数据
+      """
+      async with aiohttp.ClientSession() as session:
+          async with session.get(url) as response:
+              return await response.json()
+
+  # 使用示例
+  async def main():
+      data = await fetch_data("https://api.example.com/data")
+      print(data)
+
+  asyncio.run(main())
+  ```
+
+  #### 1.1.3 异常处理
+
+  **审查要点：**
+  - 检查异常的合理捕获
+  - 验证异常信息的完整性
+  - 检查是否避免了裸except
+
+  **优化建议：**
+  ```python
+  # 不推荐
+  try:
+      result = 10 / 0
+  except:
+      print("出错了")
+
+  # 推荐
+  try:
+      result = 10 / 0
+  except ZeroDivisionError as e:
+      print(f"除以零错误: {e}")
+  except Exception as e:
+      print(f"发生错误: {e}")
+  ```
+
+  #### 1.1.4 资源管理
+
+  **审查要点：**
+  - 检查资源的正确关闭
+  - 验证with语句的使用
+
+  **优化建议：**
+  ```python
+  # 不推荐
+  file = open("example.txt", "r")
+  data = file.read()
+  file.close()
+
+  # 推荐
+  with open("example.txt", "r") as file:
+      data = file.read()
+  # 文件会自动关闭
+  ```
+
+  ### 1.2 Python脚本
+
+  #### 1.2.1 脚本结构
+
+  **审查要点：**
+  - 检查脚本的组织方式
+  - 验证main函数的使用
+  - 检查命令行参数处理
+
+  **优化建议：**
+  ```python
+  #!/usr/bin/env python3
+  """示例脚本
+
+  这个脚本展示了Python脚本的标准结构
+  """
+
+  import argparse
+
+  def process_data(data):
+      """处理数据
+      
+      Args:
+          data: 要处理的数据
+      
+      Returns:
+          处理后的数据
+      """
+      return [item * 2 for item in data]
+
+  def main():
+      """主函数
+      """
+      parser = argparse.ArgumentParser(description="处理数据的脚本")
+      parser.add_argument("--input", type=str, required=True, help="输入文件路径")
+      parser.add_argument("--output", type=str, required=True, help="输出文件路径")
+      args = parser.parse_args()
+      
+      # 读取数据
+      with open(args.input, "r") as f:
+          data = [int(line.strip()) for line in f]
+      
+      # 处理数据
+      processed_data = process_data(data)
+      
+      # 写入结果
+      with open(args.output, "w") as f:
+          for item in processed_data:
+              f.write(f"{item}\n")
+
+  if __name__ == "__main__":
+      main()
+  ```
+
+  #### 1.2.2 性能优化
+
+  **审查要点：**
+  - 检查循环的效率
+  - 验证数据结构的选择
+  - 检查内存使用
+
+  **优化建议：**
+  ```python
+  # 不推荐
+  def process_large_list(items):
+      result = []
+      for item in items:
+          if item > 0:
+              result.append(item * 2)
+      return result
+
+  # 推荐
+  def process_large_list(items):
+      """处理大型列表
+      
+      使用生成器表达式提高内存效率
+      
+      Args:
+          items: 要处理的列表
+      
+      Returns:
+          处理后的结果
+      """
+      return (item * 2 for item in items if item > 0)
+  ```
+
+  ## 2. Web框架层面
+
+  ### 2.1 Django
+
+  **参考文档：**
+  - [Django官方文档](https://docs.djangoproject.com/zh-hans/)
+
+  #### 2.1.1 模型设计
+
+  **审查要点：**
+  - 检查模型的设计合理性
+  - 验证字段类型的选择
+  - 检查索引的合理使用
+
+  **优化建议：**
+  ```python
+  # 推荐
+  from django.db import models
+
+  class User(models.Model):
+      """用户模型
+      """
+      username = models.CharField(max_length=150, unique=True, db_index=True)
+      email = models.EmailField(unique=True, db_index=True)
+      created_at = models.DateTimeField(auto_now_add=True)
+      updated_at = models.DateTimeField(auto_now=True)
+      
+      class Meta:
+          indexes = [
+              models.Index(fields=['created_at']),
+          ]
+      
+      def __str__(self):
+          return self.username
+  ```
+
+  #### 2.1.2 视图设计
+
+  **审查要点：**
+  - 检查视图的职责分离
+  - 验证请求参数的验证
+  - 检查响应的合理返回
+
+  **优化建议：**
+  ```python
+  # 推荐
+  from django.shortcuts import render, get_object_or_404
+  from django.http import JsonResponse
+  from django.views.decorators.csrf import csrf_exempt
+  from django.views import View
+  from django.utils.decorators import method_decorator
+
+  from .models import User
+  from .forms import UserForm
+
+  # 基于函数的视图
+  def user_list(request):
+      """用户列表视图
+      
+      Returns:
+          用户列表的HTML页面
+      """
+      users = User.objects.all()
+      return render(request, 'users/user_list.html', {'users': users})
+
+  # 基于类的视图
+  class UserDetailView(View):
+      """用户详情视图
+      """
+      def get(self, request, pk):
+          """处理GET请求
+          
+          Args:
+              request: HTTP请求对象
+              pk: 用户ID
+          
+          Returns:
+              用户详情的HTML页面或404响应
+          """
+          user = get_object_or_404(User, pk=pk)
+          return render(request, 'users/user_detail.html', {'user': user})
+
+  # API视图
+  @method_decorator(csrf_exempt, name='dispatch')
+  class UserApiView(View):
+      """用户API视图
+      """
+      def post(self, request):
+          """处理POST请求
+          
+          Args:
+              request: HTTP请求对象
+          
+          Returns:
+              JSON响应
+          """
+          form = UserForm(request.POST)
+          if form.is_valid():
+              user = form.save()
+              return JsonResponse({'id': user.id, 'username': user.username}, status=201)
+          return JsonResponse(form.errors, status=400)
+  ```
+
+  #### 2.1.3 模板设计
+
+  **审查要点：**
+  - 检查模板的组织方式
+  - 验证模板标签的合理使用
+  - 检查模板继承的正确实现
+
+  **优化建议：**
+  ```html
+  <!-- 推荐：基础模板 -->
+  <!-- base.html -->
+  <!DOCTYPE html>
+  <html>
+  <head>
+      <title>{% block title %}My Site{% endblock %}</title>
+  </head>
+  <body>
+      <header>
+          <h1>My Site</h1>
+      </header>
+      <main>
+          {% block content %}{% endblock %}
+      </main>
+      <footer>
+          <p>&copy; 2023 My Site</p>
+      </footer>
+  </body>
+  </html>
+
+  <!-- 推荐：子模板 -->
+  <!-- user_list.html -->
+  {% extends "base.html" %}
+
+  {% block title %}User List{% endblock %}
+
+  {% block content %}
+      <h2>User List</h2>
+      <ul>
+          {% for user in users %}
+              <li><a href="{% url 'user_detail' user.id %}">{{ user.username }}</a></li>
+          {% endfor %}
+      </ul>
+  {% endblock %}
+  ```
+
+  #### 2.1.4 中间件
+
+  **审查要点：**
+  - 检查中间件的正确实现
+  - 验证中间件的执行顺序
+  - 检查中间件的性能影响
+
+  **优化建议：**
+  ```python
+  # 推荐
+  class RequestLoggingMiddleware:
+      """请求日志中间件
+      
+      记录每个请求的信息
+      """
+      def __init__(self, get_response):
+          self.get_response = get_response
+      
+      def __call__(self, request):
+          # 请求前处理
+          print(f"请求路径: {request.path}")
+          print(f"请求方法: {request.method}")
+          
+          # 处理请求
+          response = self.get_response(request)
+          
+          # 请求后处理
+          print(f"响应状态码: {response.status_code}")
+          
+          return response
+  ```
+
+  ### 2.2 Flask
+
+  **参考文档：**
+  - [Flask官方文档](https://flask.palletsprojects.com/)
+
+  #### 2.2.1 应用结构
+
+  **审查要点：**
+  - 检查应用的组织方式
+  - 验证蓝图的合理使用
+  - 检查配置的管理
+
+  **优化建议：**
+  ```python
+  # 推荐：应用结构
+  """
+  myapp/
+  ├── app/
+  │   ├── __init__.py
+  │   ├── routes.py
+  │   ├── models.py
+  │   ├── templates/
+  │   └── static/
+  ├── config.py
+  └── run.py
+  """
+
+  # __init__.py
+  from flask import Flask
+  from .routes import main_bp
+
+  app = Flask(__name__)
+  app.config.from_object('config.Config')
+
+  app.register_blueprint(main_bp)
+
+  # routes.py
+  from flask import Blueprint, render_template
+
+  main_bp = Blueprint('main', __name__)
+
+  @main_bp.route('/')
+  def index():
+      """首页视图
+      
+      Returns:
+          首页的HTML页面
+      """
+      return render_template('index.html')
+
+  # run.py
+  from app import app
+
+  if __name__ == '__main__':
+      app.run()
+  ```
+
+  #### 2.2.2 路由与视图
+
+  **审查要点：**
+  - 检查路由的定义方式
+  - 验证视图函数的设计
+  - 检查请求处理的完整性
+
+  **优化建议：**
+  ```python
+  # 推荐
+  from flask import Flask, request, jsonify
+
+  app = Flask(__name__)
+
+  @app.route('/api/users', methods=['GET'])
+  def get_users():
+      """获取用户列表API
+      
+      Returns:
+          用户列表的JSON响应
+      """
+      users = [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}]
+      return jsonify(users)
+
+  @app.route('/api/users/<int:user_id>', methods=['GET'])
+  def get_user(user_id):
+      """获取用户详情API
+      
+      Args:
+          user_id: 用户ID
+      
+      Returns:
+          用户详情的JSON响应或404响应
+      """
+      user = {'id': user_id, 'name': 'Alice'}
+      return jsonify(user)
+
+  @app.route('/api/users', methods=['POST'])
+  def create_user():
+      """创建用户API
+      
+      Returns:
+          创建的用户的JSON响应或错误响应
+      """
+      if not request.is_json:
+          return jsonify({'error': '请求必须是JSON格式'}), 400
+      
+      data = request.get_json()
+      if 'name' not in data:
+          return jsonify({'error': '缺少name字段'}), 400
+      
+      # 假设创建用户的逻辑
+      user = {'id': 3, 'name': data['name']}
+      return jsonify(user), 201
+  ```
+
+  ## 3. 性能优化
+
+  ### 3.1 代码优化
+
+  **审查要点：**
+  - 检查循环的效率
+  - 验证算法的选择
+  - 检查内存使用
+
+  **优化建议：**
+  ```python
+  # 不推荐
+  def find_duplicates(items):
+      """查找重复项
+      
+      时间复杂度: O(n²)
+      """
+      duplicates = []
+      for i in range(len(items)):
+          for j in range(i + 1, len(items)):
+              if items[i] == items[j] and items[i] not in duplicates:
+                  duplicates.append(items[i])
+      return duplicates
+
+  # 推荐
+  def find_duplicates(items):
+      """查找重复项
+      
+      时间复杂度: O(n)
+      
+      Args:
+          items: 要检查的列表
+      
+      Returns:
+          重复项的列表
+      """
+      seen = set()
+      duplicates = set()
+      for item in items:
+          if item in seen:
+              duplicates.add(item)
+          else:
+              seen.add(item)
+      return list(duplicates)
+  ```
+
+  ### 3.2 数据库优化
+
+  **审查要点：**
+  - 检查SQL查询的效率
+  - 验证索引的合理使用
+  - 检查ORM的正确使用
+
+  **优化建议：**
+  ```python
+  # Django ORM优化示例
+
+  # 不推荐
+  users = User.objects.all()
+  for user in users:
+      # 每次循环都会执行一次数据库查询
+      posts = user.post_set.all()
+      print(f"{user.username} 有 {posts.count()} 篇文章")
+
+  # 推荐：使用select_related (一对一和多对一关系)
+  users = User.objects.select_related('profile').all()
+  for user in users:
+      # 不会执行额外的数据库查询
+      print(f"{user.username} 的年龄是 {user.profile.age}")
+
+  # 推荐：使用prefetch_related (多对多和反向 ForeignKey 关系)
+  users = User.objects.prefetch_related('post_set').all()
+  for user in users:
+      # 不会执行额外的数据库查询
+      print(f"{user.username} 有 {user.post_set.count()} 篇文章")
+
+  # 推荐：使用values或values_list减少数据传输
+  user_names = User.objects.values_list('username', flat=True)
+  print(list(user_names))
+  ```
+
+  ### 3.3 缓存策略
+
+  **审查要点：**
+  - 检查缓存的合理使用
+  - 验证缓存失效策略
+  - 检查缓存键的设计
+
+  **优化建议：**
+  ```python
+  # Django缓存示例
+  from django.core.cache import cache
+
+  def get_user_data(user_id):
+      """获取用户数据
+      
+      使用缓存减少数据库查询
+      
+      Args:
+          user_id: 用户ID
+      
+      Returns:
+          用户数据
+      """
+      cache_key = f"user_data:{user_id}"
+      user_data = cache.get(cache_key)
+      
+      if user_data is None:
+          # 从数据库获取数据
+          user = User.objects.get(id=user_id)
+          user_data = {
+              'id': user.id,
+              'username': user.username,
+              'email': user.email
+          }
+          # 缓存数据，设置过期时间
+          cache.set(cache_key, user_data, 3600)  # 1小时
+      
+      return user_data
+
+  # Flask缓存示例
+  from flask import Flask
+  from flask_caching import Cache
+
+  app = Flask(__name__)
+  app.config['CACHE_TYPE'] = 'simple'
+  cache = Cache(app)
+
+  @app.route('/api/data')
+  @cache.cached(timeout=60)
+  def get_data():
+      """获取数据
+      
+      使用缓存减少处理时间
+      
+      Returns:
+          JSON响应
+      """
+      # 假设这是一个耗时的操作
+      data = {'key': 'value'}
+      return jsonify(data)
+  ```
+
+  ## 4. 安全性
+
+  ### 4.1 输入验证
+
+  **审查要点：**
+  - 检查用户输入的验证
+  - 验证表单的处理
+  - 检查是否防止了注入攻击
+
+  **优化建议：**
+  ```python
+  # Django表单验证
+  from django import forms
+
+  class UserForm(forms.Form):
+      """用户表单
+      """
+      username = forms.CharField(max_length=150, required=True)
+      email = forms.EmailField(required=True)
+      password = forms.CharField(widget=forms.PasswordInput, required=True)
+
+  # 使用示例
+  def register(request):
+      if request.method == 'POST':
+          form = UserForm(request.POST)
+          if form.is_valid():
+              # 处理有效数据
+              username = form.cleaned_data['username']
+              email = form.cleaned_data['email']
+              # 创建用户等逻辑
+              return redirect('success')
+      else:
+          form = UserForm()
+      return render(request, 'register.html', {'form': form})
+
+  # Flask输入验证
+  from flask import Flask, request, jsonify
+  from wtforms import Form, StringField, EmailField, validators
+
+  app = Flask(__name__)
+
+  class UserForm(Form):
+      """用户表单
+      """
+      username = StringField('Username', [validators.Length(min=4, max=25)])
+      email = EmailField('Email Address', [validators.DataRequired(), validators.Email()])
+
+  @app.route('/register', methods=['POST'])
+  def register():
+      form = UserForm(request.form)
+      if form.validate():
+          # 处理有效数据
+          return jsonify({'message': '注册成功'})
+      return jsonify({'errors': form.errors}), 400
+  ```
+
+  ### 4.2 认证与授权
+
+  **审查要点：**
+  - 检查认证机制的实现
+  - 验证授权策略的完整性
+  - 检查密码的安全存储
+
+  **优化建议：**
+  ```python
+  # Django认证
+  from django.contrib.auth.decorators import login_required, permission_required
+  from django.contrib.auth.models import User
+  from django.contrib.auth.hashers import make_password
+
+  # 创建用户时使用密码哈希
+  def create_user(username, password, email):
+      """创建用户
+      
+      Args:
+          username: 用户名
+          password: 密码
+          email: 邮箱
+      
+      Returns:
+          创建的用户对象
+      """
+      user = User.objects.create(
+          username=username,
+          email=email,
+          password=make_password(password)  # 使用密码哈希
+      )
+      return user
+
+  # 使用装饰器保护视图
+  @login_required
+  def profile(request):
+      """用户个人资料视图
+      
+      需要用户登录
+      """
+      return render(request, 'profile.html')
+
+  @permission_required('app.change_user')
+  def edit_user(request, user_id):
+      """编辑用户视图
+      
+      需要change_user权限
+      """
+      # 编辑用户逻辑
+      pass
+
+  # Flask认证
+  from flask import Flask, request, jsonify, g
+  from flask_httpauth import HTTPBasicAuth
+  from werkzeug.security import generate_password_hash, check_password_hash
+
+  app = Flask(__name__)
+  auth = HTTPBasicAuth()
+
+  users = {
+      "alice": generate_password_hash("secret"),
+      "bob": generate_password_hash("password")
+  }
+
+  @auth.verify_password
+  def verify_password(username, password):
+      """验证密码
+      """
+      if username in users and check_password_hash(users.get(username), password):
+          g.user = username
+          return True
+      return False
+
+  @app.route('/api/protected')
+  @auth.login_required
+  def protected():
+      """受保护的API
+      
+      需要认证
+      """
+      return jsonify({'message': f'Hello, {g.user}!'})
+  ```
+
+  ### 4.3 敏感信息保护
+
+  **审查要点：**
+  - 检查敏感信息的存储
+  - 验证环境变量的使用
+  - 检查日志中的敏感信息
+
+  **优化建议：**
+  ```python
+  # 不推荐
+  # 硬编码的敏感信息
+  SECRET_KEY = 'your-secret-key-here'
+  DATABASE_URL = 'postgresql://user:password@localhost/dbname'
+
+  # 推荐
+  # 使用环境变量
+  import os
+  from dotenv import load_dotenv
+
+  # 加载.env文件
+  load_dotenv()
+
+  # 从环境变量获取敏感信息
+  SECRET_KEY = os.environ.get('SECRET_KEY')
+  DATABASE_URL = os.environ.get('DATABASE_URL')
+
+  # 日志中避免记录敏感信息
+  def log_user_action(user_id, action, sensitive_data=None):
+      """记录用户操作
+      
+      Args:
+          user_id: 用户ID
+          action: 操作类型
+          sensitive_data: 敏感数据（不会被记录）
+      """
+      # 只记录非敏感信息
+      print(f"用户 {user_id} 执行了 {action} 操作")
+      # 敏感数据不记录到日志
+      if sensitive_data:
+          print("操作包含敏感数据，已省略")
+  ```
+
+  ## 5. 代码质量
+
+  ### 5.1 代码风格
+
+  **审查要点：**
+  - 检查代码是否遵循PEP 8
+  - 验证命名规范的一致性
+  - 检查代码的可读性
+
+  **优化建议：**
+  - 使用工具如flake8、black、isort来检查和自动修复代码风格问题
+  - 配置pre-commit钩子来在提交代码前检查代码风格
+
+  ### 5.2 测试覆盖
+
+  **审查要点：**
+  - 检查测试用例的完整性
+  - 验证测试覆盖率
+  - 检查测试的可读性
+
+  **优化建议：**
+  ```python
+  # 使用pytest进行测试
+  import pytest
+  from myapp.utils import calculate_interest
+
+  def test_calculate_interest():
+      """测试计算利息函数
+      """
+      # 测试正常情况
+      assert calculate_interest(1000, 5, 1) == 50
+      # 测试边界情况
+      assert calculate_interest(0, 5, 1) == 0
+      assert calculate_interest(1000, 0, 1) == 0
+      assert calculate_interest(1000, 5, 0) == 0
+
+  # Django测试
+  from django.test import TestCase
+  from myapp.models import User
+
+  class UserModelTest(TestCase):
+      """用户模型测试
+      """
+      def setUp(self):
+          """设置测试数据
+          """
+          self.user = User.objects.create(username='testuser', email='test@example.com')
+      
+      def test_user_creation(self):
+          """测试用户创建
+          """
+          self.assertEqual(self.user.username, 'testuser')
+          self.assertEqual(self.user.email, 'test@example.com')
+      
+      def test_user_str_method(self):
+          """测试用户的__str__方法
+          """
+          self.assertEqual(str(self.user), 'testuser')
+  ```
+
+  ### 5.3 文档
+
+  **审查要点：**
+  - 检查代码注释的完整性
+  - 验证文档字符串的规范
+  - 检查API文档的准确性
+
+  **优化建议：**
+  ```python
+  # 模块文档
+  """用户工具模块
+
+  这个模块提供了与用户相关的工具函数
+  """
+
+  # 函数文档
+  def calculate_interest(principal, rate, time):
+      """计算利息
+      
+      Args:
+          principal: 本金
+          rate: 利率
+          time: 时间
+      
+      Returns:
+          计算后的利息
+      
+      Examples:
+          >>> calculate_interest(1000, 5, 1)
+          50
+      """
+      return principal * rate * time / 100
+
+  # 类文档
+  class UserService:
+      """用户服务类
+      
+      提供用户相关的业务逻辑
+      """
+      
+      def __init__(self, user_repository):
+          """初始化用户服务
+          
+          Args:
+              user_repository: 用户仓库对象
+          """
+          self.user_repository = user_repository
+      
+      def get_user(self, user_id):
+          """获取用户
+          
+          Args:
+              user_id: 用户ID
+          
+          Returns:
+              用户对象
+          
+          Raises:
+              UserNotFoundError: 当用户不存在时
+          """
+          user = self.user_repository.find_by_id(user_id)
+          if not user:
+              raise UserNotFoundError(f"用户 {user_id} 不存在")
+          return user
+  ```
+
+  ## 6. 架构设计
+
+  ### 6.1 模块化
+
+  **审查要点：**
+  - 检查模块的合理划分
+  - 验证模块间的依赖关系
+  - 检查代码的组织方式
+
+  **优化建议：**
+  ```python
+  # 推荐的项目结构
+  """
+  myproject/
+  ├── myproject/
+  │   ├── __init__.py
+  │   ├── settings.py
+  │   ├── urls.py
+  │   ├── wsgi.py
+  │   ├── apps/
+  │   │   ├── __init__.py
+  │   │   ├── users/
+  │   │   │   ├── __init__.py
+  │   │   │   ├── models.py
+  │   │   │   ├── views.py
+  │   │   │   ├── urls.py
+  │   │   │   ├── forms.py
+  │   │   │   └── templates/
+  │   │   └── products/
+  │   │       ├── __init__.py
+  │   │       ├── models.py
+  │   │       ├── views.py
+  │   │       ├── urls.py
+  │   │       ├── forms.py
+  │   │       └── templates/
+  │   └── utils/
+  │       ├── __init__.py
+  │       └── helpers.py
+  ├── manage.py
+  ├── requirements.txt
+  └── README.md
+  """
+  ```
+
+  ### 6.2 设计模式
+
+  **审查要点：**
+  - 检查设计模式的合理使用
+  - 验证代码的可扩展性
+  - 检查代码的可维护性
+
+  **优化建议：**
+  ```python
+  # 单例模式示例
+  class DatabaseConnection:
+      """数据库连接类
+      
+      使用单例模式确保只有一个数据库连接实例
+      """
+      _instance = None
+      
+      def __new__(cls):
+          if cls._instance is None:
+              cls._instance = super().__new__(cls)
+              # 初始化数据库连接
+              cls._instance.connect()
+          return cls._instance
+      
+      def connect(self):
+          """连接到数据库
+          """
+          print("连接到数据库")
+      
+      def query(self, sql):
+          """执行SQL查询
+          
+          Args:
+              sql: SQL查询语句
+          """
+          print(f"执行查询: {sql}")
+
+  # 工厂模式示例
+  class Animal:
+      """动物基类
+      """
+      def speak(self):
+          """发出声音
+          """
+          pass
+
+  class Dog(Animal):
+      """狗类
+      """
+      def speak(self):
+          return "汪汪"
+
+  class Cat(Animal):
+      """猫类
+      """
+      def speak(self):
+          return "喵喵"
+
+  class AnimalFactory:
+      """动物工厂类
+      """
+      @staticmethod
+      def create_animal(animal_type):
+          """创建动物实例
+          
+          Args:
+              animal_type: 动物类型
+          
+          Returns:
+              动物实例
+          
+          Raises:
+              ValueError: 当动物类型不支持时
+          """
+          if animal_type == "dog":
+              return Dog()
+          elif animal_type == "cat":
+              return Cat()
+          else:
+              raise ValueError(f"不支持的动物类型: {animal_type}")
+  ```
+
+  ## 7. 审查流程
+
+  ### 7.1 准备工作
+
+  1. 了解项目架构
+  2. 确定审查范围
+  3. 准备审查工具
+
+  ### 7.2 执行审查
+
+  1. 代码静态分析
+  2. 代码走查
+  3. 测试验证
+
+  ### 7.3 报告生成
+
+  1. 整理发现的问题
+  2. 提供优化建议
+  3. 跟踪问题解决
+
+  ## 8. 工具推荐
+
+  ### 8.1 静态分析工具
+
+  - flake8: 检查代码风格和常见错误
+  - black: 自动格式化代码
+  - isort: 自动排序导入语句
+  - pylint: 更全面的代码分析
+  - mypy: 静态类型检查
+
+  ### 8.2 性能分析工具
+
+  - cProfile: Python内置的性能分析器
+  - line_profiler: 行级性能分析
+  - memory_profiler: 内存使用分析
+  - py-spy: 采样分析器
+
+  ### 8.3 测试工具
+
+  - pytest: 功能强大的测试框架
+  - unittest: Python内置的测试框架
+  - mock: 用于模拟对象
+  - coverage: 测试覆盖率分析
+
+  ### 8.4 其他工具
+
+  - pre-commit: Git钩子管理
+  - pip-tools: 依赖管理
+  - poetry: 依赖管理和打包
+
+  ## 9. 最佳实践
+
+  ### 9.1 Python基础最佳实践
+
+  - 遵循PEP 8代码风格
+  - 使用类型提示提高代码可读性
+  - 合理使用列表推导式和生成器表达式
+  - 优先使用内置函数和标准库
+  - 避免使用全局变量
+
+  ### 9.2 Web框架最佳实践
+
+  - Django:
+    - 使用模型的管理器方法封装数据库查询
+    - 合理使用信号处理
+    - 配置静态文件和媒体文件的存储
+    - 使用中间件处理横切关注点
+
+  - Flask:
+    - 使用蓝图组织路由
+    - 合理使用上下文处理器
+    - 配置应用工厂模式
+    - 使用扩展增强功能
+
+  ### 9.3 性能最佳实践
+
+  - 使用适当的数据结构
+  - 避免重复计算
+  - 合理使用缓存
+  - 优化数据库查询
+  - 使用异步编程处理I/O操作
+
+  ### 9.4 安全最佳实践
+
+  - 验证所有用户输入
+  - 使用参数化查询防止SQL注入
+  - 安全存储密码
+  - 使用HTTPS
+  - 实施适当的认证和授权
+
+  ## 10. 常见问题与解决方案
+
+  ### 10.1 内存泄漏
+
+  **症状：**
+  - 应用内存使用持续增长
+  - 程序运行变慢
+
+  **解决方案：**
+  - 检查循环引用
+  - 验证资源的正确释放
+  - 使用弱引用处理缓存
+  - 使用memory_profiler分析内存使用
+
+  ### 10.2 性能瓶颈
+
+  **症状：**
+  - 响应时间过长
+  - CPU使用率过高
+
+  **解决方案：**
+  - 使用性能分析工具定位瓶颈
+  - 优化算法和数据结构
+  - 合理使用缓存
+  - 考虑使用多线程或异步编程
+
+  ### 10.3 导入循环
+
+  **症状：**
+  - 导入错误
+  - 模块初始化失败
+
+  **解决方案：**
+  - 重构代码减少模块间的依赖
+  - 使用延迟导入
+  - 提取共享代码到单独的模块
+
+  ### 10.4 数据库连接泄漏
+
+  **症状：**
+  - 数据库连接数持续增长
+  - 无法建立新的数据库连接
+
+  **解决方案：**
+  - 使用上下文管理器确保连接正确关闭
+  - 配置连接池
+  - 监控数据库连接使用情况
+
+  ## 11. 审查清单
+
+  ### 11.1 语言层面
+
+  - [ ] 代码风格（PEP 8）
+  - [ ] 异步编程规范
+  - [ ] 异常处理
+  - [ ] 资源管理
+  - [ ] 命名规范
+
+  ### 11.2 Web框架层面
+
+  - [ ] Django模型设计
+  - [ ] Django视图设计
+  - [ ] Django模板设计
+  - [ ] Flask应用结构
+  - [ ] Flask路由与视图
+
+  ### 11.3 性能与安全
+
+  - [ ] 代码优化
+  - [ ] 数据库优化
+  - [ ] 缓存策略
+  - [ ] 输入验证
+  - [ ] 认证与授权
+  - [ ] 敏感信息保护
+
+  ### 11.4 代码质量
+
+  - [ ] 代码风格一致性
+  - [ ] 测试覆盖率
+  - [ ] 代码注释完整性
+  - [ ] 文档完整性
+
+  ## 12. 总结
+
+  Python代码审查是保证代码质量的重要手段，通过系统性的审查可以发现并解决潜在的问题，提高系统的可靠性、性能和可维护性。本指南提供了全面的审查要点和优化建议，可根据具体项目的需求进行调整和扩展。
+
+  定期的代码审查不仅可以改善代码质量，还可以促进团队成员之间的知识共享，提高整体开发水平。建议将代码审查纳入日常开发流程，作为持续集成的一部分。
+
+  对于Python项目，特别要注意：
+  1. 遵循PEP 8代码风格规范
+  2. 合理使用异步编程处理I/O操作
+  3. 优化数据库查询以提高性能
+  4. 实施严格的输入验证和安全措施
+  5. 编写全面的测试用例
+
+  通过遵循这些最佳实践，可以开发出高质量、高性能、安全可靠的Python应用程序。
+  

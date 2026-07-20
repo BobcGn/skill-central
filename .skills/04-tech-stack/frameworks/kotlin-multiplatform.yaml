@@ -1,0 +1,2182 @@
+---
+id: kotlin-multiplatform
+name: Kotlin Multiplatform
+description: 面向所有 Kotlin Multiplatform / Compose Multiplatform 项目的全局实战 Skill；在处理 Android、iOS、macOS、HarmonyOS、H5、小程序、多版本 Gradle profile、KSP 入口生成、宿主联调、跨平台构建排障、协程规范等方面提供指导。
+type: prompt
+tags:
+  - kotlin
+  - kmp
+  - multiplatform
+  - compose
+prompt: |
+  # Kotlin Multiplatform Hands-on Skill
+
+  Use this Skill whenever the user mentions KMP, Kotlin Multiplatform, Compose Multiplatform, cross-platform builds, Android+iOS+HarmonyOS+Web+MiniApp, multi-target outputs, Gradle profile, version switching, KSP entry generation, or coroutine conventions in the context of Kotlin cross-platform development.
+
+  This Skill provides repo-wide KMP project guidance, drawing on KuiklyUI engineering practice: first analyze the actual tasks, settings, build profiles, Podfile, and scripts in the repo, then propose concrete action plans.
+
+  ## What to do first
+
+  1. Confirm target platforms: Android / iOS / macOS / HarmonyOS / H5 / MiniApp / multi-platform simultaneously.
+  2. Confirm the target action: run Demo, build output, switch Kotlin version, diagnose Sync/compile failures, integrate host, extend new targets.
+  3. Read the minimum set of docs first:
+     - Overview and source build: `README-zh_CN.md`
+     - Version compatibility: `docs/DevGuide/version_skills.md`
+     - Compile issues: `docs/DevGuide/compile_skills.md`
+     - Platform-specific docs: read on demand `docs/DevGuide/android-dev.md`, `ios-dev.md`, `h5-dev.md`, `miniapp-dev.md`, `harmony-dev.md`, `ohos-debug.md`
+  4. Don't load all docs at once; only expand what's needed for the current platform.
+
+  ## KuiklyUI engineering patterns
+
+  - KuiklyUI is **not** "one shared module running directly on six platforms", but a three-layer structure:
+    - KMP core/business layer: `core`, `compose`, `demo`
+    - Platform render layer: `core-render-android`, `core-render-ios`, `core-render-ohos`, `core-render-web:*`
+    - Host shells: `androidApp`, `iosApp`, `macApp`, `h5App`, `miniApp`, `ohosApp`
+  - `demo` is the current repo's business sample entry. When migrating to a business project, treat it as the `shared` or `biz` module.
+  - `core-ksp` generates entries, bridges, and `@Page` route registration per target. After changing page declarations, module split, or target config, re-trigger the corresponding build tasks.
+  - H5 and MiniApp both use a two-stage build:
+    1. Build the business JS bundle first
+    2. Then build the host and copy the bundle/assets
+  - HarmonyOS does not mix with the default mainline profile; it uses `settings.2.0.ohos.gradle.kts` + `build.2.0.ohos.gradle.kts` separately. This is KuiklyUI's isolation strategy for non-standard toolchains.
+
+  ## Check these files first
+
+  - `settings.gradle.kts`
+    Current workspace entry; defaults to `build.2.1.21.gradle.kts`, and additionally includes `:demo`, `:androidApp`, `:h5App`, `:miniApp`, suitable for daily development in this repo.
+  - `settings.<version>.gradle.kts`
+    Versioned profile; most only include framework modules, not necessarily `:demo` or hosts. Don't assume they can directly run Demo.
+  - `build.<version>.gradle.kts`
+    Root plugin versions, repository sources, and global dependency replacement strategies.
+  - `demo/build.gradle.kts`
+    Multi-platform business targets, KSP parameters, JS bundle output entries.
+  - `h5App/build.gradle.kts`
+    H5 host build, HTML rewriting, assets sync tasks.
+  - `miniApp/build.gradle.kts`
+    MiniApp host build and `dist` sync tasks.
+  - `demo/build.2.0.ohos.gradle.kts`
+    HarmonyOS `sharedLib("shared")` output and `kspOhosArm64`.
+  - `gradle.properties`
+    Current repo defaults to `kuikly.useLocalKsp=true`. H5 / MiniApp builds usually need to explicitly pass `-Pkuikly.useLocalKsp=false`.
+
+  ## Practical principles
+
+  - Default to the scripts, task names, and profiles already provided by the repo; don't give generic KMP advice first.
+  - First distinguish "build cross-platform business output" vs "run host App"; many issues are caused by the first step not being done.
+  - Isolate non-standard platforms in their own profile rather than forcing them into the default mainline.
+  - When giving commands to the user, also explain the output location and the next host action.
+  - When encountering version issues, first lock the five-tuple: `Kotlin / KSP / AGP / Gradle / JDK / settings profile`.
+
+  ## Common operations
+
+  ### Android
+
+  For daily development, prefer running the host shell directly.
+
+  ```bash
+  ./gradlew :androidApp:assembleDebug
+  ./gradlew :androidApp:installDebug
+  ```
+
+  IDE flow:
+
+  1. Open the repo root directory with Android Studio and complete Sync
+  2. Select `androidApp`
+  3. Run `androidApp`
+
+  Key points:
+
+  - `androidApp` directly depends on `:core`, `:demo`, `:core-render-android`
+  - Current repo mainline recommends JDK 17; old Kotlin 1.3 / 1.4 profiles require JDK 11
+  - If you only modify `demo` business code, you usually don't need to package separately first; just recompile the host
+
+  ### iOS
+
+  iOS uses `CocoaPods + KMP framework + render pod` linkage.
+
+  ```bash
+  cd iosApp
+  pod install --repo-update
+  ```
+
+  How to run:
+
+  1. First execute `pod install --repo-update`
+  2. You can run `iOSApp` after opening the repo root in Android Studio
+  3. Or open `iosApp` directly with Xcode
+
+  Key points:
+
+  - `iosApp/Podfile` depends on both `OpenKuiklyIOSRender` and `demo`
+  - If Xcode reports script read/write permission issues, set `User Script Sandboxing` to `No`
+  - iOS business output is not `.aar`, but exposed to the host via pod / framework
+
+  ### macOS
+
+  The flow is similar to iOS.
+
+  ```bash
+  cd macApp
+  pod install --repo-update
+  ```
+
+  How to run:
+
+  - Open `macApp` with Xcode
+  - Or run `macOSApp` in IDE
+
+  Key points:
+
+  - `macApp/Podfile` also depends on `OpenKuiklyIOSRender` and `demo`
+  - Platform differences mainly stay in the host and render layers; don't stuff a lot of desktop logic back into `commonMain`
+
+  ### H5
+
+  H5 uses a two-stage build. First produce the business JS, then start or publish the host.
+
+  First time Node dependencies are needed:
+
+  ```bash
+  npm install
+  ```
+
+  Start business JS service:
+
+  ```bash
+  npm run serve
+  ```
+
+  Development mode:
+
+  ```bash
+  ./gradlew :demo:packLocalJsBundleDebug -Pkuikly.useLocalKsp=false
+  ./gradlew :h5App:jsBrowserDevelopmentRun
+  ./gradlew :h5App:copyAssetsToWebpackDevServer
+  ```
+
+  You can also use:
+
+  ```bash
+  ./gradlew :h5App:jsBrowserRun
+  ```
+
+  But under Kotlin 2.0+, prefer `jsBrowserDevelopmentRun`.
+
+  Release mode:
+
+  ```bash
+  ./gradlew :demo:packLocalJSBundleRelease -Pkuikly.useLocalKsp=false
+  ./gradlew :h5App:publishLocalJSBundle
+  ```
+
+  Split-page release:
+
+  ```bash
+  ./gradlew :demo:packSplitJSBundleRelease
+  ./gradlew :h5App:publishSplitJSBundle
+  ```
+
+  Key points:
+
+  - `demo` is responsible for compiling business JS bundle
+  - `h5App` is responsible for host webpack, HTML rewriting, assets copying
+  - `copyAssetsToWebpackDevServer` is used in development mode to see `src/commonMain/assets`
+  - Output is usually in `h5App/build/dist/js/productionExecutable` or `h5App/build/kotlin-webpack/js/*`
+  - After modifying `demo` pages or `@Page`, you must re-execute `packLocalJsBundle*`
+
+  ### MiniApp
+
+  MiniApp, like H5, is also a two-stage build.
+
+  ```bash
+  npm install
+  npm run serve
+  ./gradlew :demo:packLocalJsBundleDebug -Pkuikly.useLocalKsp=false
+  ./gradlew :miniApp:jsMiniAppDevelopmentWebpack
+  ```
+
+  Release mode:
+
+  ```bash
+  ./gradlew :demo:packLocalJSBundleRelease -Pkuikly.useLocalKsp=false
+  ./gradlew :miniApp:jsMiniAppProductionWebpack
+  ```
+
+  Static asset sync:
+
+  ```bash
+  ./gradlew :miniApp:copyAssets
+  ```
+
+  Key points:
+
+  - Business bundle will be synced to `miniApp/dist/business`
+  - Host render output will be synced to `miniApp/dist/lib`
+  - Open `miniApp/dist` with WeChat Developer Tools
+  - New pages usually need to synchronously modify `app.json` and `pages/<page>/index.js`
+  - For the home page, it's best to explicitly specify `pageName`
+
+  ### HarmonyOS
+
+  HarmonyOS is the profile that needs the most separate handling in KuiklyUI. Don't mix it directly into the default mainline.
+
+  Prefer using repo scripts for end-to-end compilation of source projects:
+
+  macOS:
+
+  ```bash
+  ./2.0_ohos_demo_build.sh
+  ```
+
+  Windows:
+
+  ```bat
+  2.0_ohos_demo_build.bat
+  ```
+
+  If you only want to manually generate cross-platform output:
+
+  ```bash
+  KUIKLY_AGP_VERSION=7.4.2 \
+  KUIKLY_KOTLIN_VERSION=2.0.21-KBA-010 \
+  ./gradlew -c settings.2.0.ohos.gradle.kts :demo:linkSharedDebugSharedOhosArm64 --stacktrace
+  ```
+
+  Release:
+
+  ```bash
+  KUIKLY_AGP_VERSION=7.4.2 \
+  KUIKLY_KOTLIN_VERSION=2.0.21-KBA-010 \
+  ./gradlew -c settings.2.0.ohos.gradle.kts :demo:linkSharedReleaseSharedOhosArm64 --stacktrace
+  ```
+
+  Key points:
+
+  - Requires custom Kotlin toolchain `2.0.21-KBA-010`
+  - `settings.2.0.ohos.gradle.kts` and `build.2.0.ohos.gradle.kts` are HarmonyOS-specific profiles
+  - The script temporarily switches Gradle wrapper to 8.0, then restores the original value
+  - Output artifacts:
+    - `demo/build/bin/ohosArm64/sharedDebugShared/libshared.so`
+    - `demo/build/bin/ohosArm64/sharedDebugShared/libshared_api.h`
+  - They need to be copied to:
+    - `ohosApp/entry/libs/arm64-v8a/`
+    - `ohosApp/entry/src/main/cpp/thirdparty/biz_entry/`
+  - Then open `ohosApp` with DevEco, configure signing, run `entry`
+
+  Debugging supplement:
+
+  - Read `docs/DevGuide/ohos-debug.md` when troubleshooting HarmonyOS-specific issues
+  - Kotlin breakpoints require debug artifacts; load `konan_lldb.py` when necessary
+
+  ### Integrating Knoi bridge in HarmonyOS host project
+
+  Knoi (Kotlin Native Ohos Interaction) is a bidirectional Kotlin Native ↔ ArkTS interop bridge solution provided by KuiklyBase, allowing KMP modules to call HarmonyOS native capabilities without writing C/C++ bridge code by hand.
+
+  **Core positioning:**
+
+  - Knoi implements Kotlin-side defined interfaces → automatically generates ArkTS-side code
+  - Supports Kotlin calling ArkTS methods (service call), ArkTS calling Kotlin methods (method call)
+  - Built on NAPI low-level implementation, performance on par with hand-written NAPI code
+
+  **⚠️ Important limitations:**
+
+  KMP modules using the Knoi plugin and their dependencies do not support dynamic deployment. If dynamic deployment is needed, decouple calls through Kuikly's Module mechanism, see `docs/DevGuide/expand-native-api.md`.
+
+  **Typical use cases:**
+
+  1. KMP business modules need to call HarmonyOS system capabilities (such as sensors, Bluetooth, file system, etc.)
+  2. Third-party KMP libraries need to adapt to HarmonyOS platform, calling their Native SDK
+  3. Business needs to define interface protocols on the Kotlin side for ArkTS-side implementation and injection
+
+  #### Knoi architecture principles
+
+  ```
+  ┌─────────────────────────────────────────┐
+  │             Kotlin/Native layer             │
+  │  ┌─────────────────────────────────┐    │
+  │  │  @ServiceConsumer / @ServiceProvider │
+  │  │  @MethodConsumer / @MethodProvider   │
+  │  └──────────────┬──────────────────┘    │
+  │                 │ Knoi auto-generated           │
+  │  ┌──────────────▼──────────────────┐    │
+  │  │     libkn.so (Knoi Bridge)       │
+  │  └──────────────┬──────────────────┘    │
+  ├─────────────────┼── NAPI boundary ──────────┤
+  │  ┌──────────────▼──────────────────┐    │
+  │  │     @kuiklybase/knoi (ArkTS)    │
+  │  └──────────────┬──────────────────┘    │
+  │  ┌──────────────▼──────────────────┐    │
+  │  │  ServiceProvider / MethodProvider │
+  │  │        (ArkTS business implementation)           │
+  │  └─────────────────────────────────┘    │
+  │              ArkTS/HarmonyOS layer               │
+  └─────────────────────────────────────────┘
+  ```
+
+  #### Kotlin-side Knoi integration
+
+  **1. Add plugin declaration in root build.gradle.kts:**
+
+  ```kotlin
+  plugins {
+      id("com.google.devtools.ksp") version "2.0.21-1.0.28" apply false
+      // knoi version see changelog: https://github.com/Tencent-TDS/KuiklyBase-components/blob/master/knoi/docs/changelog.md
+      id("com.tencent.kuiklybase.knoi.plugin") version("0.0.4") apply false
+  }
+  ```
+
+  **2. Module build.gradle.kts using Knoi:**
+
+  ```kotlin
+  plugins {
+      kotlin("multiplatform")
+      id("com.google.devtools.ksp")
+      id("com.tencent.kuiklybase.knoi.plugin")
+  }
+
+  // Optional: configure auto-generated TypeScript declaration file path
+  knoi {
+      tsGenDir = projectDir.absolutePath + "/ts-api/"
+  }
+
+  kotlin {
+      ohosArm64 {
+          binaries {
+              sharedLib {
+                  // Note: Knoi identifies the final shared library through sharedLib configuration,
+                  // if multiple modules configure sharedLib, it will cause initBridge symbol conflicts
+              }
+          }
+      }
+      sourceSets {
+          val ohosArm64Main by getting {
+              dependencies {
+                  implementation("com.tencent.kuiklybase:knoi:0.0.4")
+              }
+          }
+      }
+  }
+  ```
+
+  **3. Kotlin-side define service interface (Service):**
+
+  Kotlin defines the interface (using `@ServiceConsumer` annotation), implemented by ArkTS-side:
+
+  ```kotlin
+  // ohosArm64Main/kotlin/com/example/bridge/ISensorService.kt
+  import com.tencent.kuiklybase.knoi.annotation.ServiceConsumer
+
+  @ServiceConsumer
+  interface ISensorService {
+      fun startAccelerometer(listener: (x: Float, y: Float, z: Float) -> Unit)
+      fun stopAccelerometer()
+      suspend fun getCurrentTemperature(): Float
+  }
+  ```
+
+  **4. Kotlin-side consume service:**
+
+  ```kotlin
+  // Get service instance in commonMain or ohosArm64Main
+  class SensorHelper {
+      // Get service through Knoi's ServiceManager
+      private val sensorService = ServiceManager.get<ISensorService>()
+
+      fun startListening() {
+          sensorService.startAccelerometer { x, y, z ->
+              // Process sensor data
+              println("Accel: x=$x, y=$y, z=$z")
+          }
+      }
+  }
+  ```
+
+  **5. Kotlin-side expose methods for ArkTS to call (using @MethodProvider):**
+
+  ```kotlin
+  // ohosArm64Main/kotlin/com/example/bridge/AppBridge.kt
+  import com.tencent.kuiklybase.knoi.annotation.MethodProvider
+
+  @MethodProvider
+  object AppBridge {
+      fun onArkTSCall(data: String): String {
+          return "Kotlin received: $data"
+      }
+
+      fun getAppVersion(): String {
+          return "1.0.0"
+      }
+  }
+  ```
+
+  #### ArkTS-side Knoi integration
+
+  **1. Add dependency in entry/oh-package.json5:**
+
+  ```json5
+  {
+    "dependencies": {
+      "@kuiklybase/knoi": "0.0.4"
+    }
+  }
+  ```
+
+  **2. Initialize Knoi (in EntryAbility.onCreate or earlier):**
+
+  ```typescript
+  import { setup, init } from "@kuiklybase/knoi";
+
+  // setup must be called before init, parameter is the so name produced by KMP
+  setup("libkn.so", BuildProfile.DEBUG);
+  init();
+  ```
+
+  **3. ArkTS-side implement ServiceProvider (corresponding to Kotlin's @ServiceConsumer):**
+
+  ```typescript
+  import { ServiceProvider } from "@kuiklybase/knoi";
+
+  @ServiceProvider
+  export class SensorServiceImpl {
+    private accelerometerCallback: ((x: number, y: number, z: number) => void) | null = null;
+
+    startAccelerometer(callback: (x: number, y: number, z: number) => void): void {
+      this.accelerometerCallback = callback;
+      // Call HarmonyOS sensor API
+      sensor.on(sensor.SensorId.ACCELEROMETER, (data) => {
+        callback(data.x, data.y, data.z);
+      });
+    }
+
+    stopAccelerometer(): void {
+      sensor.off(sensor.SensorId.ACCELEROMETER);
+      this.accelerometerCallback = null;
+    }
+  }
+  ```
+
+  **4. ArkTS-side call Kotlin's @MethodProvider:**
+
+  ```typescript
+  import { MethodConsumer } from "@kuiklybase/knoi";
+
+  // Directly call object methods exposed on the Kotlin side
+  const result = AppBridge.onArkTSCall("hello from ArkTS");
+  const version = AppBridge.getAppVersion();
+  console.log(`App version: ${version}`);
+  ```
+
+  #### Type conversion reference table
+
+  Type mapping between Kotlin and ArkTS/TypeScript:
+
+  | Kotlin type | ArkTS type | Notes |
+  |---|---|---|
+  | `String` | `string` | |
+  | `Int` | `number` | |
+  | `Long` | `number` | |
+  | `Float` | `number` | |
+  | `Double` | `number` | |
+  | `Boolean` | `boolean` | |
+  | `(T) -> Unit` | `(t: T) => void` | Closure/callback |
+  | `suspend () -> T` | `Promise<T>` | Suspend function maps to Promise |
+  | `List<T>` | `T[]` | |
+  | `Map<K,V>` | `Record<K,V>` | |
+  | `ByteArray` | `ArrayBuffer` | Direct passthrough, zero-copy |
+  | `JSValue` | `any` | Dynamic type, used for complex structures |
+
+  #### Common issues and troubleshooting
+
+  **1. `initBridge symbol not found` error:**
+
+  - Cause: Multiple modules configured `binaries.sharedLib()`, Knoi identifies the final shared library through sharedLib and generates registration table
+  - Solution: Ensure only the final KMP output module config sharedLib, submodules only need to declare `ohosArm64()` target
+
+  **2. ArkTS-side Service call `not callable`:**
+
+  - Cause: When dlopen loads libkn.so, it brings in other sos that also register napi_module_register
+  - Solution: Before calling knoi initialization, first `import` the module to which the corresponding so belongs
+
+  **3. Closure parameter type issues:**
+
+  - When Kotlin closures convert to ArkTS Functions, input parameters are fixed as `Array<JSValue?>`, return value is `JSValue?`
+  - Avoid using `Array<JSValue?>` as the ArkTS-side return value, use `JSValue` + `isArrayType` / `toList` checks instead
+
+  **4. Dynamic deployment unavailable:**
+
+  - Knoi depends on compile-time code generation, the output contains hardcoded NAPI bindings
+  - For dynamic deployment scenarios, use Kuikly Module mechanism (`Module.toNative()`) for platform call decoupling
+  - Module approach see `docs/DevGuide/expand-native-api.md`
+
+  **5. ArkTS obfuscation causing Knoi failure:**
+
+  - When enabling code obfuscation on HarmonyOS side, add in `obfuscation-rules.txt`:
+
+  ```
+  -keep-global-name
+  knoi
+  ```
+
+  - Also need to keep unexported ServiceProvider classes and their properties and methods
+
+  #### Knoi performance benchmark
+
+  | API | Call count | Node-API (ms) | Knoi (ms) |
+  |---|---|---|---|
+  | `bool (*)()` | 10000 | 0.0031 | 0.0030 (cached) / 0.0036 (uncached) |
+  | `string (*)(string)` | 10000 | 0.0057 | 0.0034 (size 10) / 0.015 (size 1000) |
+  | `void (*)(function)` | 10000 | 0.0176 | 0.0072 (one-way) / 0.010 (two-way) |
+  | `ArrayBuffer (2.4MB)` | 10 | - | 0.4943 |
+  | `ArrayBuffer (4.5KB)` | 10 | - | 0.0061 |
+
+  > Knoi's performance in common call scenarios is on par with or better than hand-written NAPI, ArrayBuffer transmission supports zero-copy.
+
+  #### HarmonyOS KMP module adaptation guide (integrating business KMP modules into Kuikly project)
+
+  When you have an independent KMP module (e.g., `kmp-biz`) that needs to be depended on by the Kuikly project and compiled to the HarmonyOS platform:
+
+  **Step 1: Use custom Kotlin toolchain**
+
+  ```kotlin
+  // kmp-biz/build.gradle.kts
+  plugins {
+      kotlin("multiplatform").version("2.0.21-KBA-010")
+  }
+  ```
+
+  Add Tencent Maven source:
+
+  ```kotlin
+  repositories {
+      maven("https://mirrors.tencent.com/nexus/repository/maven-tencent/")
+  }
+  ```
+
+  **Step 2: Configure ohosArm64 Target**
+
+  ```kotlin
+  kotlin {
+      ohosArm64() {
+          // Submodules only depended on: only need ohosArm64()
+          // Modules needing independent so packaging: need to add binaries.sharedLib()
+          binaries {
+              sharedLib()
+          }
+      }
+  }
+  ```
+
+  **Step 3: Create ohosArm64Main directory**
+
+  Implement `expect/actual` platform code under `kmp-biz/src/ohosArm64Main/kotlin/`.
+
+  **Step 4: Configure sourceSets dependencies**
+
+  ```kotlin
+  kotlin {
+      sourceSets {
+          val ohosArm64Main by getting {
+              dependencies {
+                  // HarmonyOS platform-specific dependencies
+                  implementation("com.tencent.kuiklybase:knoi:0.0.4")
+              }
+          }
+          val commonMain by getting {
+              dependencies {
+                  implementation(project(":kmp-biz"))
+              }
+          }
+      }
+  }
+  ```
+
+  **Step 5: Handle KSP entry generation**
+
+  ```kotlin
+  dependencies {
+      compileOnly("com.tencent.kuikly-open:core-ksp:${kuiklyVersion}-2.0.21-ohos") {
+          add("kspOhosArm64", this)
+          add("kspAndroid", this)
+          add("kspIosArm64", this)
+          // ... other targets
+      }
+  }
+  ```
+
+  > Note: If Sync reports errors, you can first comment out other platform targets, Sync HarmonyOS platform alone, then restore after completion.
+
+  ### HarmonyOS full landscape bridge decision tree
+
+  When Kotlin needs to interact with HarmonyOS native, choose a solution by the following priority:
+
+  ```
+  Need Kotlin ↔ ArkTS bidirectional call?
+  ├── Yes → Need dynamic deployment capability?
+  │   ├── Yes → Use Kuikly Module mechanism (toNative/asyncToNativeMethod)
+  │   │        + CModule (C-side Module registration)
+  │   └── No → Use Knoi plugin (more efficient, no need to write bridge code by hand)
+  └── No → Only Kotlin calls ArkTS?
+      └── Kuikly Module mechanism is sufficient
+  ```
+
+  **Module mechanism vs Knoi comparison:**
+
+  | Dimension | Kuikly Module | Knoi |
+  |---|---|---|
+  | Bridge code | Need to write ArkTS Module classes by hand | Annotation-driven, auto-generated |
+  | Dynamic deployment support | Supported | Not supported |
+  | Performance | Via JSON serialization | NAPI direct call |
+  | Call direction | Kotlin → ArkTS (one-way) | Bidirectional |
+  | Type safety | Runtime check | Compile-time check |
+  | Use cases | General API extension, dynamic deployment | Framework/infrastructure layer tight integration |
+
+  ## Version and profile management
+
+  ### Current repo default mainline
+
+  - `settings.gradle.kts` uses `build.2.1.21.gradle.kts`
+  - This is currently the most suitable entry for this repo's demo / host integration
+
+  ### Real purpose of versioned profiles
+
+  - `settings.1.7.20.gradle.kts`
+  - `settings.1.9.22.gradle.kts`
+  - `settings.2.0.21.gradle.kts`
+  - `settings.2.0.ohos.gradle.kts`
+  - `settings.2.1.21.gradle.kts`
+
+  These files are mainly used for:
+
+  - Framework build/publish for corresponding Kotlin version
+  - Specific toolchain scenarios
+  - Avoid putting all targets into one default settings
+
+  Note:
+
+  - They don't necessarily include `:demo`, `:androidApp`, `:h5App`, `:miniApp`
+  - Don't mechanically treat `./gradlew -c settings.<version>.gradle.kts :demo:...` as a universal command
+  - If the user wants to run the current demo under another Kotlin version, first check whether the corresponding settings include the target module; if not, decide whether to temporarily modify root settings, or create a dedicated settings profile
+
+  ### Version compatibility constraints
+
+  First read `docs/DevGuide/version_skills.md`, focusing on:
+
+  - Kotlin / KSP / AGP / Gradle compatibility matrix
+  - Kuikly artifact version rules
+  - JDK compatibility requirements
+
+  High-frequency conclusions:
+
+  - Kotlin 2.1.21 mainline usually pairs with JDK 17
+  - Kotlin 2.0.21-KBA-010 is only used for HarmonyOS dedicated toolchain
+  - Kotlin 1.3 / 1.4 requires JDK 11
+  - On version mismatch, first check metadata errors, dependency tree, and plugin upgrade chain
+
+  ## Gradle design approach after creating a new KMP project
+
+  If the user just created a KMP project from a template or IDE, don't rush to pile all targets, hosts, and scripts in at once. According to KuiklyUI practice, Gradle design should first ensure "mainline stable and runnable", then gradually extend non-standard platforms.
+
+  ### 1. Define the three-layer structure first, then write Gradle
+
+  Recommended to first split modules by three layers:
+
+  - KMP business layer: e.g., `shared` / `biz`
+  - Platform render layer or adaptation layer: e.g., `render-android`, `render-web`
+  - Host shell: e.g., `androidApp`, `iosApp`, `h5App`
+
+  Don't stuff host code, platform bridge code, and shared business code all into one module. At the Gradle level, it should be clear "who produces cross-platform business, who runs host, who does platform adaptation".
+
+  ### 2. Root `settings.gradle.kts` serves daily development first
+
+  The new project's default `settings.gradle.kts` should only do three things:
+
+  - Unify plugin repositories and dependency repositories
+  - Select the `build.<version>.gradle.kts` corresponding to the current mainline profile
+  - Include modules truly needed for daily development
+
+  Design approach:
+
+  ```kotlin
+  pluginManagement {
+      repositories {
+          google()
+          gradlePluginPortal()
+          mavenCentral()
+          maven(url = "https://mirrors.tencent.com/repository/maven-tencent/")
+      }
+  }
+
+  val buildFileName = "build.2.1.21.gradle.kts"
+  rootProject.buildFileName = buildFileName
+
+  include(":shared")
+  project(":shared").buildFileName = buildFileName
+
+  include(":androidApp")
+  include(":h5App")
+  ```
+
+  Key points:
+
+  - Default entry prioritizes "development and integration", not "support all version matrices"
+  - If you need to be compatible with more Kotlin versions later, add `settings.<profile>.gradle.kts`
+  - For non-standard toolchains like HarmonyOS, create a separate profile, don't pollute the mainline
+
+  ### 3. Root `build.<version>.gradle.kts` only does version locking and global strategy
+
+  Don't write business logic here. Only do these things:
+
+  - Lock Kotlin / KSP / AGP / Compose versions
+  - Configure global repositories
+  - Configure dependency replacement, common compilation options
+
+  Design approach:
+
+  ```kotlin
+  plugins {
+      kotlin("multiplatform") version "2.1.21" apply false
+      kotlin("plugin.compose") version "2.1.21" apply false
+      id("com.android.application") version "7.4.2" apply false
+      id("com.android.library") version "7.4.2" apply false
+      id("com.google.devtools.ksp") version "2.1.21-2.0.1" apply false
+  }
+
+  allprojects {
+      repositories {
+          google()
+          mavenCentral()
+          mavenLocal()
+          maven(url = "https://mirrors.tencent.com/repository/maven-tencent/")
+      }
+  }
+  ```
+
+  Key points:
+
+  - Lock versions uniformly here, don't scatter them across each module
+  - Once a platform needs a special Kotlin toolchain, split profiles directly
+  - Business modules should not upgrade Kotlin / AGP versions on their own, otherwise it's easy to break the entire project
+
+  ### 4. Business module `shared/build.gradle.kts` first consolidate targets
+
+  KuiklyUI's experience: first enable the targets you really need to deliver, then expand platforms. A maintainable order is usually:
+
+  1. `androidTarget`
+  2. `iosX64` / `iosArm64` / `iosSimulatorArm64`
+  3. `js(IR)`, when you need H5 / MiniApp
+  4. `macosX64` / `macosArm64`, when you need desktop
+  5. `ohosArm64`, put into independent profile
+
+  Module scripts first solve four things:
+
+  - Declare targets
+  - Define `sourceSets`
+  - Connect KSP entry generation
+  - Add platform output configuration, such as `cocoapods`, `binaries.executable()`, `sharedLib()`
+
+  Recommended writing order:
+
+  ```kotlin
+  plugins {
+      kotlin("multiplatform")
+      kotlin("native.cocoapods")
+      id("com.android.library")
+      id("com.google.devtools.ksp")
+  }
+
+  kotlin {
+      androidTarget()
+      iosX64()
+      iosArm64()
+      iosSimulatorArm64()
+
+      js(IR) {
+          browser()
+          binaries.executable()
+      }
+
+      sourceSets {
+          val commonMain by getting {
+              dependencies {
+                  // Shared dependencies
+              }
+          }
+          val androidMain by getting
+          val iosMain by creating { dependsOn(commonMain) }
+          val jsMain by getting
+      }
+
+      cocoapods {
+          framework { baseName = "shared" }
+      }
+  }
+
+  dependencies {
+      compileOnly("your-group:core-ksp:version") {
+          add("kspAndroid", this)
+          add("kspIosArm64", this)
+          add("kspIosX64", this)
+          add("kspIosSimulatorArm64", this)
+          add("kspJs", this)
+      }
+  }
+  ```
+
+  Key points:
+
+  - `commonMain` only contains truly shared pages, state, and business logic
+  - Source set dependency relationships should be clear first, then talk about code reuse
+  - Don't enable all targets by default just to "look cross-platform"
+  - In the early stage of a new project, first ensure Android + iOS mainline is stable, then continue adding JS / OHOS
+
+  ### 5. JS/H5/MiniApp is not done just by "opening one more js target"
+
+  If the project needs to support H5 or MiniApp, Gradle also needs to add host modules, not just declare `js(IR)` in `shared`.
+
+  Refer to KuiklyUI, it should be split into:
+
+  - Business module: responsible for producing JS bundle
+  - H5 host module: responsible for webpack, HTML, assets, dev server connection
+  - MiniApp host module: responsible for dist directory and MiniApp shell resource sync
+
+  Writing should form a fixed task chain, e.g.:
+
+  - `:shared:packLocalJsBundleDebug`
+  - `:h5App:publishLocalJSBundle`
+  - `:miniApp:jsMiniAppDevelopmentWebpack`
+
+  Key points:
+
+  - JS business bundle and host packaging are separated
+  - assets copy task is provided separately
+  - Page names, bundle names, output directories should all be stably named for host integration and CI
+
+  ### 6. iOS/macOS first decide Pod or SPM, then derive Gradle
+
+  If Apple platforms use CocoaPods, business modules must configure:
+
+  - `kotlin("native.cocoapods")`
+  - `cocoapods { framework { ... } }`
+
+  If using SPM or custom framework delivery, also define the output contract first, then add Gradle tasks. Don't write a Pod version first, then temporarily change to another delivery method on the host side.
+
+  KuiklyUI's approach:
+
+  - Business module outputs `shared` via `cocoapods`
+  - Host `Podfile` connects both render pod and business pod
+
+  This kind of structure is suitable for long-term integration.
+
+  ### 7. Non-standard platforms get independent profiles
+
+  Whenever any of the following occurs, prefer splitting into independent `settings.<profile>.gradle.kts` + `build.<profile>.gradle.kts`:
+
+  - Kotlin toolchain is not the mainline version
+  - Gradle / AGP version is incompatible with the mainline
+  - Need special repository sources
+  - Only want to include certain platform modules
+
+  This is KuiklyUI's approach for HarmonyOS. The core purpose is not "more files", but isolating risk.
+
+  ### 8. Gradle design order for new projects
+
+  When giving users advice, default to organizing in this order:
+
+  1. First write root `settings.gradle.kts`, keeping only modules needed for mainline development
+  2. Then write root `build.<version>.gradle.kts`, unifying versions and repositories
+  3. Then write business module `shared/build.gradle.kts`, only enabling Android + iOS
+  4. Get Android / iOS hosts running
+  5. Need Web, then add `js(IR)` and `h5App` / `miniApp`
+  6. Need HarmonyOS, then split independent profiles and scripts
+  7. Finally add publishing, splitting, assets, CI tasks
+
+  ### 9. What to focus on when reviewing new project Gradle
+
+  - Whether versions are centrally managed, or scattered across each module
+  - Whether default settings are really usable for daily development
+  - Whether `commonMain` and platform source set boundaries are clear
+  - Whether KSP is correctly attached per target
+  - Whether H5 / MiniApp forms a "two-stage build"
+  - Whether non-standard platforms are isolated to independent profiles
+
+  ## How to add new modules or new platforms
+
+  ### New business module
+
+  - Continue the organization of `demo/build.gradle.kts`: put shared pages and logic in `commonMain`, only put necessary differences in target-specific source sets
+  - Continue using `core-annotations` + `core-ksp` to manage entries and routes, don't write platform-divergent entries by hand
+  - If producing Web / MiniApp bundles, keep a unified packaging entry like `packLocalJsBundle*`
+
+  ### New platform or non-standard target
+
+  - First judge whether it should be split into independent profile like HarmonyOS
+  - If the toolchain, Gradle, Kotlin version is incompatible with the mainline, prefer creating new `settings.<profile>.gradle.kts` + `build.<profile>.gradle.kts`
+  - Clarify the output contract, then design host linkage:
+    - Android: `.aar`
+    - Apple: `.framework` / pod
+    - Web / MiniApp: `.js`
+    - HarmonyOS: `.so + .h`
+  - Provide scripts for non-standard platforms, rather than requiring users to manually copy a dozen steps
+
+  ## Troubleshooting flow
+
+  ### 1. Sync failure
+
+  Prioritize checking:
+
+  - Which settings / profile is currently used
+  - Whether JDK version matches AGP / Kotlin
+  - Whether repository sources include Tencent Maven
+  - Whether dependencies lack target architecture, especially JS / OHOS targets
+  - Whether `kuikly.useLocalKsp=true` was mistakenly used
+
+  Read when needed:
+
+  - `docs/DevGuide/compile_skills.md`
+  - `docs/DevGuide/version_skills.md`
+
+  ### 2. H5 / MiniApp can build host but pages don't update
+
+  Prioritize checking:
+
+  - Whether `:demo:packLocalJsBundleDebug/Release` was re-executed
+  - Whether `-Pkuikly.useLocalKsp=false` was used
+  - Whether assets were synced
+  - Whether page name matches `@Page` registered name
+
+  ### 3. iOS / macOS Pod or framework issues
+
+  Prioritize checking:
+
+  - Whether `pod install --repo-update` was re-run
+  - Whether `Podfile` references local `demo` / render paths
+  - Whether Xcode disabled `User Script Sandboxing`
+
+  ### 4. HarmonyOS build failure
+
+  Prioritize checking:
+
+  - Whether `settings.2.0.ohos.gradle.kts` is used
+  - Whether `KUIKLY_KOTLIN_VERSION` is `2.0.21-KBA-010`
+  - Whether `OHOS_SDK_HOME` is valid
+  - Whether output has been copied to `ohosApp/entry`
+  - Whether the debug / release output directory is used
+
+  ### 5. All platforms report compile errors
+
+  Prioritize checking:
+
+  - Kotlin metadata version conflict
+  - A third-party dependency pulling up Kotlin version
+  - KSP version mismatch with Kotlin plugin
+  - Project target declaration inconsistent with available dependency targets
+
+  Necessary commands:
+
+  ```bash
+  ./gradlew <module>:dependencies
+  ./gradlew clean
+  ./gradlew --stop
+  ```
+
+  ## Default output style when user asks you to "guide development"
+
+  - First give platform and profile judgment, don't explain principles first
+  - Commands given in order: prerequisites -> build business output -> build host -> view output / run
+  - Each time clearly state:
+    - Which directory the command is executed in
+    - Where the output will be generated
+    - Which IDE or host to open next
+  - If user needs cross-platform integration simultaneously, list separately by Android / iOS / Web / MiniApp / OHOS, don't mix in one command block
+
+  ## Transferable practices distilled from KuiklyUI
+
+  When applying these principles to other KMP projects, prefer copying verbatim:
+
+  - Use "shared business layer + render layer + host shell" layering, rather than piling all platform logic into `commonMain`
+  - Create separate profiles for unstable or unofficial toolchains, e.g., HarmonyOS
+  - Web / MiniApp use two-stage build: business bundle separated from host build
+  - Use KSP / code generation to unify entries, routes, and bridge registration
+  - Script the version matrix, don't rely on verbal conventions
+  - Before answering user questions, first verify from the actual tasks, settings, Podfile, and scripts in the repo, don't output generic tutorials
+
+  ## Coroutine conventions
+
+  In KMP projects, coroutines are the core mechanism for handling asynchronous operations. Below are best practices for coroutine usage:
+
+  ### 1. Coroutine dependency configuration
+
+  Add coroutine dependency in `commonMain`:
+
+  ```kotlin
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+  }
+  ```
+
+  Add corresponding coroutine dependency in platform-specific modules:
+
+  ```kotlin
+  // Android
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+  }
+
+  // iOS
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-native:1.7.3")
+  }
+
+  // JS
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-js:1.7.3")
+  }
+  ```
+
+  ### 2. Coroutine scope management
+
+  - In shared code, use `CoroutineScope` to manage coroutine lifecycle
+  - For platform-specific code, use scopes provided by the platform:
+    - Android: `lifecycleScope` or `viewModelScope`
+    - iOS: Custom `CoroutineScope` and cancel at appropriate times
+    - JS: Use corresponding scope management according to the framework
+
+  ### 3. Suspend function conventions
+
+  - All functions involving network, IO, or time-consuming operations should be suspend functions
+  - Suspend function names should clearly express their asynchronous nature
+  - Avoid using `runBlocking` in suspend functions, which will block coroutines
+
+  ### 4. Error handling
+
+  - Use `try-catch` to catch exceptions in coroutines
+  - Consider using `Result` type to wrap operations that may fail
+  - For network requests, uniformly handle network errors and business errors
+
+  ### 5. Performance optimization
+
+  - For a large number of concurrent operations, use `async` and `awaitAll`
+  - Reasonably use `withContext` to switch dispatchers, put IO operations on `Dispatchers.IO`
+  - Avoid executing time-consuming operations on the main thread
+
+  ### 6. Code examples
+
+  ```kotlin
+  // Correct coroutine usage example
+  class UserRepository(private val api: UserApi) {
+      suspend fun getUser(id: String): Result<User> = withContext(Dispatchers.IO) {
+          try {
+              val user = api.getUser(id)
+              Result.success(user)
+          } catch (e: Exception) {
+              Result.failure(e)
+          }
+      }
+  }
+
+  // Wrong coroutine usage example (avoid)
+  fun getUserSync(id: String): User {
+      return runBlocking { // Block main thread
+          api.getUser(id)
+      }
+  }
+  ```
+
+  ## Global skill guiding principles
+
+  As a global KMP skill, this guidance follows these principles:
+
+  1. **Platform-first**: Prioritize target platform characteristics and limitations
+  2. **Code quality**: Ensure code follows Kotlin best practices and coroutine conventions
+  3. **Maintainability**: Emphasize modularization, clear dependency relationships, and version management
+  4. **Performance optimization**: Provide performance optimization suggestions, especially in cross-platform scenarios
+  5. **Issue troubleshooting**: Provide troubleshooting flow and solutions for common issues
+  6. **Continuous integration**: Guide how to set up cross-platform CI/CD pipelines
+
+  Regardless of project size, these principles apply, helping developers build high-quality Kotlin Multiplatform applications.
+
+prompt_zh: |
+  # Kotlin Multiplatform 实战 Skill
+
+  在用户提到 KMP、Kotlin Multiplatform、Compose Multiplatform、跨平台构建、Android+iOS+鸿蒙+Web+小程序、多端产物、Gradle profile、版本切换、KSP 入口生成、协程规范等与 Kotlin 跨平台开发相关的内容时使用本 Skill。
+
+  本 Skill 提供全局化的 KMP 项目指导，同时参考 KuiklyUI 的工程实践：先分析仓库里的实际 task、settings、build profile、Podfile、脚本，再给出具体的操作方案。
+
+  ## 先做什么
+
+  1. 确认目标平台：Android / iOS / macOS / HarmonyOS / H5 / MiniApp / 多端同时。
+  2. 确认目标动作：运行 Demo、构建产物、切换 Kotlin 版本、排查 Sync/编译失败、联调宿主、扩展新 target。
+  3. 先读最小集合：
+     - 总览与源码构建：`README-zh_CN.md`
+     - 版本兼容：`docs/DevGuide/version_skills.md`
+     - 编译问题：`docs/DevGuide/compile_skills.md`
+     - 平台专有文档：按需读取 `docs/DevGuide/android-dev.md`、`ios-dev.md`、`h5-dev.md`、`miniapp-dev.md`、`harmony-dev.md`、`ohos-debug.md`
+  4. 不要一次性加载全部 docs，只展开当前平台所需内容。
+
+  ## KuiklyUI 的工程规律
+
+  - KuiklyUI 不是“一个 shared 模块直接跑六端”，而是三层结构：
+    - KMP 核心/业务层：`core`、`compose`、`demo`
+    - 平台渲染层：`core-render-android`、`core-render-ios`、`core-render-ohos`、`core-render-web:*`
+    - 宿主壳：`androidApp`、`iosApp`、`macApp`、`h5App`、`miniApp`、`ohosApp`
+  - `demo` 是当前仓库的业务示例入口。迁移到业务工程时，可把它类比为 `shared` 或 `biz` 模块。
+  - `core-ksp` 会按 target 生成入口、桥接和 `@Page` 路由注册。改动页面声明、模块拆分、target 配置后，要重新触发对应构建任务。
+  - H5 和小程序都采用两段式构建：
+    1. 先构建业务 JS bundle
+    2. 再构建宿主并拷贝 bundle / assets
+  - HarmonyOS 不与默认主线 profile 混用，而是单独使用 `settings.2.0.ohos.gradle.kts` + `build.2.0.ohos.gradle.kts`。这是 KuiklyUI 对非标准工具链的隔离策略。
+
+  ## 优先检查这些文件
+
+  - `settings.gradle.kts`
+    当前工作区入口；默认指向 `build.2.1.21.gradle.kts`，并额外包含 `:demo`、`:androidApp`、`:h5App`、`:miniApp`，适合本仓库日常开发。
+  - `settings.<version>.gradle.kts`
+    版本化 profile；多数只包含框架模块，不一定包含 `:demo` 或宿主。不要默认它们可以直接跑 Demo。
+  - `build.<version>.gradle.kts`
+    根插件版本、仓库源和全局依赖替换策略。
+  - `demo/build.gradle.kts`
+    多端业务 target、KSP 参数、JS bundle 输出入口。
+  - `h5App/build.gradle.kts`
+    H5 宿主构建、HTML 重写、assets 同步任务。
+  - `miniApp/build.gradle.kts`
+    小程序宿主构建和 `dist` 同步任务。
+  - `demo/build.2.0.ohos.gradle.kts`
+    HarmonyOS `sharedLib("shared")` 输出和 `kspOhosArm64`。
+  - `gradle.properties`
+    当前仓库默认 `kuikly.useLocalKsp=true`。H5 / MiniApp 构建通常要显式传 `-Pkuikly.useLocalKsp=false`。
+
+  ## 实战原则
+
+  - 默认优先使用仓库已提供的脚本、task 名和 profile，不先给泛化 KMP 建议。
+  - 先区分“构建跨端业务产物”还是“运行宿主 App”；很多问题是前一步没做。
+  - 对非标准平台单独隔离 profile，而不是强行塞进默认主线。
+  - 给用户命令时，同时说明产物落点和下一步宿主动作。
+  - 遇到版本问题，先锁定 `Kotlin / KSP / AGP / Gradle / JDK / settings profile` 五元组。
+
+  ## 常用操作
+
+  ### Android
+
+  日常开发优先直接跑宿主壳。
+
+  ```bash
+  ./gradlew :androidApp:assembleDebug
+  ./gradlew :androidApp:installDebug
+  ```
+
+  IDE 流程：
+
+  1. 用 Android Studio 打开仓库根目录并完成 Sync
+  2. 选择 `androidApp`
+  3. Run `androidApp`
+
+  关键点：
+
+  - `androidApp` 直接依赖 `:core`、`:demo`、`:core-render-android`
+  - 当前仓库主线建议 JDK 17；旧 Kotlin 1.3 / 1.4 profile 需要 JDK 11
+  - 如果只是改 `demo` 业务代码，通常不需要先单独打包，再重新编译宿主即可
+
+  ### iOS
+
+  iOS 是 `CocoaPods + KMP framework + render pod` 联动。
+
+  ```bash
+  cd iosApp
+  pod install --repo-update
+  ```
+
+  运行方式：
+
+  1. 先执行 `pod install --repo-update`
+  2. 可以在 Android Studio 打开仓库根目录后运行 `iOSApp`
+  3. 或直接用 Xcode 打开 `iosApp`
+
+  关键点：
+
+  - `iosApp/Podfile` 同时依赖 `OpenKuiklyIOSRender` 和 `demo`
+  - 如果 Xcode 报脚本读写权限问题，把 `User Script Sandboxing` 设为 `No`
+  - iOS 的业务产物不是 `.aar`，而是通过 pod / framework 暴露给宿主
+
+  ### macOS
+
+  流程与 iOS 类似。
+
+  ```bash
+  cd macApp
+  pod install --repo-update
+  ```
+
+  运行方式：
+
+  - Xcode 打开 `macApp`
+  - 或在 IDE 中运行 `macOSApp`
+
+  关键点：
+
+  - `macApp/Podfile` 也依赖 `OpenKuiklyIOSRender` 和 `demo`
+  - 平台差异主要留在宿主和 render 层，不要把大量桌面逻辑塞回 `commonMain`
+
+  ### H5
+
+  H5 使用两段式构建。先产出业务 JS，再启动或发布宿主。
+
+  首次需要 Node 依赖时：
+
+  ```bash
+  npm install
+  ```
+
+  启动业务 JS 服务：
+
+  ```bash
+  npm run serve
+  ```
+
+  开发模式：
+
+  ```bash
+  ./gradlew :demo:packLocalJsBundleDebug -Pkuikly.useLocalKsp=false
+  ./gradlew :h5App:jsBrowserDevelopmentRun
+  ./gradlew :h5App:copyAssetsToWebpackDevServer
+  ```
+
+  也可以使用：
+
+  ```bash
+  ./gradlew :h5App:jsBrowserRun
+  ```
+
+  但 Kotlin 2.0+ 下优先使用 `jsBrowserDevelopmentRun`。
+
+  发布模式：
+
+  ```bash
+  ./gradlew :demo:packLocalJSBundleRelease -Pkuikly.useLocalKsp=false
+  ./gradlew :h5App:publishLocalJSBundle
+  ```
+
+  分页发布：
+
+  ```bash
+  ./gradlew :demo:packSplitJSBundleRelease
+  ./gradlew :h5App:publishSplitJSBundle
+  ```
+
+  关键点：
+
+  - `demo` 负责编译业务 JS bundle
+  - `h5App` 负责宿主 webpack、HTML 重写、assets 拷贝
+  - `copyAssetsToWebpackDevServer` 用于开发模式看到 `src/commonMain/assets`
+  - 产物通常在 `h5App/build/dist/js/productionExecutable` 或 `h5App/build/kotlin-webpack/js/*`
+  - 修改 `demo` 页面或 `@Page` 后，必须重新执行 `packLocalJsBundle*`
+
+  ### MiniApp
+
+  小程序与 H5 一样，也是两段式构建。
+
+  ```bash
+  npm install
+  npm run serve
+  ./gradlew :demo:packLocalJsBundleDebug -Pkuikly.useLocalKsp=false
+  ./gradlew :miniApp:jsMiniAppDevelopmentWebpack
+  ```
+
+  发布模式：
+
+  ```bash
+  ./gradlew :demo:packLocalJSBundleRelease -Pkuikly.useLocalKsp=false
+  ./gradlew :miniApp:jsMiniAppProductionWebpack
+  ```
+
+  静态资源同步：
+
+  ```bash
+  ./gradlew :miniApp:copyAssets
+  ```
+
+  关键点：
+
+  - 业务 bundle 会被同步到 `miniApp/dist/business`
+  - 宿主 render 产物会同步到 `miniApp/dist/lib`
+  - 用微信开发者工具打开 `miniApp/dist`
+  - 新页面通常要同步修改 `app.json` 和 `pages/<page>/index.js`
+  - 首页面最好显式指定 `pageName`
+
+  ### HarmonyOS
+
+  HarmonyOS 是 KuiklyUI 中最需要单独处理的 profile。默认主线不要直接混用。
+
+  优先使用仓库脚本做源码工程端到端编译：
+
+  macOS:
+
+  ```bash
+  ./2.0_ohos_demo_build.sh
+  ```
+
+  Windows:
+
+  ```bat
+  2.0_ohos_demo_build.bat
+  ```
+
+  如果只想手动生成跨端产物：
+
+  ```bash
+  KUIKLY_AGP_VERSION=7.4.2 \
+  KUIKLY_KOTLIN_VERSION=2.0.21-KBA-010 \
+  ./gradlew -c settings.2.0.ohos.gradle.kts :demo:linkSharedDebugSharedOhosArm64 --stacktrace
+  ```
+
+  Release：
+
+  ```bash
+  KUIKLY_AGP_VERSION=7.4.2 \
+  KUIKLY_KOTLIN_VERSION=2.0.21-KBA-010 \
+  ./gradlew -c settings.2.0.ohos.gradle.kts :demo:linkSharedReleaseSharedOhosArm64 --stacktrace
+  ```
+
+  关键点：
+
+  - 需要定制 Kotlin toolchain `2.0.21-KBA-010`
+  - `settings.2.0.ohos.gradle.kts` 和 `build.2.0.ohos.gradle.kts` 是鸿蒙专用 profile
+  - 脚本会临时把 Gradle wrapper 切到 8.0，再恢复原值
+  - 输出产物：
+    - `demo/build/bin/ohosArm64/sharedDebugShared/libshared.so`
+    - `demo/build/bin/ohosArm64/sharedDebugShared/libshared_api.h`
+  - 需要把它们拷贝到：
+    - `ohosApp/entry/libs/arm64-v8a/`
+    - `ohosApp/entry/src/main/cpp/thirdparty/biz_entry/`
+  - 然后用 DevEco 打开 `ohosApp`，配置签名，运行 `entry`
+
+  调试补充：
+
+  - 排查鸿蒙特有问题时再读 `docs/DevGuide/ohos-debug.md`
+  - Kotlin 断点需要 debug 产物，必要时加载 `konan_lldb.py`
+
+  ### 鸿蒙宿主工程侧接入 Knoi 桥接
+
+  Knoi (Kotlin Native Ohos Interaction) 是 KuiklyBase 提供的 Kotlin Native 与 ArkTS 双向互调桥接方案，让 KMP 模块无需手写 C/C++ 桥接代码即可调用鸿蒙原生能力。
+
+  **核心定位：**
+
+  - Knoi 实现 Kotlin 侧定义接口 → 自动生成 ArkTS 侧代码
+  - 支持 Kotlin 调用 ArkTS 方法（服务调用）、ArkTS 调用 Kotlin 方法（方法调用）
+  - 基于 NAPI 底层实现，性能与手写 NAPI 代码持平
+
+  **⚠️ 重要限制：**
+
+  使用 Knoi 插件的 KMP 模块及其依赖模块均无法支持动态化。如需动态化，应通过 Kuikly 的 Module 机制解耦调用，详见 `docs/DevGuide/expand-native-api.md`。
+
+  **典型使用场景：**
+
+  1. KMP 业务模块需要调用鸿蒙端的系统能力（如传感器、蓝牙、文件系统等）
+  2. 第三方 KMP 库需要适配鸿蒙平台，调用其 Native SDK
+  3. 业务需要在 Kotlin 侧定义接口协议，供 ArkTS 侧实现并注入
+
+  #### Knoi 架构原理
+
+  ```
+  ┌─────────────────────────────────────────┐
+  │             Kotlin/Native 层             │
+  │  ┌─────────────────────────────────┐    │
+  │  │  @ServiceConsumer / @ServiceProvider │
+  │  │  @MethodConsumer / @MethodProvider   │
+  │  └──────────────┬──────────────────┘    │
+  │                 │ Knoi 自动生成           │
+  │  ┌──────────────▼──────────────────┐    │
+  │  │     libkn.so (Knoi Bridge)       │    │
+  │  └──────────────┬──────────────────┘    │
+  ├─────────────────┼── NAPI 边界 ──────────┤
+  │  ┌──────────────▼──────────────────┐    │
+  │  │     @kuiklybase/knoi (ArkTS)    │    │
+  │  └──────────────┬──────────────────┘    │
+  │  ┌──────────────▼──────────────────┐    │
+  │  │  ServiceProvider / MethodProvider │    │
+  │  │        (ArkTS 业务实现)           │    │
+  │  └─────────────────────────────────┘    │
+  │              ArkTS/鸿蒙 层               │
+  └─────────────────────────────────────────┘
+  ```
+
+  #### Kotlin 侧接入 Knoi
+
+  **1. 根 build.gradle.kts 添加插件声明：**
+
+  ```kotlin
+  plugins {
+      id("com.google.devtools.ksp") version "2.0.21-1.0.28" apply false
+      // knoi 版本见 changelog: https://github.com/Tencent-TDS/KuiklyBase-components/blob/master/knoi/docs/changelog.md
+      id("com.tencent.kuiklybase.knoi.plugin") version("0.0.4") apply false
+  }
+  ```
+
+  **2. 使用 Knoi 的模块 build.gradle.kts：**
+
+  ```kotlin
+  plugins {
+      kotlin("multiplatform")
+      id("com.google.devtools.ksp")
+      id("com.tencent.kuiklybase.knoi.plugin")
+  }
+
+  // 可选：配置自动生成 TypeScript 声明文件路径
+  knoi {
+      tsGenDir = projectDir.absolutePath + "/ts-api/"
+  }
+
+  kotlin {
+      ohosArm64 {
+          binaries {
+              sharedLib {
+                  // 注意：Knoi 通过 sharedLib 配置识别最终共享库，
+                  // 如果多个模块都配置了 sharedLib 会导致 initBridge 符号冲突
+              }
+          }
+      }
+      sourceSets {
+          val ohosArm64Main by getting {
+              dependencies {
+                  implementation("com.tencent.kuiklybase:knoi:0.0.4")
+              }
+          }
+      }
+  }
+  ```
+
+  **3. Kotlin 侧定义服务接口（Service）：**
+
+  Kotlin 定义接口（使用 `@ServiceConsumer` 注解），由 ArkTS 侧实现：
+
+  ```kotlin
+  // ohosArm64Main/kotlin/com/example/bridge/ISensorService.kt
+  import com.tencent.kuiklybase.knoi.annotation.ServiceConsumer
+
+  @ServiceConsumer
+  interface ISensorService {
+      fun startAccelerometer(listener: (x: Float, y: Float, z: Float) -> Unit)
+      fun stopAccelerometer()
+      suspend fun getCurrentTemperature(): Float
+  }
+  ```
+
+  **4. Kotlin 侧消费服务：**
+
+  ```kotlin
+  // 在 commonMain 或 ohosArm64Main 中获取服务实例
+  class SensorHelper {
+      // 通过 Knoi 的 ServiceManager 获取服务
+      private val sensorService = ServiceManager.get<ISensorService>()
+
+      fun startListening() {
+          sensorService.startAccelerometer { x, y, z ->
+              // 处理传感器数据
+              println("Accel: x=$x, y=$y, z=$z")
+          }
+      }
+  }
+  ```
+
+  **5. Kotlin 侧暴露方法供 ArkTS 调用（使用 @MethodProvider）：**
+
+  ```kotlin
+  // ohosArm64Main/kotlin/com/example/bridge/AppBridge.kt
+  import com.tencent.kuiklybase.knoi.annotation.MethodProvider
+
+  @MethodProvider
+  object AppBridge {
+      fun onArkTSCall(data: String): String {
+          return "Kotlin received: $data"
+      }
+
+      fun getAppVersion(): String {
+          return "1.0.0"
+      }
+  }
+  ```
+
+  #### ArkTS 侧接入 Knoi
+
+  **1. entry/oh-package.json5 添加依赖：**
+
+  ```json5
+  {
+    "dependencies": {
+      "@kuiklybase/knoi": "0.0.4"
+    }
+  }
+  ```
+
+  **2. 初始化 Knoi（在 EntryAbility.onCreate 或更早时机）：**
+
+  ```typescript
+  import { setup, init } from "@kuiklybase/knoi";
+
+  // setup 必须在 init 之前调用，参数为 KMP 产出的 so 名称
+  setup("libkn.so", BuildProfile.DEBUG);
+  init();
+  ```
+
+  **3. ArkTS 侧实现 ServiceProvider（对应 Kotlin 的 @ServiceConsumer）：**
+
+  ```typescript
+  import { ServiceProvider } from "@kuiklybase/knoi";
+
+  @ServiceProvider
+  export class SensorServiceImpl {
+    private accelerometerCallback: ((x: number, y: number, z: number) => void) | null = null;
+
+    startAccelerometer(callback: (x: number, y: number, z: number) => void): void {
+      this.accelerometerCallback = callback;
+      // 调用鸿蒙传感器 API
+      sensor.on(sensor.SensorId.ACCELEROMETER, (data) => {
+        callback(data.x, data.y, data.z);
+      });
+    }
+
+    stopAccelerometer(): void {
+      sensor.off(sensor.SensorId.ACCELEROMETER);
+      this.accelerometerCallback = null;
+    }
+  }
+  ```
+
+  **4. ArkTS 侧调用 Kotlin 的 @MethodProvider：**
+
+  ```typescript
+  import { MethodConsumer } from "@kuiklybase/knoi";
+
+  // 直接调用 Kotlin 侧暴露的对象方法
+  const result = AppBridge.onArkTSCall("hello from ArkTS");
+  const version = AppBridge.getAppVersion();
+  console.log(`App version: ${version}`);
+  ```
+
+  #### 类型转换对照表
+
+  Kotlin 与 ArkTS/TypeScript 之间的类型映射：
+
+  | Kotlin 类型 | ArkTS 类型 | 备注 |
+  |---|---|---|
+  | `String` | `string` | |
+  | `Int` | `number` | |
+  | `Long` | `number` | |
+  | `Float` | `number` | |
+  | `Double` | `number` | |
+  | `Boolean` | `boolean` | |
+  | `(T) -> Unit` | `(t: T) => void` | 闭包/回调 |
+  | `suspend () -> T` | `Promise<T>` | 挂起函数映射为 Promise |
+  | `List<T>` | `T[]` | |
+  | `Map<K,V>` | `Record<K,V>` | |
+  | `ByteArray` | `ArrayBuffer` | 直接透传，零拷贝 |
+  | `JSValue` | `any` | 动态类型，用于复杂结构 |
+
+  #### 常见问题与排查
+
+  **1. `initBridge symbol not found` 错误：**
+
+  - 原因：多个模块配置了 `binaries.sharedLib()`，Knoi 通过 sharedLib 识别最终共享库并生成注册表
+  - 解决：确保只有最终的 KMP 产出模块配置 sharedLib，子模块只声明 `ohosArm64()` target 即可
+
+  **2. ArkTS 侧 Service 调用 `not callable`：**
+
+  - 原因：dlopen 加载 libkn.so 时带起了其他也注册了 napi_module_register 的 so
+  - 解决：在调用 knoi 初始化之前先 `import` 对应的 so 所属 module
+
+  **3. 闭包参数类型问题：**
+
+  - Kotlin 闭包转为 ArkTS Function 时，入参固定为 `Array<JSValue?>`，返回值为 `JSValue?`
+  - 避免使用 `Array<JSValue?>` 作为 ArkTS 侧返回值，改用 `JSValue` + `isArrayType` / `toList` 判断
+
+  **4. 动态化不可用：**
+
+  - Knoi 依赖编译期代码生成，产物中包含了硬编码的 NAPI 绑定
+  - 如需动态化场景，改用 Kuikly Module 机制（`Module.toNative()`）实现平台调用解耦
+  - Module 方式详见 `docs/DevGuide/expand-native-api.md`
+
+  **5. ArkTS 混淆导致 Knoi 失效：**
+
+  - 鸿蒙侧开启代码混淆时，在 `obfuscation-rules.txt` 中添加：
+
+  ```
+  -keep-global-name
+  knoi
+  ```
+
+  - 同时需要 keep 未 export 的 ServiceProvider 类及其属性和方法
+
+  #### Knoi 性能基准
+
+  | API | 调用次数 | Node-API (ms) | Knoi (ms) |
+  |---|---|---|---|
+  | `bool (*)()` | 10000 | 0.0031 | 0.0030 (缓存) / 0.0036 (未缓存) |
+  | `string (*)(string)` | 10000 | 0.0057 | 0.0034 (size 10) / 0.015 (size 1000) |
+  | `void (*)(function)` | 10000 | 0.0176 | 0.0072 (单向) / 0.010 (双向) |
+  | `ArrayBuffer (2.4MB)` | 10 | - | 0.4943 |
+  | `ArrayBuffer (4.5KB)` | 10 | - | 0.0061 |
+
+  > Knoi 在常见调用场景下性能与手写 NAPI 持平甚至更优，ArrayBuffer 传输支持零拷贝。
+
+  #### 鸿蒙 KMP 模块适配指南（业务 KMP 模块集成到 Kuikly 工程）
+
+  当你已有独立的 KMP 模块（如 `kmp-biz`）需要被 Kuikly 工程依赖并编译到鸿蒙平台时：
+
+  **步骤 1：使用定制 Kotlin 工具链**
+
+  ```kotlin
+  // kmp-biz/build.gradle.kts
+  plugins {
+      kotlin("multiplatform").version("2.0.21-KBA-010")
+  }
+  ```
+
+  添加 Tencent Maven 源：
+
+  ```kotlin
+  repositories {
+      maven("https://mirrors.tencent.com/nexus/repository/maven-tencent/")
+  }
+  ```
+
+  **步骤 2：配置 ohosArm64 Target**
+
+  ```kotlin
+  kotlin {
+      ohosArm64() {
+          // 仅被依赖的子模块：只需 ohosArm64()
+          // 需要独立打包 so 的模块：需加上 binaries.sharedLib()
+          binaries {
+              sharedLib()
+          }
+      }
+  }
+  ```
+
+  **步骤 3：创建 ohosArm64Main 目录**
+
+  在 `kmp-biz/src/ohosArm64Main/kotlin/` 下实现 `expect/actual` 的平台代码。
+
+  **步骤 4：配置 sourceSets 依赖**
+
+  ```kotlin
+  kotlin {
+      sourceSets {
+          val ohosArm64Main by getting {
+              dependencies {
+                  // 鸿蒙平台特定依赖
+                  implementation("com.tencent.kuiklybase:knoi:0.0.4")
+              }
+          }
+          val commonMain by getting {
+              dependencies {
+                  implementation(project(":kmp-biz"))
+              }
+          }
+      }
+  }
+  ```
+
+  **步骤 5：处理 KSP 入口生成**
+
+  ```kotlin
+  dependencies {
+      compileOnly("com.tencent.kuikly-open:core-ksp:${kuiklyVersion}-2.0.21-ohos") {
+          add("kspOhosArm64", this)
+          add("kspAndroid", this)
+          add("kspIosArm64", this)
+          // ... 其他 target
+      }
+  }
+  ```
+
+  > 注意：如果 Sync 时报错，可以先注释掉其他平台 target，单独 Sync 鸿蒙平台，完成后再恢复。
+
+  ### 鸿蒙全景桥接决策树
+
+  当需要 Kotlin 与鸿蒙原生交互时，按以下优先级选择方案：
+
+  ```
+  需要 Kotlin ↔ ArkTS 双向调用?
+  ├── 是 → 需要动态化能力?
+  │   ├── 是 → 使用 Kuikly Module 机制 (toNative/asyncToNativeMethod)
+  │   │        + CModule (C侧 Module 注册)
+  │   └── 否 → 使用 Knoi 插件 (更高效，无需手写桥接代码)
+  └── 否 → 仅 Kotlin 调用 ArkTS?
+      └── 使用 Kuikly Module 机制即可
+  ```
+
+  **Module 机制 vs Knoi 对比：**
+
+  | 维度 | Kuikly Module | Knoi |
+  |---|---|---|
+  | 桥接代码 | 需手写 ArkTS Module 类 | 注解驱动，自动生成 |
+  | 动态化支持 | ✅ 支持 | ❌ 不支持 |
+  | 性能 | 经 JSON 序列化 | NAPI 直接调用 |
+  | 调用方向 | Kotlin → ArkTS (单向) | 双向互调 |
+  | 类型安全 | 运行时检查 | 编译期检查 |
+  | 适用场景 | 通用 API 扩展、动态化 | 框架层/基建层紧密集成 |
+
+  ## 版本与 profile 管理
+
+  ### 当前仓库默认主线
+
+  - `settings.gradle.kts` 使用 `build.2.1.21.gradle.kts`
+  - 这是当前最适合本仓库 demo / 宿主联调的入口
+
+  ### 版本化 profile 的真实用途
+
+  - `settings.1.7.20.gradle.kts`
+  - `settings.1.9.22.gradle.kts`
+  - `settings.2.0.21.gradle.kts`
+  - `settings.2.0.ohos.gradle.kts`
+  - `settings.2.1.21.gradle.kts`
+
+  这些文件主要用于：
+
+  - 对应 Kotlin 版本的框架构建 / 发布
+  - 特定 toolchain 场景
+  - 避免把所有 target 都塞进一个默认 settings
+
+  注意：
+
+  - 它们不一定包含 `:demo`、`:androidApp`、`:h5App`、`:miniApp`
+  - 不要机械地把 `./gradlew -c settings.<version>.gradle.kts :demo:...` 当成通用命令
+  - 如果用户要在其他 Kotlin 版本下运行当前 demo，先检查对应 settings 是否 include 了目标 module；没有的话，再决定是临时改 root settings，还是新建专用 settings profile
+
+  ### 版本兼容约束
+
+  先读 `docs/DevGuide/version_skills.md`，重点看：
+
+  - Kotlin / KSP / AGP / Gradle 兼容矩阵
+  - Kuikly 制品版本规则
+  - JDK 兼容要求
+
+  高频结论：
+
+  - Kotlin 2.1.21 主线常配 JDK 17
+  - Kotlin 2.0.21-KBA-010 仅用于 HarmonyOS 专用工具链
+  - Kotlin 1.3 / 1.4 需要 JDK 11
+  - 版本不匹配时先看 metadata 报错、依赖树和 plugin 升级链
+
+  ## 新建 KMP 工程后的 Gradle 编写思路
+
+  用户如果刚用模板或 IDE 新建了一个 KMP 工程，不要急着把所有 target、宿主、脚本一次性堆进去。按 KuiklyUI 的实践，Gradle 设计应先保证“主线稳定可跑”，再逐步扩展非标准平台。
+
+  ### 1. 先定三层结构，再写 Gradle
+
+  推荐先按三层拆模块：
+
+  - KMP 业务层：例如 `shared` / `biz`
+  - 平台渲染层或适配层：例如 `render-android`、`render-web`
+  - 宿主壳：例如 `androidApp`、`iosApp`、`h5App`
+
+  不要把宿主代码、平台桥接代码、共享业务代码全塞进一个模块。Gradle 层面要能看出“谁产跨端业务、谁跑宿主、谁做平台适配”。
+
+  ### 2. 根 `settings.gradle.kts` 先服务日常开发
+
+  新工程的默认 `settings.gradle.kts` 应该只做三件事：
+
+  - 统一插件仓库和依赖仓库
+  - 选择当前主线 profile 对应的 `build.<version>.gradle.kts`
+  - include 日常开发真正要跑的模块
+
+  编写思路：
+
+  ```kotlin
+  pluginManagement {
+      repositories {
+          google()
+          gradlePluginPortal()
+          mavenCentral()
+          maven(url = "https://mirrors.tencent.com/repository/maven-tencent/")
+      }
+  }
+
+  val buildFileName = "build.2.1.21.gradle.kts"
+  rootProject.buildFileName = buildFileName
+
+  include(":shared")
+  project(":shared").buildFileName = buildFileName
+
+  include(":androidApp")
+  include(":h5App")
+  ```
+
+  要点：
+
+  - 默认入口优先面向“开发和联调”，不是面向“支持所有版本矩阵”
+  - 如果后续要兼容更多 Kotlin 版本，再新增 `settings.<profile>.gradle.kts`
+  - 如果是 HarmonyOS 这类非标准 toolchain，单独建 profile，不污染主线
+
+  ### 3. 根 `build.<version>.gradle.kts` 只做版本锁定和全局策略
+
+  这里不要写业务逻辑。只做这些事：
+
+  - 锁定 Kotlin / KSP / AGP / Compose 版本
+  - 配置全局 repositories
+  - 配置依赖替换、公共编译选项
+
+  编写思路：
+
+  ```kotlin
+  plugins {
+      kotlin("multiplatform") version "2.1.21" apply false
+      kotlin("plugin.compose") version "2.1.21" apply false
+      id("com.android.application") version "7.4.2" apply false
+      id("com.android.library") version "7.4.2" apply false
+      id("com.google.devtools.ksp") version "2.1.21-2.0.1" apply false
+  }
+
+  allprojects {
+      repositories {
+          google()
+          mavenCentral()
+          mavenLocal()
+          maven(url = "https://mirrors.tencent.com/repository/maven-tencent/")
+      }
+  }
+  ```
+
+  要点：
+
+  - 版本统一在这里锁，不要散落在每个 module
+  - 一旦发现某平台需要特殊 Kotlin 工具链，直接拆 profile
+  - 业务模块不应自行升级 Kotlin / AGP 版本，否则很容易把全工程拉爆
+
+  ### 4. 业务模块 `shared/build.gradle.kts` 先收敛 target
+
+  KuiklyUI 的经验是：先开你真的要交付的 target，再扩平台。一个可维护的顺序通常是：
+
+  1. `androidTarget`
+  2. `iosX64` / `iosArm64` / `iosSimulatorArm64`
+  3. `js(IR)`，当你需要 H5 / MiniApp
+  4. `macosX64` / `macosArm64`，当你需要桌面
+  5. `ohosArm64`，放到独立 profile
+
+  模块脚本先解决四件事：
+
+  - 声明 target
+  - 定义 `sourceSets`
+  - 接 KSP 入口生成
+  - 补平台产物配置，如 `cocoapods`、`binaries.executable()`、`sharedLib()`
+
+  建议的编写顺序：
+
+  ```kotlin
+  plugins {
+      kotlin("multiplatform")
+      kotlin("native.cocoapods")
+      id("com.android.library")
+      id("com.google.devtools.ksp")
+  }
+
+  kotlin {
+      androidTarget()
+      iosX64()
+      iosArm64()
+      iosSimulatorArm64()
+
+      js(IR) {
+          browser()
+          binaries.executable()
+      }
+
+      sourceSets {
+          val commonMain by getting {
+              dependencies {
+                  // 共享依赖
+              }
+          }
+          val androidMain by getting
+          val iosMain by creating { dependsOn(commonMain) }
+          val jsMain by getting
+      }
+
+      cocoapods {
+          framework { baseName = "shared" }
+      }
+  }
+
+  dependencies {
+      compileOnly("your-group:core-ksp:version") {
+          add("kspAndroid", this)
+          add("kspIosArm64", this)
+          add("kspIosX64", this)
+          add("kspIosSimulatorArm64", this)
+          add("kspJs", this)
+      }
+  }
+  ```
+
+  要点：
+
+  - `commonMain` 只放真正共享的页面、状态、业务逻辑
+  - source set 依赖关系先清晰，再谈代码复用
+  - 不要为了“看起来全平台”就默认开启所有 target
+  - 新建工程初期，先保证 Android + iOS 主线稳定，再继续加 JS / OHOS
+
+  ### 5. JS/H5/MiniApp 不是“多开一个 js target”就结束了
+
+  如果工程要支持 H5 或小程序，Gradle 还需要补齐宿主模块，而不是只在 `shared` 里声明 `js(IR)`。
+
+  参考 KuiklyUI，应该拆成：
+
+  - 业务模块：负责产出 JS bundle
+  - H5 宿主模块：负责 webpack、HTML、assets、dev server 对接
+  - MiniApp 宿主模块：负责 dist 目录和小程序壳资源同步
+
+  写法上要形成固定任务链，例如：
+
+  - `:shared:packLocalJsBundleDebug`
+  - `:h5App:publishLocalJSBundle`
+  - `:miniApp:jsMiniAppDevelopmentWebpack`
+
+  要点：
+
+  - JS 业务 bundle 和宿主打包分开
+  - assets 拷贝任务单独提供
+  - 页面名、bundle 名、输出目录都要稳定命名，方便宿主联调和 CI
+
+  ### 6. iOS/macOS 先决定 Pod 还是 SPM，再反推 Gradle
+
+  如果 Apple 平台采用 CocoaPods，业务模块必须配置：
+
+  - `kotlin("native.cocoapods")`
+  - `cocoapods { framework { ... } }`
+
+  如果采用 SPM 或自定义 framework 交付，也要先定好产物契约，再补 Gradle 任务。不要先写一版 Pod，再在宿主侧临时改成别的交付方式。
+
+  KuiklyUI 的做法是：
+
+  - 业务模块通过 `cocoapods` 输出 `shared`
+  - 宿主 `Podfile` 同时接 render pod 和业务 pod
+
+  这类结构适合长期联调。
+
+  ### 7. 非标准平台单独 profile
+
+  只要出现下面任一情况，就优先拆成独立 `settings.<profile>.gradle.kts` + `build.<profile>.gradle.kts`：
+
+  - Kotlin 工具链不是主线版本
+  - Gradle / AGP 版本与主线不兼容
+  - 需要特殊仓库源
+  - 只想 include 某几个平台模块
+
+  这就是 KuiklyUI 对 HarmonyOS 的做法。核心目的不是“文件多”，而是把风险隔离开。
+
+  ### 8. 新工程的 Gradle 设计顺序
+
+  给用户建议时，默认按这个顺序组织：
+
+  1. 先写根 `settings.gradle.kts`，只保留主线开发所需模块
+  2. 再写根 `build.<version>.gradle.kts`，统一版本和仓库
+  3. 再写业务模块 `shared/build.gradle.kts`，只开 Android + iOS
+  4. 跑通 Android / iOS 宿主
+  5. 需要 Web 再补 `js(IR)` 和 `h5App` / `miniApp`
+  6. 需要 HarmonyOS 再拆独立 profile 和脚本
+  7. 最后才补发布、分包、assets、CI 任务
+
+  ### 9. 评审新工程 Gradle 时重点看什么
+
+  - 版本是否集中管理，还是散落到每个 module
+  - 默认 settings 是否真的可用于日常开发
+  - `commonMain` 和平台 source set 是否边界清晰
+  - KSP 是否按 target 正确挂接
+  - H5 / MiniApp 是否形成“两段式构建”
+  - 非标准平台是否被隔离到独立 profile
+
+  ## 扩展新模块或新平台时怎么做
+
+  ### 新业务模块
+
+  - 先沿用 `demo/build.gradle.kts` 的组织方式：`commonMain` 放共享页面和逻辑，target-specific source set 只放必要差异
+  - 继续使用 `core-annotations` + `core-ksp` 管理入口和路由，不手写平台分叉入口
+  - 如果要产出 Web / MiniApp bundle，保留与 `packLocalJsBundle*` 类似的统一打包入口
+
+  ### 新平台或非标准 target
+
+  - 先判断是否应该像 HarmonyOS 一样拆成独立 profile
+  - 如果工具链、Gradle、Kotlin 版本与主线不兼容，优先新建 `settings.<profile>.gradle.kts` + `build.<profile>.gradle.kts`
+  - 明确产物契约，再设计宿主联动：
+    - Android：`.aar`
+    - Apple：`.framework` / pod
+    - Web / MiniApp：`.js`
+    - HarmonyOS：`.so + .h`
+  - 给非标准平台补脚本，而不是要求用户手工拷贝十几个步骤
+
+  ## 排查流程
+
+  ### 1. Sync 失败
+
+  优先检查：
+
+  - 当前用了哪个 settings / profile
+  - JDK 版本是否匹配 AGP / Kotlin
+  - 仓库源是否包含 Tencent Maven
+  - 依赖是否缺少目标架构，尤其是 JS / OHOS target
+  - 是否误用了 `kuikly.useLocalKsp=true`
+
+  需要时再读：
+
+  - `docs/DevGuide/compile_skills.md`
+  - `docs/DevGuide/version_skills.md`
+
+  ### 2. H5 / MiniApp 能编宿主但页面不更新
+
+  优先检查：
+
+  - 是否重新执行了 `:demo:packLocalJsBundleDebug/Release`
+  - 是否用了 `-Pkuikly.useLocalKsp=false`
+  - 是否同步了 assets
+  - 页面名是否和 `@Page` 注册名一致
+
+  ### 3. iOS / macOS Pod 或 framework 问题
+
+  优先检查：
+
+  - 是否重新 `pod install --repo-update`
+  - `Podfile` 是否引用本地 `demo` / render 路径
+  - Xcode 是否禁用了 `User Script Sandboxing`
+
+  ### 4. HarmonyOS 构建失败
+
+  优先检查：
+
+  - 是否使用 `settings.2.0.ohos.gradle.kts`
+  - `KUIKLY_KOTLIN_VERSION` 是否为 `2.0.21-KBA-010`
+  - `OHOS_SDK_HOME` 是否有效
+  - 产物是否已复制到 `ohosApp/entry`
+  - 是否用了 debug / release 对应的产物目录
+
+  ### 5. 全平台都报编译错误
+
+  优先检查：
+
+  - Kotlin metadata 版本冲突
+  - 某个第三方依赖拉高了 Kotlin 版本
+  - KSP 版本和 Kotlin 插件不匹配
+  - 工程 target 声明与依赖可用 target 不一致
+
+  必要命令：
+
+  ```bash
+  ./gradlew <module>:dependencies
+  ./gradlew clean
+  ./gradlew --stop
+  ```
+
+  ## 当用户让你“指导开发”时的默认输出方式
+
+  - 先给平台判断和 profile 判断，不先讲原理
+  - 命令按“前置条件 -> 构建业务产物 -> 构建宿主 -> 查看产物 / 运行”顺序给
+  - 每次都明确：
+    - 该命令在哪个目录执行
+    - 产物会生成到哪里
+    - 下一步该开哪个 IDE 或宿主
+  - 如果用户要跨多个平台同时联调，按 Android / iOS / Web / MiniApp / OHOS 分开列，不混在一个命令块里
+
+  ## 从 KuiklyUI 提炼出的可迁移实践
+
+  把这些原则用于其他 KMP 项目时，优先照搬：
+
+  - 用“共享业务层 + 渲染层 + 宿主壳”分层，而不是把所有平台逻辑堆进 `commonMain`
+  - 对不稳定或非官方 toolchain 单独建 profile，例如 HarmonyOS
+  - Web / 小程序使用两段式构建：业务 bundle 与宿主构建分离
+  - 用 KSP / 代码生成统一入口、路由和桥接注册
+  - 把版本矩阵脚本化，不靠口头约定
+  - 在回答用户问题前，先从仓库里的实际 task、settings、Podfile、脚本验证，不要输出泛化教程
+
+  ## 协程规范
+
+  在 KMP 项目中，协程是处理异步操作的核心机制。以下是协程使用的最佳实践：
+
+  ### 1. 协程依赖配置
+
+  在 `commonMain` 中添加协程依赖：
+
+  ```kotlin
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+  }
+  ```
+
+  在平台特定模块中添加相应的协程依赖：
+
+  ```kotlin
+  // Android
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+  }
+
+  // iOS
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-native:1.7.3")
+  }
+
+  // JS
+  dependencies {
+      implementation("org.jetbrains.kotlinx:kotlinx-coroutines-js:1.7.3")
+  }
+  ```
+
+  ### 2. 协程作用域管理
+
+  - 在共享代码中，使用 `CoroutineScope` 管理协程生命周期
+  - 对于平台特定代码，使用平台提供的作用域：
+    - Android: `lifecycleScope` 或 `viewModelScope`
+    - iOS: 自定义 `CoroutineScope` 并在适当时候取消
+    - JS: 根据框架使用相应的作用域管理
+
+  ### 3. 挂起函数规范
+
+  - 所有涉及网络、IO 或耗时操作的函数都应该是挂起函数
+  - 挂起函数命名应当清晰表达其异步性质
+  - 避免在挂起函数中使用 `runBlocking`，这会阻塞协程
+
+  ### 4. 错误处理
+
+  - 使用 `try-catch` 捕获协程中的异常
+  - 考虑使用 `Result` 类型包装可能失败的操作
+  - 对于网络请求，统一处理网络错误和业务错误
+
+  ### 5. 性能优化
+
+  - 对于大量并发操作，使用 `async` 和 `awaitAll`
+  - 合理使用 `withContext` 切换调度器，将IO操作放在 `Dispatchers.IO`
+  - 避免在主线程上执行耗时操作
+
+  ### 6. 代码示例
+
+  ```kotlin
+  // 正确的协程使用示例
+  class UserRepository(private val api: UserApi) {
+      suspend fun getUser(id: String): Result<User> = withContext(Dispatchers.IO) {
+          try {
+              val user = api.getUser(id)
+              Result.success(user)
+          } catch (e: Exception) {
+              Result.failure(e)
+          }
+      }
+  }
+
+  // 错误的协程使用示例（避免）
+  fun getUserSync(id: String): User {
+      return runBlocking { // 阻塞主线程
+          api.getUser(id)
+      }
+  }
+  ```
+
+  ## 全局技能指导原则
+
+  作为全局 KMP 技能，本指导遵循以下原则：
+
+  1. **平台优先**：优先考虑目标平台的特性和限制
+  2. **代码质量**：确保代码符合 Kotlin 最佳实践和协程规范
+  3. **可维护性**：强调模块化、清晰的依赖关系和版本管理
+  4. **性能优化**：提供性能优化建议，特别是在跨平台场景下
+  5. **问题排查**：提供常见问题的排查流程和解决方案
+  6. **持续集成**：指导如何设置跨平台 CI/CD 流程
+
+  无论项目规模大小，这些原则都适用，帮助开发者构建高质量的 Kotlin Multiplatform 应用。
+  
