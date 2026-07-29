@@ -40,6 +40,15 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+TEST_BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/skill-central-bin.XXXXXX")"
+export PATH="$TEST_BIN_DIR:$PWD/node_modules/.bin:$PATH"
+
+cat > "$TEST_BIN_DIR/skill-central" <<EOF
+#!/usr/bin/env bash
+exec node "$PWD/dist/index.js" "\$@"
+EOF
+chmod +x "$TEST_BIN_DIR/skill-central"
+
 pass() { echo -e "  ${GREEN}✓${NC} $1"; }
 fail() { echo -e "  ${RED}✗${NC} $1"; exit 1; }
 
@@ -93,6 +102,7 @@ cleanup() {
     .skills/web-sync-ci/web-apply-conflict.yaml
   rm -f .skills/01-global/test-sync-conflict.yaml.bak.* .skills/01-global/test-sync-delete-local.yaml.bak.*
   rm -f .skills/web-sync-ci/web-apply-conflict.yaml.bak.*
+  rm -rf "$TEST_BIN_DIR"
 }
 trap cleanup EXIT
 
