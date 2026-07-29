@@ -1,10 +1,10 @@
-# Remote Sources
+# 远程源
 
-`skill-central install <source>` fetches a skill from a remote URL and writes it into a layer. This page documents the supported source grammar, the manifest convention, and the security model.
+`skill-central install <source>` 从远程 URL 获取技能并将其写入一个层。本页记录了支持的源语法、清单约定和安全模型。
 
-## Source URL grammar
+## 源 URL 语法
 
-Two prefixes are supported:
+支持两种前缀：
 
 ```
 github:<user>/<repo>/<path/to/file.yaml>[@<ref>]
@@ -13,13 +13,13 @@ npm:<pkg>[@<version>]
 
 ### GitHub
 
-`<ref>` defaults to `main`. `<path>` must end in `.yaml`, `.yml`, or `.json`. The fetcher issues:
+`<ref>` 默认为 `main`。`<path>` 必须以 `.yaml`, `.yml`, 或 `.json` 结尾。获取器会发出：
 
 ```
 GET https://raw.githubusercontent.com/<user>/<repo>/<ref>/<path>
 ```
 
-Examples:
+示例:
 
 ```bash
 skill-central install github:BobcGn/skill-central/.skills/04-tech-stack/_template.yaml
@@ -29,7 +29,7 @@ skill-central install github:my-org/private-repo/skills/review.yaml@feat/auth
 
 ### npm
 
-The package **must** declare a `skill-central` field in its `package.json`:
+包**必须**在其 `package.json` 中声明一个 `skill-central` 字段：
 
 ```json
 {
@@ -41,30 +41,33 @@ The package **must** declare a `skill-central` field in its `package.json`:
 }
 ```
 
-- `paths` is an array of file paths **inside the tarball**. Each path becomes one installed skill.
-- If `paths` is absent or empty, install fails with: `Package X has no "skill-central.paths" in its package.json.`
-- The fetcher does `https://registry.npmjs.org/<pkg>` (or `/<pkg>/<version>`) to discover the tarball URL, then extracts via `node:zlib` + `tar-stream`.
-- `<version>` defaults to `latest`. Scoped packages use `npm:@scope/pkg`.
+- `paths` 是**在 tarball 内部**的文件路径数组。每个路径都成为一个已安装的技能。
+- 如果 `paths` 不存在或为空，安装将失败并提示：`Package X has no "skill-central.paths" in its package.json.`
+- 获取器会访问 `https://registry.npmjs.org/<pkg>` (或 `/<pkg>/<version>`) 来发现 tarball URL，然后通过 `node:zlib` + `tar-stream` 进行提取。
+- `<version>` 默认为 `latest`。带范围的包使用 `npm:@scope/pkg`。
 
 ```bash
 skill-central install npm:@bobcgn/some-skills
 skill-central install npm:@bobcgn/some-skills@1.2.3
 ```
 
-## Lock file
+## 锁文件
 
-Every successful install writes an entry to `~/.skill-central/lock.json`:
+每次成功安装都会向 `~/.skill-central/lock.json` 写入一个条目：
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "entries": {
     "review-pr": {
       "id": "review-pr",
       "source": "github:BobcGn/skill-central/.skills/02-workflows/review-pr.yaml@main",
+      "sourceKind": "github",
       "version": "main",
+      "resolvedHash": "2e9897a8819c996f6bb677a4731626bd414f1008da1f93f3958a2a3391b77568",
       "sha256": "2e9897a8819c996f6bb677a4731626bd414f1008da1f93f3958a2a3391b77568",
       "installedAt": "2026-06-15T09:11:08.835Z",
+      "schemaVersion": "skillcentral.dev/v1",
       "layer": "02-workflows",
       "filePath": "/home/you/.skill-central/skills/02-workflows/review-pr.yaml"
     }
@@ -72,43 +75,48 @@ Every successful install writes an entry to `~/.skill-central/lock.json`:
 }
 ```
 
-- `source` — canonical raw form used by `update` to re-fetch
-- `sha256` — sha256 of the on-disk file at install time; used for drift detection
-- `layer` — display name of the layer where the file was written
-- `filePath` — absolute path; `update` and `uninstall` trust this verbatim
+- `source` — `update` 用于重新获取的规范原始形式
+- `sourceKind` — `github`、`npm` 或 `unknown`；供后续同步/审计策略使用
+- `resolvedHash` — 实际写入磁盘的 YAML 内容 hash
+- `sha256` — 同一内容 hash 的兼容字段；现有漂移检测继续使用
+- `schemaVersion` — 已安装 skill 的 schema version；读取旧 lock 时为 `unknown`
+- `layer` — 文件写入的层的显示名称
+- `filePath` — 绝对路径；`update` 和 `uninstall` 会逐字信任此路径
 
-## Security model
+旧的 `version: 1` lock 文件可以读取，并会在内存中归一化为 `version: 2`。下一次 install/update/uninstall 会把升级后的 v2 结构写回磁盘。
 
-### HTTPS only
+## 安全模型
 
-Both GitHub and npm paths are downloaded over HTTPS. The fetcher explicitly rejects:
+### 仅限 HTTPS
 
-- any URL whose `URL.protocol !== "https:"`
-- any URL whose host is `localhost`, `127.0.0.0/8`, `::1`, or `0.0.0.0` (tar-slip / SSRF mitigation)
-- any response whose `content-type` doesn't match `text/yaml`, `text/x-yaml`, `application/json`, or `text/plain`
+GitHub 和 npm 路径都通过 HTTPS 下载。获取器明确拒绝：
 
-### Tar-slip defence
+- 任何 `URL.protocol !== "https:"` 的 URL
+- 任何主机为 `localhost`、`127.0.0.0/8`、`::1` 或 `0.0.0.0` 的 URL (tar-slip / SSRF 缓解)
+- 任何 `content-type` 与 `text/yaml`, `text/x-yaml`, `application/json`, 或 `text/plain` 不匹配的响应
 
-For npm tarballs, every entry is checked before extraction:
+### Tar-slip 防御
+
+对于 npm tarball，每个条目在提取前都会被检查：
 
 ```ts
-if (!name.startsWith("package/")) return;     // not under expected prefix
-if (name.includes("..") || name.includes("\\")) return;  // tar-slip attempt
+if (!name.startsWith("package/")) return;     // 不在预期的前缀下
+if (name.includes("..") || name.includes("\\")) return;  // tar-slip 攻击尝试
 ```
 
-Only `package/...` paths are kept. The `..` and `\` checks reject path-traversal payloads.
+只有 `package/...` 路径会被保留。`..` 和 `\` 检查会拒绝路径遍历的载荷。
 
-### sha256 verification
+### sha256 验证
 
-The lock file records the sha256 of the file at install time. `update` re-fetches, computes the new sha256, and only reports drift when they differ. There is **no signature verification** — we trust the source (GitHub repo, npm package). If you need stronger guarantees, pin to a git tag or npm version with `@v1.2.3`.
+锁文件记录了安装时文件的 resolved hash。`update` 重新获取，计算新的 sha256/resolvedHash，并且只有在它们不同时才报告漂移。**没有签名验证**——我们信任源（GitHub 仓库，npm 包）。如果您需要更强的保证，请固定到 git 标签或带有 `@v1.2.3` 的 npm 版本。
 
-### Confirmation prompt
+### 确认提示
 
-First-time install (without `--yes`) prints the id, name, tags, source, version, and sha256 before writing. Pass `--yes` in scripts.
+首次安装（不带 `--yes`）会在写入前打印 id、名称、标签、源、版本和 sha256。在脚本中传递 `--yes`。
 
-## Versioning & drift
+## 版本控制与漂移
 
-`update [id]` re-fetches and overwrites. There is no automatic update — `update` always requires a manual invocation. If the upstream file changed:
+`update [id]` 会重新获取并覆盖。没有自动更新——`update` 始终需要手动调用。如果上游文件已更改：
 
 ```
   ✓ Updated user:02-workflows/review-pr.yaml
@@ -116,14 +124,14 @@ First-time install (without `--yes`) prints the id, name, tags, source, version,
     new sha: a4f00c813f9b27bd…
 ```
 
-If unchanged, update reports `0 of N updated`.
+如果未更改，更新会报告 `0 of N updated`。
 
-## Troubleshooting
+## 故障排除
 
-| Symptom | Likely cause |
+| 症状 | 可能原因 |
 |---|---|
-| `HTTP 404` | Source path doesn't exist on remote (typo, missing file, or wrong branch) |
-| `Package X has no "skill-central.paths"` | npm package author forgot the manifest field |
-| `Refusing non-HTTPS URL` | You prefixed a source with `http://` — change to `https://` |
-| `Refusing to fetch loopback host` | Source URL points to `localhost` / `127.0.0.1` — likely a misconfiguration; contact the package author |
-| `Tarball missing package/package.json` | npm registry served a malformed tarball; retry, then file an issue upstream |
+| `HTTP 404` | 源路径在远程不存在（拼写错误、文件丢失或分支错误） |
+| `Package X has no "skill-central.paths"` | npm 包作者忘记了清单字段 |
+| `Refusing non-HTTPS URL` | 您为源添加了 `http://` 前缀——请改为 `https://` |
+| `Refusing to fetch loopback host` | 源 URL 指向 `localhost` / `127.0.0.1`——可能是配置错误；请联系包作者 |
+| `Tarball missing package/package.json` | npm 注册表提供了一个格式错误的 tarball；重试，然后向上游提交问题 |

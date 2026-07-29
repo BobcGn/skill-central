@@ -31,7 +31,9 @@ export async function startMcpServer(): Promise<void> {
 
   const server = new Server(
     { name: "skill-central", version: VERSION },
-    { capabilities: { prompts: {}, tools: {} } },
+    // Declare resources alongside prompts/tools so IDE clients can discover
+    // Phase 5 read-only registry and bundle evidence through standard MCP.
+    { capabilities: { prompts: {}, tools: {}, resources: {} } },
   );
 
   const engine = new SkillEngine();

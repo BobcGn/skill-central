@@ -1,12 +1,14 @@
-# Layered Override
+# 层级覆写
 
-Skills live in **layers** — directories with an associated **priority** number. When two layers define the same `id`, the higher-priority layer wins. This enables progressive override: global defaults that any project can shadow without modifying upstream files.
+技能存在于 layer 中。layer 不再只是带 priority 的目录，而是资产治理边界，包含 scope、trust、writable、sync policy 和 visibility。
 
-## The four project layers
+旧的四层布局仍然可用。现有 `skill-central.yaml` 会被自动提升为完整 layer 配置。
 
-After `skill-central init`, your project has:
+## 旧四层 Preset
 
-```
+运行 `skill-central init` 后，项目包含：
+
+```text
 .skills/
 ├── 01-global/                priority 10
 ├── 02-workflows/             priority 20
@@ -16,103 +18,127 @@ After `skill-central init`, your project has:
     └── frameworks/           priority 40
 ```
 
-| Layer | Purpose | Example tags |
-|---|---|---|
-| `01-global` | Universal context — applies to every interaction | `global`, `mindset`, `system` |
-| `02-workflows` | Cross-cutting workflow patterns | `review`, `debug`, `commit`, `test`, `lint` |
-| `03-domains` | Domain-specific knowledge | `docker`, `nginx`, `database`, `security` |
-| `04-tech-stack/languages` | Language conventions | `typescript`, `python`, `kotlin` |
-| `04-tech-stack/frameworks` | Framework conventions | `react`, `vue`, `nextjs`, `spring` |
+| Layer | 用途 | 提升后的 scope | Sync |
+|---|---|---|---|
+| `01-global` | 通用上下文 | `user` | on |
+| `02-workflows` | 跨领域工作流模式 | `workspace` | off |
+| `03-domains` | 领域知识 | `workspace` | off |
+| `04-tech-stack` | 语言/框架约定 | `workspace` | off |
 
-The priority numbers are not magic — they're just an ordering. Higher = wins. The actual content of each layer is up to you; the names are convention.
+## 配置 Schema
 
-## `skill-central.yaml`
-
-Layers are declared in `skill-central.yaml` at the project root:
+旧配置仍然有效：
 
 ```yaml
 layers:
   - name: "01-global"
     path: ".skills/01-global"
     priority: 10
-  - name: "02-workflows"
-    path: ".skills/02-workflows"
-    priority: 20
-  - name: "03-domains"
-    path: ".skills/03-domains"
+```
+
+新配置可以描述完整治理边界：
+
+```yaml
+layerPresets:
+  active: default
+
+layers:
+  - id: personal
+    name: Personal
+    path: ~/.skill-central/skills/personal
+    scope: user
+    priority: 10
+    writable: true
+    trust: local
+    sync:
+      enabled: true
+    visibility: private
+
+  - id: project
+    name: Project
+    path: .skills/project
+    scope: workspace
+    priority: 50
+    writable: true
+    trust: local
+    sync:
+      enabled: false
+    visibility: private
+
+  - id: packages
+    name: Packages
+    path: .skills/packages
+    scope: workspace
     priority: 30
-  - name: "04-tech-stack"
-    path: ".skills/04-tech-stack"
-    priority: 40
+    writable: false
+    trust: remote
+    sync:
+      enabled: true
+    visibility: private
 ```
 
-This is the exact output of `skill-central init`. You can add, remove, or reorder entries — the only constraint is that priorities must be unique within a config (the loader overwrites on name collision, not priority).
+| 字段 | 说明 |
+|---|---|
+| `id` | 稳定 layer id。legacy 配置缺失时从 `name` 推导。 |
+| `name` | 人类可读名称。 |
+| `path` | Skill 目录。支持展开 `~`。 |
+| `scope` | `user`、`workspace`、`repo`、`team`、`org` 或 `session`。 |
+| `priority` | 主要覆写顺序。数字越大优先级越高。 |
+| `writable` | 是否允许本地编辑。 |
+| `trust` | `local`、`remote`、`org` 或 `verified`。 |
+| `sync.enabled` | 是否参与后续同步。 |
+| `visibility` | `private`、`team` 或 `public`。 |
+| `activation` | 可选的未来激活元数据。 |
 
-`loadConfig()` resolves layers in this order:
+## 解析规则
 
-1. `~/.skill-central/config.yaml` (user-level, future use)
-2. `<project-root>/skill-central.yaml` (project-level)
-3. Built-in fallback `{ name: "project", path: ".skills", priority: 100 }` when neither file exists
+当多个 layer 定义同一个 skill `id` 时，`OverrideTree` 按以下顺序解析：
 
-## User-level layer (since v0.2.0)
+1. 更高 `priority` 胜出。
+2. priority 相同时，scope distance 更小者胜出。
+3. priority 和 scope distance 都相同时，进入 `conflicted`。
 
-`skill-central add --user` and `skill-central install` (default scope) write to `~/.skill-central/skills/`:
+当前 scope distance 以 workspace 执行上下文为基准：
 
-```
-~/.skill-central/
-├── config.yaml           # optional: explicit user layers
-├── skills/
-│   ├── 01-global/
-│   ├── 02-workflows/
-│   ├── 03-domains/
-│   └── 04-tech-stack/
-│       ├── languages/
-│       └── frameworks/
-└── lock.json             # installed-from-where record
-```
+| Scope | Distance |
+|---|---:|
+| `session` | 0 |
+| `workspace` / `repo` | 1 |
+| `user` | 2 |
+| `team` | 3 |
+| `org` | 4 |
 
-User-level skills are at **priorities 5 / 15 / 25 / 35** (below project), so a project can always shadow them. This mirrors the `npm global vs local` model: global is a baseline; project overrides.
+Conflicted skill 不会出现在 effective skill list 或 MCP prompt/tool handler 中。这样可以避免两个候选无法消歧时产生随机行为。
 
-The four sub-directories mirror the project's 1:1 so that layer-inference rules (which are layered-name based) work uniformly across scopes.
+## Doctor 输出
 
-## Override semantics
+`skill-central doctor` 是 layer resolution 的审计入口。它会报告：
 
-```
-Layer A (priority 10) defines id=review-pr (lenient)
-Layer B (priority 40) defines id=review-pr (strict)
+- layer 治理元数据
+- legacy/universal/invalid skill 数量
+- id collision
+- effective 与 shadowed 覆盖链
+- 显式 conflict 原因
 
-Resolved id=review-pr = Layer B's version
-```
+示例：
 
-In the engine (`src/core/override-tree.ts`), `insert()` keeps the higher-priority entry when two layers declare the same id. The losing entry is silently overwritten — use `skill-central doctor` to surface collisions when you want to know.
-
-```bash
-$ skill-central doctor
-...
-▸ ⚠ Id collisions (1)
-  (same id defined in multiple layers — higher priority wins)
-  id: review-pr
-    • [priority 20] 02-workflows → .skills/02-workflows/review-pr.yaml
-    • [priority 40] 04-tech-stack/frameworks → .skills/04-tech-stack/frameworks/review-pr.yaml
-```
-
-## Tag-based composition
-
-In addition to id-based override, the IDE can request skills by tag:
-
-```json
-GetPrompt({ name: "skills:compose", arguments: { tags: "kmp,android" } })
+```text
+▸ Layer resolution audit (1)
+  id: review-pr  [resolved]
+    reason: resolved by priority or scope distance
+    • status=effective layer=Project scope=workspace priority=50 format=legacy
+    • status=shadowed layer=Personal scope=user priority=10 format=legacy shadowedBy=Project
 ```
 
-The engine (`getSkillsByTags`) returns every skill whose tags overlap the requested set, ordered by ascending layer priority, and the composer concatenates them with a `---` separator. This produces a layered prompt: low-priority context first, high-priority specifics last. See `src/core/composer.ts`.
+Conflict 示例：
 
-## Why four layers?
+```text
+id: review-pr  [✗ conflict]
+  reason: same priority (50) and same scope distance (1)
+```
 
-The split is **scope-based, not tech-based**. v0.1.0 used 9 layers (one per tech stack) which forced you to repeat the same workflow skills across stacks. The 4-layer model says:
+## 基于标签的组合
 
-- if it's about how you think about code → `01-global`
-- if it's about a process (review, debug, commit) → `02-workflows`
-- if it's about a domain (Docker, security, data) → `03-domains`
-- if it's about a specific language or framework → `04-tech-stack`
+基于 tag 的组合仍然返回 effective prompt skills，并按 priority 升序拼接 prompt section。Shadowed 和 conflicted 候选会被排除，因为 `engine.listSkills()` 只返回 effective records。
 
-This keeps the workflow layer small and reusable across tech stacks. Add more layers in your `skill-central.yaml` if your project needs them — the engine doesn't care.
+TODO: Phase 1C 会把 id/type/tag/intent/capability 过滤移动到共享 Registry Query API。

@@ -1,0 +1,20 @@
+target: windsurf
+capabilities:
+  ide.context.currentDiff:
+    support: supported
+    description: Uses current diff context in rules and prompts.
+  ide.agent.readFiles:
+    support: supported
+    description: Allows the agent to inspect project files.
+  ide.agent.searchCode:
+    support: supported
+    description: Allows the agent to search the workspace.
+  ide.agent.runCommand:
+    support: requires-user-approval
+    description: Command execution is available behind user approval.
+  mcp.prompts.get:
+    support: supported
+    description: MCP prompts can be consumed by the IDE.
+  mcp.tools.call:
+    support: partial
+    description: Tool execution depends on IDE MCP integration settings.

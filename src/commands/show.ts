@@ -7,7 +7,6 @@
 
 import { SkillEngine } from "../core/engine.js";
 import { loadConfig } from "../storage/config.js";
-import { readAllLayers } from "../storage/reader.js";
 
 export async function cmdShow(id: string): Promise<void> {
   const config = loadConfig();
@@ -21,19 +20,11 @@ export async function cmdShow(id: string): Promise<void> {
     );
   }
 
-  // Locate the source layer for this id (use raw layer scan for source path).
-  const layers = config.layers.sort((a, b) => b.priority - a.priority);
-  let sourcePath = "(unknown)";
-  let sourceLayer = "(unknown)";
-  for (const layer of layers) {
-    const entries = await readAllLayers([layer]);
-    const hit = entries.find((e) => e.schema.id === id);
-    if (hit) {
-      sourcePath = `${layer.path}/${id}.yaml`;
-      sourceLayer = layer.name;
-      break;
-    }
-  }
+  // Phase 1B: source/layer provenance comes from the engine resolution record.
+  // This keeps `show` aligned with MCP and doctor instead of re-scanning layers
+  // with slightly different override semantics.
+  const sourcePath = `${resolved.layer.path}/${id}.yaml`;
+  const sourceLayer = resolved.layer.name;
 
   console.log("");
   console.log(`▸ ${resolved.id}`);
@@ -43,6 +34,10 @@ export async function cmdShow(id: string): Promise<void> {
   console.log(`  Description : ${resolved.description}`);
   console.log(`  Tags        : ${(resolved.tags ?? []).join(", ") || "(none)"}`);
   console.log(`  Layer       : ${sourceLayer}`);
+  console.log(`  Layer ID    : ${resolved.layer.id}`);
+  console.log(`  Scope       : ${resolved.layer.scope}`);
+  console.log(`  Status      : ${resolved.status}`);
+  console.log(`  Format      : ${resolved.sourceFormat}`);
   console.log(`  Source      : ${sourcePath}`);
   if (resolved.type === "tool" && resolved.inputSchema) {
     console.log(`  InputSchema :`);

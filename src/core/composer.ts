@@ -6,7 +6,6 @@
 // assembly, and any pre-processing happens here.
 // ============================================================================
 
-import type { ResolvedSkill } from "../storage/schemas.js";
 import type { PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ResolvedSkillView } from "./engine.js";
@@ -14,15 +13,26 @@ import type { ResolvedSkillView } from "./engine.js";
 export type ComposedPrompt = { messages: PromptMessage[] };
 export type ComposedToolCall = CallToolResult;
 
+interface ComposableSkill {
+  id: string;
+  type: string;
+  prompt?: string;
+  prompt_zh?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
 /**
  * Compose a single resolved skill with concrete argument values.
  */
 export function composeSkill(
-  skill: ResolvedSkill,
+  skill: ComposableSkill,
   args: Record<string, unknown>,
 ): ComposedPrompt | ComposedToolCall {
   if (skill.type === "prompt") {
     return composePrompt(skill, args);
+  }
+  if (skill.type !== "tool") {
+    throw new Error(`Skill "${skill.id}" is type "${skill.type}" and cannot be composed as MCP content.`);
   }
   return composeTool(skill, args);
 }
@@ -30,7 +40,7 @@ export function composeSkill(
 // ── Single-prompt composition ──────────────────────────────────────────────
 
 function composePrompt(
-  skill: ResolvedSkill,
+  skill: ComposableSkill,
   args: Record<string, unknown>,
 ): ComposedPrompt {
   const text = renderBilingual(skill.prompt, skill.prompt_zh, args);
@@ -41,7 +51,7 @@ function composePrompt(
 }
 
 function composeTool(
-  skill: ResolvedSkill,
+  skill: ComposableSkill,
   args: Record<string, unknown>,
 ): ComposedToolCall {
   const errors = validateArgs(skill.inputSchema, args);
