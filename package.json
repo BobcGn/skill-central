@@ -1,7 +1,7 @@
 {
   "name": "@bobcgn/skill-central",
   "version": "1.0.0-alpha.0",
-  "private": false,
+  "private": true,
   "description": "Local MCP Server for cross-IDE AI skill distribution and reuse",
   "author": "BobcGn",
   "type": "module",
