@@ -4,6 +4,7 @@ copyright: Copyright © 2026 BobcGn
 
 directories:
   output: release-artifacts
+  buildResources: build
 
 artifactName: Skill-Central-${version}-${os}-${arch}.${ext}
 
@@ -31,6 +32,7 @@ mac:
         - arm64
 
 win:
+  icon: build/icon.ico
   target:
     - target: msi
       arch:
