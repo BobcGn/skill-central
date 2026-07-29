@@ -2,6 +2,14 @@
 
 本文件记录 `skill-central` 的重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.0.0-alpha.0] - 2026-07-29
+
+### 变更
+
+- **发布流程重构**：Release 不再发布 npm 包，只生成 GitHub Release 资产。
+- **桌面安装包**：新增 macOS `.dmg`、Windows `.msi`，并同时产出程序 `.zip`。
+- **源码压缩包**：Release 额外附带源代码 `.zip`，便于离线检查与测试。
+
 ## [0.4.0] - 2026-07-20
 
 ### 新增

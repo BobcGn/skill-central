@@ -1,0 +1,40 @@
+appId: dev.skillcentral.app
+productName: Skill Central
+copyright: Copyright © 2026 BobcGn
+
+directories:
+  output: release-artifacts
+
+artifactName: Skill-Central-${version}-${os}-${arch}.${ext}
+
+files:
+  - dist/**/*
+  - package.json
+  - README.md
+  - README.zh-CN.md
+  - LICENSE
+
+extraMetadata:
+  main: dist/desktop/main.js
+
+mac:
+  category: public.app-category.developer-tools
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+
+win:
+  target:
+    - target: msi
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64

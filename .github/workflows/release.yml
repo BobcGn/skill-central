@@ -1,375 +1,223 @@
-# ============================================================================
-# @bobcgn/skill-central · Release 发布流水线
-# ============================================================================
-#
-# 触发条件（双保险机制）：
-#   1. push: tags: ['v*']  — 推送语义化版本 Tag（如 v1.0.0）时触发
-#   2. release: published  — 在 GitHub UI 中手动发布 Release 时触发
-#
-#   两个触发器共享同一个 concurrency 组，不会重复发布。
-#   流水线内置了幂等性检查：如果版本已存在于 npm 或 GitHub Release
-#   已创建，对应步骤会自动跳过，不会报错。
-#
-# 信任模型（OIDC Trusted Publishing）：
-#   本仓库不使用长期有效的 NPM_TOKEN。
-#   前提条件：在 npmjs.com 后台 → @bobcgn/skill-central → Settings →
-#   Trusted Publishers → 添加 GitHub Actions，配置：
-#     Owner = BobcGn
-#     Repo  = skill-central
-#     Workflow = release.yml  （必须与此文件名完全一致）
-#
-#   每次运行时，GitHub Actions 通过 OIDC 向 npm 签发短期令牌，
-#   无需任何手动配置的 Secret。
-# ============================================================================
-
 name: Release
 
-# ── 触发条件 ──────────────────────────────────────────────────────────────────
-# 双触发器设计：
-#   • push tags 'v*' 是主力触发器 —— 开发者本地打 tag 推送后自动发布
-#   • release published 是 UI 触发器 —— 覆盖通过 GitHub 网页端发布 Release 的场景
-#
-# 两者共享同一 concurrency group（release-refs/tags/vX.Y.Z），
-# 确保不会并发执行同一版本的发布任务。
 on:
   push:
-    tags: ['v*']
-  release:
-    types: [published]
+    tags: ["v*"]
+  workflow_dispatch:
 
-# ── 权限配置 ──────────────────────────────────────────────────────────────────
-# • id-token: write  → OIDC 令牌签发（npm Trusted Publisher + Provenance 必需）
-# • contents: write  → 创建 GitHub Release（gh release create）
-# • attestations: write → 某些 Provenance 场景下的额外保护（可选但推荐）
 permissions:
   contents: write
-  id-token: write
-  attestations: write
 
-# ── 并发控制 ──────────────────────────────────────────────────────────────────
-# cancel-in-progress: false 对于发布任务至关重要：
-# 即使短时间内连续推送两个 Tag（如 v1.0.0 和 v1.0.1），也不会互相取消。
-# 每个版本的发布流程必须完整执行到底。
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: 发布到 npm + 创建 GitHub Release
+  prepare:
+    name: Validate Release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
 
     steps:
-      # ========================================================================
-      # 第 1 步：检出代码
-      # ========================================================================
-      - name: 📥 检出代码
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # ========================================================================
-      # 第 2 步：设置 Node.js 环境
-      # ========================================================================
-      # 使用 Node.js 24（当前稳定版，npm 11.x）。
-      # npm 11.x 修复了多个 OIDC + scoped package 的兼容性问题。
-      # registry-url 是关键参数：setup-node@v4 会利用 OIDC 令牌自动生成
-      # .npmrc 文件，写入 //registry.npmjs.org/:_authToken=${OIDC_TOKEN}。
-      # 无需手动配置任何 NPM_TOKEN Secret。
-      - name: 🔧 设置 Node.js 24
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      # ========================================================================
-      # 第 3 步：强校验安装依赖（npm ci）
-      # ========================================================================
-      # npm ci 是 npm install 的确定性版本：
-      #   • 严格要求 package-lock.json 存在且与 package.json 一致
-      #   • 删除现有 node_modules 后全新安装（杜绝幽灵依赖）
-      #   • 任何不一致都会直接失败 —— 这正是发布时需要的严格性
-      - name: 📦 安装依赖 (npm ci)
+      - name: Install dependencies
         run: npm ci
 
-      # ========================================================================
-      # 第 4 步：代码检查 (Lint)
-      # ========================================================================
-      # 使用 tsc --noEmit 进行 TypeScript 类型检查。
-      # 这是一个"零配置"的 Lint 方案 —— 复用已有的 tsconfig.json。
-      # 将来如需引入 ESLint，只需修改 package.json 中的 lint 脚本即可。
-      - name: 🔍 代码检查 (Lint)
+      - name: Lint
         run: npm run lint
 
-      # ========================================================================
-      # 第 5 步：构建 + 集成测试 (Build & Test)
-      # ========================================================================
-      # npm test 通过 pretest 钩子自动先执行构建（npm run build && npm run build:web），
-      # 然后运行 scripts/test.sh 集成测试脚本。这样保证：
-      #   • 本地开发时 npm test "开箱即用"（无需手动 build）
-      #   • CI 中不会出现"忘了 build 就跑 test"的错误
-      #
-      # 测试内容（详见 scripts/test.sh）：
-      #   1. CLI 基本可用性（--version, --help）
-      #   2. 添加技能（add）
-      #   3. 列表验证（list）
-      #   4. 医生诊断（doctor）
-      - name: 🧪 构建 & 集成测试
+      - name: Test
         run: npm test
 
-      # ========================================================================
-      # 第 5.5 步：验证构建产物
-      # ========================================================================
-      # 防止 tsc 静默失败（如 OOM 导致输出文件不完整但退出码仍为 0）。
-      # 此时 pretest 已完成构建，dist/ 应包含完整产物。
-      - name: ✅ 验证构建产物
-        run: |
-          test -f dist/index.js      || { echo "::error::❌ dist/index.js 缺失，构建可能未成功"; exit 1; }
-          test -f dist/web/index.html || { echo "::error::❌ dist/web/index.html 缺失，构建可能未成功"; exit 1; }
-          echo "✅ 构建产物验证通过"
-
-      # ========================================================================
-      # 第 5.6 步：打包预检（Dry Run）
-      # ========================================================================
-      # 在实际发布前预览 tarball 内容，确认 files 字段配置正确。
-      # 这是防止"发布了空包/缺文件包"的最后一道防线。
-      - name: 📋 打包预检 (npm pack --dry-run)
-        run: npm pack --dry-run
-
-      # ========================================================================
-      # 第 6 步：版本一致性校验
-      # ========================================================================
-      # 从 Tag 中提取版本号，并与 package.json 中的 version 字段比对。
-      # 常见错误：改了 package.json 但 tag 打错了，或反之。
-      # 此步骤在所有触发器下均执行。
-      - name: 🔖 提取 Tag 版本号
+      - name: Resolve release version
         id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-
-      - name: 🔖 校验版本一致性
+        shell: bash
         run: |
-          PKG=$(node -p "require('./package.json').version")
-          TAG="${{ steps.version.outputs.version }}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE_TAG="v$VERSION"
+          IS_PRERELEASE="false"
+          if [[ "$VERSION" == *-* ]]; then
+            IS_PRERELEASE="true"
+          fi
 
-          if [ "$PKG" != "$TAG" ]; then
-            echo "::error::❌ 版本不一致！"
-            echo "::error::  package.json 版本: $PKG"
-            echo "::error::  Git Tag 版本:      $TAG"
-            echo "::error::  请运行 'npm version $TAG' 同步版本后重新打 Tag。"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "::error::Release workflow must run from a v* tag."
             exit 1
           fi
 
-          # 检测是否为预发布版本（包含字母，如 1.0.0-beta.1）
-          if echo "$TAG" | grep -qE '[a-zA-Z]'; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "📌 检测到预发布版本: $TAG"
-          else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "📌 检测到正式版本: $TAG"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "::error::package.json version ($PACKAGE_VERSION) does not match tag ($VERSION)."
+            exit 1
           fi
 
-          echo "✅ 版本校验通过: package.json ($PKG) = Tag ($TAG)"
-
-      # ========================================================================
-      # 第 7 步：CHANGELOG 检查
-      # ========================================================================
-      # 确保 CHANGELOG.md 中有当前版本的条目，以便生成 Release Notes。
-      # 格式要求：## [<version>] - <YYYY-MM-DD>
-      - name: 📝 检查 CHANGELOG 条目
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
           if ! grep -q "^## \[$VERSION\]" CHANGELOG.md; then
-            echo "::error::❌ CHANGELOG.md 中未找到版本 [$VERSION] 的条目"
-            echo "::error::  请在 CHANGELOG.md 中添加："
-            echo "::error::  ## [$VERSION] - $(date +%Y-%m-%d)"
+            echo "::error::CHANGELOG.md is missing a ## [$VERSION] entry."
             exit 1
           fi
-          echo "✅ CHANGELOG 条目存在"
 
-      # ========================================================================
-      # 第 8 步：发布到 npm（OIDC 免密 + Provenance 来源证明）
-      # ========================================================================
-      # 核心机制：
-      #   1. OIDC 认证：setup-node@v4 已将 OIDC 令牌写入 .npmrc，
-      #      npm 自动使用该令牌向 npm registry 认证，无需 NPM_TOKEN。
-      #   2. Provenance 来源证明（三重保障）：
-      #      • NPM_CONFIG_PROVENANCE=true 环境变量（主力方案，
-      #        在 publish 生命周期内联附加 attestation，兼容 scoped package）
-      #      • package.json publishConfig.provenance = true（声明性兜底）
-      #      • package.json "provenance": true（文件级兜底）
-      #      ⚠️  不使用 --provenance CLI 标志 —— 已知在 scoped package +
-      #         OIDC 场景下导致 E404。
-      #   3. 预发布 Tag：
-      #      如果版本号包含字母（如 1.0.0-beta.1），自动使用 --tag next，
-      #      避免预发布版本覆盖 latest 标签。
-      #
-      # 幂等性：
-      #   先检查版本是否已发布。如果已存在，则跳过发布而不是报错。
+          {
+            echo "version=$VERSION"
+            echo "release_tag=$RELEASE_TAG"
+            echo "is_prerelease=$IS_PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: 🔍 检查 npm 版本是否已发布
-        id: npm-check
+      - name: Extract release notes
+        shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          if npm view "@bobcgn/skill-central@$VERSION" version 2>/dev/null; then
-            echo "already_published=true" >> "$GITHUB_OUTPUT"
-            echo "⚠️  版本 $VERSION 已存在于 npm registry，跳过发布"
-          else
-            echo "already_published=false" >> "$GITHUB_OUTPUT"
-            echo "✅ 版本 $VERSION 尚未发布，准备发布"
-          fi
+          START="$(grep -n "^## \[$VERSION\]" CHANGELOG.md | head -1 | cut -d: -f1)"
+          END="$(awk -v s="$START" 'NR>s && /^## \[/ {print NR; exit}' CHANGELOG.md)"
+          END="${END:-$(($(wc -l < CHANGELOG.md) + 1))}"
+          sed -n "${START},$((END-1))p" CHANGELOG.md > release-notes.md
 
-      # ── 兜底认证：如果配置了 NPM_TOKEN，用它代替 OIDC ──────────────────
-      # OIDC Trusted Publisher 目前不可用（npm registry 返回 E401/E404）。
-      # 临时方案：创建 npm Granular Access Token:
-      #   https://www.npmjs.com/settings/bobcgn/tokens/granular-access-tokens/new
-      #   - 包: @bobcgn/skill-central
-      #   - 权限: Read + Write
-      #   - 过期: 90 天
-      # 创建后添加到 GitHub Repo → Settings → Secrets → Actions → NPM_TOKEN
-      #
-      # 如果 NPM_TOKEN 未设置，npm 继续使用 setup-node 的 OIDC 认证。
-      - name: 🔑 注入 NPM_TOKEN 兜底认证
-        run: |
-          if [ -n "${NPM_FALLBACK_TOKEN:-}" ]; then
-            echo "🔑 使用 Granular NPM_TOKEN 认证"
-            npm config set //registry.npmjs.org/:_authToken "${NPM_FALLBACK_TOKEN}"
-          else
-            echo "⚠️  NPM_TOKEN 未设置，使用 OIDC 认证（可能因 E401/E404 失败）"
-          fi
-        env:
-          NPM_FALLBACK_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # ── 诊断：验证 OIDC 认证身份 ──────────────────────────────────────────
-      # 这两个命令是排查 E404 的关键。
-      #   • npm whoami → 显示 OIDC 令牌被解析为哪个 npm 用户。
-      #     预期输出: bobcgn（必须与 package 维护者一致）
-      #     如果报错: 说明 OIDC 令牌未被 npm registry 接受
-      #   • npm access ls-packages → 列出当前认证用户有权限的包
-      - name: 🔍 诊断 — 验证 OIDC 认证身份
-        if: steps.npm-check.outputs.already_published != 'true'
-        run: |
-          echo "=============================================="
-          echo "  OIDC 诊断信息"
-          echo "=============================================="
-
-          echo ""
-          echo "▶ npm whoami（OIDC 令牌 → npm 用户映射）:"
-          WHOAMI=$(npm whoami --registry=https://registry.npmjs.org 2>&1) || true
-          echo "  → $WHOAMI"
-
-          echo ""
-          echo "▶ npm access ls-packages（当前用户有权限的包）:"
-          npm access ls-packages 2>&1 || echo "  （无法列出 — 可能是用户 scope 而非 org）"
-
-          echo ""
-          echo "▶ npm config get registry:"
-          npm config get registry
-
-          echo ""
-          echo "▶ .npmrc 内容（令牌已隐藏）:"
-          cat ~/.npmrc 2>/dev/null | sed 's/:_authToken=.*/:_authToken=***REDACTED***/' || echo "  （无 .npmrc）"
-
-          echo ""
-          echo "▶ 包 maintainer 信息:"
-          npm view @bobcgn/skill-central maintainers --json 2>&1 || echo "  （无法获取）"
-
-          echo ""
-          echo "=============================================="
-          echo "  如果 whoami 不是 'bobcgn'，说明 Trusted Publisher"
-          echo "  映射到了错误的 npm 账号，需要重新配置。"
-          echo "=============================================="
-
-      - name: 🚀 发布到 npm
-        if: steps.npm-check.outputs.already_published != 'true'
-        run: |
-          TAG_FLAG=""
-          if [ "${{ steps.version.outputs.is_prerelease }}" = "true" ]; then
-            TAG_FLAG="--tag next"
-            echo "📌 预发布版本，使用 dist-tag: next"
-          fi
-
-          echo "执行: npm publish --access public ${TAG_FLAG}"
-          npm publish --access public ${TAG_FLAG}
-        env:
-          NPM_CONFIG_PROVENANCE: true
-
-      - name: 📋 发布结果确认
-        if: steps.npm-check.outputs.already_published == 'true'
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          echo "✅ 版本 $VERSION 已发布（本次运行跳过）"
-          npm view "@bobcgn/skill-central@$VERSION" version provenance 2>/dev/null || true
-
-      # ========================================================================
-      # 第 9 步：提取 CHANGELOG 内容
-      # ========================================================================
-      # 从 CHANGELOG.md 中截取当前版本的发布说明。
-      # awk 逻辑：找到 "## [<version>]" 行 → 提取从该行到下一个 "## [" 之前的所有内容。
-      - name: 📝 提取 CHANGELOG 发布说明
-        if: success()
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          START=$(grep -n "^## \[$VERSION\]" CHANGELOG.md | head -1 | cut -d: -f1)
-
-          if [ -z "$START" ]; then
-            echo "::warning::无法定位 CHANGELOG 条目起始行"
-            echo "" > /tmp/release-notes.md
-            exit 0
-          fi
-
-          END=$(awk -v s="$START" 'NR>s && /^## \[/ {print NR; exit}' CHANGELOG.md)
-          END=${END:-$(($(wc -l < CHANGELOG.md) + 1))}
-
-          sed -n "${START},$((END-1))p" CHANGELOG.md > /tmp/release-notes.md
-
-          echo "----- 📝 发布说明预览 -----"
-          cat /tmp/release-notes.md
-          echo "----- 📝 预览结束 -----"
-
-      # ========================================================================
-      # 第 10 步：创建 GitHub Release
-      # ========================================================================
-      # 幂等性：如果 Release 已存在（如 release:published 触发器在 tag push
-      # 之后再次触发），跳过创建。
-      - name: 🎉 创建 GitHub Release
-        if: success()
+      - name: Create or update GitHub Release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" &>/dev/null; then
-            echo "⚠️  GitHub Release v$VERSION 已存在，跳过创建"
-            exit 0
+          RELEASE_FLAGS=()
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            RELEASE_FLAGS+=( "--prerelease" "--latest=false" )
           fi
 
-          gh release create "v$VERSION" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "v$VERSION" \
-            --notes-file /tmp/release-notes.md \
-            --verify-tag
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes-file release-notes.md \
+              "${RELEASE_FLAGS[@]}"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes-file release-notes.md \
+              --verify-tag \
+              "${RELEASE_FLAGS[@]}"
+          fi
 
-          echo "🎉 GitHub Release v$VERSION 创建成功"
+  source-archive:
+    name: Source Archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: prepare
 
-      # ========================================================================
-      # 第 11 步：发布后冒烟验证（尽力而为）
-      # ========================================================================
-      # 等待 npm registry CDN 传播，确认新版本可被公开访问。
-      # 此步骤失败不会标记整个 Job 为失败 —— 发布本身已经成功。
-      - name: 🔍 验证 npm Registry 传播
-        if: success()
-        continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build source archive
+        shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          echo "等待 npm registry 传播版本 $VERSION ..."
+          mkdir -p release-artifacts
+          git archive \
+            --format=zip \
+            --prefix="skill-central-${{ needs.prepare.outputs.version }}/" \
+            --output="release-artifacts/Skill-Central-${{ needs.prepare.outputs.version }}-source.zip" \
+            HEAD
 
-          for i in 1 2 3 4 5 6; do
-            if npm view "@bobcgn/skill-central@$VERSION" version 2>/dev/null; then
-              echo "✅ Registry 已返回版本 $VERSION"
-              exit 0
-            fi
-            echo "⏳ 第 $i 次尝试: registry 尚未传播，等待 5 秒..."
-            sleep 5
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-central-source
+          path: release-artifacts/*.zip
+          if-no-files-found: error
+
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: gh release upload "$RELEASE_TAG" release-artifacts/*.zip --repo "$GITHUB_REPOSITORY" --clobber
+
+  desktop:
+    name: Desktop Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    needs: prepare
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            package_script: package:mac
+            artifact_name: skill-central-macos
+            artifact_paths: |
+              release-artifacts/*.dmg
+              release-artifacts/*.zip
+            artifact_extensions: dmg zip
+          - name: Windows
+            os: windows-latest
+            package_script: package:win
+            artifact_name: skill-central-windows
+            artifact_paths: |
+              release-artifacts/*.msi
+              release-artifacts/*.zip
+            artifact_extensions: msi zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build desktop package
+        run: npm run ${{ matrix.package_script }}
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
+
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          ARTIFACT_EXTENSIONS: ${{ matrix.artifact_extensions }}
+        run: |
+          ARTIFACTS=()
+          for ext in $ARTIFACT_EXTENSIONS; do
+            for file in release-artifacts/*."$ext"; do
+              if [ -e "$file" ]; then
+                ARTIFACTS+=( "$file" )
+              fi
+            done
           done
-
-          echo "::warning::Registry 在 30 秒内未返回新版本（CDN 延迟），发布本身已成功"
+          if [ "${#ARTIFACTS[@]}" -eq 0 ]; then
+            echo "::error::No release artifacts matched extensions: $ARTIFACT_EXTENSIONS"
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${ARTIFACTS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
