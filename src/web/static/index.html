@@ -20,7 +20,44 @@
       <ul id="skill-list"></ul>
     </aside>
     <section id="detail">
-      <div class="placeholder">Select a skill to preview.</div>
+      <div id="console-panel" class="console-panel">
+        <div class="console-actions">
+          <button id="btn-ide-health">IDE Health</button>
+          <button id="btn-connect-plan">Connect Plan</button>
+          <button id="btn-connect-apply">Apply Connect</button>
+          <button id="btn-connect-rollback">Rollback</button>
+          <button id="btn-runtime-status">Runtime</button>
+          <button id="btn-runtime-start">Start MCP</button>
+          <button id="btn-runtime-stop">Stop MCP</button>
+          <button id="btn-compile-preview">Compile Preview</button>
+          <input id="sync-registry-dir" type="text" placeholder="./skill-central-registry" aria-label="Sync registry directory" />
+          <select id="sync-direction" aria-label="Sync direction">
+            <option value="both">both</option>
+            <option value="pull">pull</option>
+            <option value="push">push</option>
+          </select>
+          <label class="console-check"><input id="sync-force" type="checkbox" /> force</label>
+          <input id="sync-confirm" type="text" placeholder="APPLY SYNC" aria-label="Sync apply confirmation" />
+          <button id="btn-sync-status">Sync Status</button>
+          <button id="btn-sync-plan">Sync Plan</button>
+          <button id="btn-sync-apply">Apply Sync</button>
+          <button id="btn-sync-audits">Sync Audit</button>
+        </div>
+        <div id="console-output" class="console-output muted">Local console ready.</div>
+      </div>
+      <div id="skill-detail">
+        <div class="placeholder">Select a skill to preview.</div>
+      </div>
+      <section id="sync-audit-view" class="audit-view" hidden>
+        <div class="audit-view-header">
+          <div>
+            <h2>Sync Audit</h2>
+            <p class="muted">Recent apply reports, filtered by outcome.</p>
+          </div>
+          <button id="btn-close-sync-audit" type="button">Close</button>
+        </div>
+        <div id="sync-audit-detail" class="audit-detail muted">Select an audit or backup path.</div>
+      </section>
     </section>
   </main>
   <div id="flash" class="flash" style="display:none"></div>

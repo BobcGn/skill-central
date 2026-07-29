@@ -17,7 +17,7 @@ import { load as parseYaml } from "js-yaml";
 
 import { validateSkill } from "../storage/parser.js";
 import { parseSource, fetchGithubSkill, fetchNpmSkill, sha256Of } from "./sources.js";
-import { readLock, writeLock, addEntry, findById } from "./lockfile.js";
+import { inferSourceKind, readLock, writeLock, addEntry, findById } from "./lockfile.js";
 import type { LockEntry } from "./lockfile.js";
 import { LAYER_RULES, findLayerRule } from "./add.js";
 import type { LayerRule } from "./add.js";
@@ -148,9 +148,12 @@ export async function cmdInstall(source: string, opts: InstallOptions): Promise<
     const entry: LockEntry = {
       id: v.id,
       source: spec.raw,
+      sourceKind: inferSourceKind(spec.raw),
       version: it.version,
+      resolvedHash: finalSha,
       sha256: finalSha,
       installedAt: new Date().toISOString(),
+      schemaVersion: v.schemaVersion,
       layer: layer.name,
       filePath: targetPath,
     };

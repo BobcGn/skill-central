@@ -20,21 +20,16 @@ export async function cmdList(opts: ListOptions): Promise<void> {
   const engine = new SkillEngine();
   await engine.reload(config.layers);
 
-  let skills = engine.listSkills();
-
-  if (opts.type) {
-    skills = skills.filter((s) => s.type === opts.type);
-  }
-  if (opts.tag) {
-    const tag = opts.tag.toLowerCase();
-    skills = skills.filter((s) => s.tags?.some((t) => t.toLowerCase() === tag));
-  }
+  // Phase 1C: all user-facing filtering flows through Registry Query so CLI,
+  // MCP, Web Board, and compiler dry-runs share one interpretation of type,
+  // tag, resolution status, and provenance.
+  const skills = engine.querySkills({
+    type: opts.type,
+    tags: opts.tag ? [opts.tag] : undefined,
+  }).skills;
 
   // Group by layer for a readable table.
-  const layerByPriority = new Map<number, { name: string; path: string }>();
-  for (const l of config.layers) {
-    layerByPriority.set(l.priority, { name: l.name, path: l.path });
-  }
+  void config;
 
   if (skills.length === 0) {
     console.log("");

@@ -112,6 +112,222 @@ main {
   padding: 24px 32px;
 }
 
+.console-panel {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  padding: 12px;
+  margin-bottom: 18px;
+}
+
+.console-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.console-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.console-actions input,
+.console-actions select {
+  width: 220px;
+  min-width: 180px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.console-actions select {
+  width: 86px;
+  min-width: 86px;
+}
+
+.console-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.console-check input {
+  width: 14px;
+  min-width: 14px;
+}
+
+.console-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.console-output {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.console-output pre {
+  margin: 8px 0 0;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.sync-conflicts {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.sync-conflict {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 10px;
+  align-items: center;
+}
+
+.sync-conflict span {
+  min-width: 0;
+}
+
+.sync-conflict select {
+  width: 130px;
+  min-width: 130px;
+}
+
+.sync-diff {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.audit-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.audit-filters button,
+.audit-filters select,
+.audit-filters input {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.audit-filters button {
+  cursor: pointer;
+}
+
+.audit-filters button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.audit-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.audit-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--bg);
+}
+
+.audit-card code {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.audit-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.audit-card-actions button,
+.audit-view-header button,
+.audit-load-more {
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.audit-card-actions button:hover,
+.audit-view-header button:hover,
+.audit-load-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.audit-load-more {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.audit-view {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 16px;
+}
+
+.audit-view[hidden] {
+  display: none;
+}
+
+.audit-view-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.audit-view-header h2 {
+  margin: 0 0 4px;
+}
+
+.audit-view-header p {
+  margin: 0;
+}
+
+.audit-detail {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  padding: 12px;
+  min-height: 220px;
+  overflow: auto;
+}
+
+.audit-detail pre {
+  max-height: 560px;
+}
+
 #detail .placeholder {
   color: var(--fg-muted);
   text-align: center;
@@ -195,7 +411,8 @@ main {
   padding: 0;
 }
 
-.backup-list li {
+.backup-list li,
+.resolution-list li {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -203,7 +420,20 @@ main {
   border-bottom: 1px solid var(--border);
 }
 
-.backup-list code {
+.resolution-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.resolution-list li {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.backup-list code,
+.resolution-list code {
   font-family: var(--mono);
   font-size: 12px;
   background: var(--bg-elev);

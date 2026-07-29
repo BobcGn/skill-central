@@ -11,6 +11,13 @@
 //   skill-central show    →  Print full skill details + prompt body
 //   skill-central remove  →  Delete a skill file
 //   skill-central validate→  Validate one or more skill files
+//   skill-central compile →  Preview target artifacts without writing files
+//   skill-central export  →  Write compiled artifacts with conflict protection
+//   skill-central connect →  Preview/apply/verify IDE MCP registration
+//   skill-central sync    →  Inspect local-first sync/app-state boundary
+//   skill-central session →  Inspect durable workflow session state
+//   skill-central workflow→  Start/advance durable workflow sessions
+//   skill-central capabilities → Print target adapter capability matrix
 // ============================================================================
 
 import { Command } from "commander";
@@ -27,6 +34,13 @@ import { cmdInstall } from "./commands/install.js";
 import { cmdUpdate } from "./commands/update.js";
 import { cmdUninstall } from "./commands/uninstall.js";
 import { cmdRegister } from "./commands/register.js";
+import { cmdCompile } from "./commands/compile.js";
+import { cmdExport } from "./commands/export.js";
+import { cmdConnect } from "./commands/connect.js";
+import { cmdSync } from "./commands/sync.js";
+import { cmdSession } from "./commands/session.js";
+import { cmdWorkflow } from "./commands/workflow.js";
+import { cmdCapabilities } from "./commands/capabilities.js";
 import { VERSION } from "./version.js";
 
 const program = new Command();
@@ -168,8 +182,17 @@ program
 program
   .command("doctor")
   .description("Scan layers for missing dirs, parse errors, id collisions, and orphan backups")
-  .action(() => {
-    cmdDoctor().catch((err) => {
+  .option("--ide <target>", "Also run IDE connection health check: cursor, windsurf, claude, cline")
+  .option("--config-path <path>", "Override IDE MCP config path for --ide")
+  .option("--verify", "Run MCP initialize/prompts/list/tools/list probe for --ide")
+  .option("--json", "Print machine-readable doctor report")
+  .action((opts) => {
+    cmdDoctor({
+      ide: opts.ide,
+      configPath: opts.configPath,
+      verify: opts.verify,
+      json: opts.json,
+    }).catch((err) => {
       console.error("[skill-central] Doctor error:", err.message ?? err);
       process.exit(1);
     });
@@ -233,6 +256,192 @@ program
       console.error("[skill-central] Register error:", err.message ?? err);
       process.exit(1);
     });
+  });
+
+program
+  .command("compile")
+  .description("Compile skills for a target IDE without writing files (Phase 2B dry-run)")
+  .requiredOption("--target <target>", "Target adapter: generic-mcp, cursor, windsurf")
+  .requiredOption("--intent <intent>", "Intent, skill id, or tag to compile")
+  .option("--dry-run", "Preview artifacts without writing files")
+  .option("--json", "Print the machine-readable compile bundle")
+  .action((opts) => {
+    cmdCompile({
+      target: opts.target,
+      intent: opts.intent,
+      dryRun: opts.dryRun,
+      json: opts.json,
+    }).catch((err) => {
+      console.error("[skill-central] Compile error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("export")
+  .description("Export compiled artifacts with preview, conflict checks, and backups")
+  .requiredOption("--target <target>", "Target adapter: generic-mcp, cursor, windsurf")
+  .requiredOption("--intent <intent>", "Intent, skill id, or tag to export")
+  .requiredOption("--out <dir>", "Output directory")
+  .option("--dry-run", "Print planned writes without writing files")
+  .option("--stdout", "Print artifact contents to stdout without writing files")
+  .option("--json", "Print the machine-readable export plan without writing files")
+  .option("--force", "Overwrite different existing files after creating .bak.<timestamp> backups")
+  .action((opts) => {
+    cmdExport({
+      target: opts.target,
+      intent: opts.intent,
+      out: opts.out,
+      dryRun: opts.dryRun,
+      stdout: opts.stdout,
+      json: opts.json,
+      force: opts.force,
+    }).catch((err) => {
+      console.error("[skill-central] Export error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("connect")
+  .description("Preview, apply, verify, or rollback IDE MCP registration")
+  .requiredOption("--target <ide>", "IDE target: cursor, windsurf, claude, cline")
+  .option("--config-path <path>", "Override IDE MCP config path")
+  .option("--dry-run", "Print connection plan without writing files")
+  .option("--verify", "After writing, run MCP initialize/prompts/list/tools/list health probe")
+  .option("--json", "Print machine-readable connect plan")
+  .option("--rollback", "Restore a backup created by connect")
+  .option("--backup-path <path>", "Backup path to restore with --rollback")
+  .action((opts) => {
+    cmdConnect({
+      target: opts.target,
+      configPath: opts.configPath,
+      dryRun: opts.dryRun,
+      verify: opts.verify,
+      json: opts.json,
+      rollback: opts.rollback,
+      backupPath: opts.backupPath,
+    }).catch((err) => {
+      console.error("[skill-central] Connect error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("sync [action]")
+  .description("Inspect local-first sync state and preview GitHub sync setup")
+  .option("--app-state-dir <path>", "Override app state directory for tests or desktop shells")
+  .option("--client-id <id>", "GitHub OAuth app client id for sync login")
+  .option("--poll", "Poll GitHub Device Flow until an access token is available")
+  .option("--owner <owner>", "GitHub owner for sync repo planning")
+  .option("--repo <repo>", "GitHub repo name for sync repo planning")
+  .option("--registry-dir <path>", "Local remote-registry checkout path for sync scan/plan")
+  .option("--direction <direction>", "Sync plan direction: push, pull, or both")
+  .option("--exists", "Treat the planned GitHub repo as existing")
+  .option("--dry-run", "Preview sync changes without local or remote writes")
+  .option("--force", "Allow sync apply to update or delete existing files after backups")
+  .option("--json", "Print machine-readable sync status")
+  .action((action: string | undefined, opts) => {
+    cmdSync({
+      action,
+      appStateDir: opts.appStateDir,
+      clientId: opts.clientId,
+      poll: opts.poll,
+      owner: opts.owner,
+      repo: opts.repo,
+      registryDir: opts.registryDir,
+      direction: opts.direction,
+      exists: opts.exists,
+      dryRun: opts.dryRun,
+      force: opts.force,
+      json: opts.json,
+    }).catch((err) => {
+      console.error("[skill-central] Sync error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("session [action]")
+  .description("Create, list, inspect, or update durable workflow sessions")
+  .option("--app-state-dir <path>", "Override app state directory for tests or desktop shells")
+  .option("--workflow-id <id>", "Workflow id for session create")
+  .option("--session-id <id>", "Session id for show/status")
+  .option("--status <status>", "New status for session status: created, running, blocked, completed, failed")
+  .option("--reason <text>", "Audit reason for create/status")
+  .option("--trigger <text>", "Audit trigger for create/status")
+  .option("--topic <topic>", "Blackboard topic for publish/topic")
+  .option("--producer <id>", "Blackboard producer id for publish")
+  .option("--kind <kind>", "Blackboard entry kind for publish")
+  .option("--content <json-or-text>", "Blackboard entry content for publish")
+  .option("--summary <text>", "Blackboard entry summary for publish")
+  .option("--refs <uris>", "Comma-separated reference URIs for publish")
+  .option("--json", "Print machine-readable session output")
+  .action((action: string | undefined, opts) => {
+    cmdSession({
+      action,
+      appStateDir: opts.appStateDir,
+      workflowId: opts.workflowId,
+      sessionId: opts.sessionId,
+      status: opts.status,
+      reason: opts.reason,
+      trigger: opts.trigger,
+      topic: opts.topic,
+      producer: opts.producer,
+      kind: opts.kind,
+      content: opts.content,
+      summary: opts.summary,
+      refs: opts.refs,
+      json: opts.json,
+    }).catch((err) => {
+      console.error("[skill-central] Session error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("workflow [action]")
+  .description("Start, advance, publish to, or summarize workflow sessions")
+  .option("--app-state-dir <path>", "Override app state directory for tests or desktop shells")
+  .option("--workflow-id <id>", "Workflow id for start")
+  .option("--session-id <id>", "Session id for next/publish/summarize")
+  .option("--topic <topic>", "Blackboard topic for publish")
+  .option("--producer <id>", "Blackboard producer id for publish")
+  .option("--kind <kind>", "Blackboard entry kind for publish")
+  .option("--content <json-or-text>", "Blackboard entry content for publish")
+  .option("--summary <text>", "Blackboard entry summary for publish/summarize")
+  .option("--refs <uris>", "Comma-separated reference URIs for publish")
+  .option("--json", "Print machine-readable workflow output")
+  .action((action: string | undefined, opts) => {
+    cmdWorkflow({
+      action,
+      appStateDir: opts.appStateDir,
+      workflowId: opts.workflowId,
+      sessionId: opts.sessionId,
+      topic: opts.topic,
+      producer: opts.producer,
+      kind: opts.kind,
+      content: opts.content,
+      summary: opts.summary,
+      refs: opts.refs,
+      json: opts.json,
+    }).catch((err) => {
+      console.error("[skill-central] Workflow error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("capabilities")
+  .description("Print a target adapter capability matrix")
+  .requiredOption("--target <target>", "Target adapter: generic-mcp, cursor, windsurf")
+  .action((opts) => {
+    try {
+      cmdCapabilities({ target: opts.target });
+    } catch (err) {
+      console.error("[skill-central] Capabilities error:", err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
   });
 
 program.parse(process.argv);

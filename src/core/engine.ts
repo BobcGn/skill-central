@@ -7,8 +7,22 @@
 // ============================================================================
 
 import { OverrideTree } from "./override-tree.js";
+import type { ResolutionRecord } from "./override-tree.js";
 import { readAllLayers } from "../storage/reader.js";
 import type { SkillLayer, SkillSchema } from "../storage/schemas.js";
+import { getSkillById, querySkillRecords } from "../registry/query.js";
+import type { SkillQuery } from "../registry/query.js";
+import type {
+  LayerProvenance,
+  SkillActivation,
+  SkillCapabilities,
+  SkillContext,
+  SkillDegradation,
+  SkillResolutionStatus,
+  SkillType,
+  UniversalSkillSchemaVersion,
+  SkillWorkflow,
+} from "../schema/universal-skill.js";
 
 export class SkillEngine {
   private tree = new OverrideTree();
@@ -34,13 +48,35 @@ export class SkillEngine {
 
   /** Return every resolved skill (id → resolved entry). */
   listSkills(): ResolvedSkillView[] {
-    return this.tree.getAll().map(toView);
+    return this.querySkills().skills;
+  }
+
+  /**
+   * Return full resolution records, including shadowed and conflicted entries.
+   * This is the diagnostic bridge for Phase 1B. MCP keeps using listSkills()
+   * so only deterministic effective skills are exposed to clients.
+   */
+  listResolutionRecords(): ResolutionRecordView[] {
+    return this.tree.getRecords().map((record) => ({
+      id: record.id,
+      status: record.status,
+      reason: record.reason,
+      candidates: record.candidates.map(toView),
+    }));
+  }
+
+  /**
+   * Shared query entrypoint for CLI/MCP/UI/compiler consumers.
+   * TODO(Phase 1C): once all consumers are migrated, keep listSkills/getSkill as
+   * compatibility wrappers only and document querySkills as the primary API.
+   */
+  querySkills(query: SkillQuery = {}) {
+    return querySkillRecords(this.listResolutionRecords(), query);
   }
 
   /** Retrieve a single resolved skill by id. */
   getSkill(skillId: string): ResolvedSkillView | undefined {
-    const skill = this.tree.get(skillId);
-    return skill ? toView(skill) : undefined;
+    return getSkillById(this.listResolutionRecords(), skillId);
   }
 
   /**
@@ -49,11 +85,7 @@ export class SkillEngine {
    * entries effectively "override" earlier ones when merged.
    */
   getSkillsByTags(tags: string[]): ResolvedSkillView[] {
-    const matched = this.tree
-      .getAll()
-      .filter((s) => s.tags?.some((t) => tags.includes(t)));
-    matched.sort((a, b) => a.priority - b.priority);
-    return matched.map(toView);
+    return this.querySkills({ tags }).skills;
   }
 }
 
@@ -63,7 +95,9 @@ export interface ResolvedSkillView {
   id: string;
   name: string;
   description: string;
-  type: "prompt" | "tool";
+  type: SkillType;
+  schemaVersion: UniversalSkillSchemaVersion;
+  sourceFormat: "legacy" | "universal";
   prompt?: string;
   /**
    * Chinese-language variant of `prompt`. Present iff the underlying YAML
@@ -74,32 +108,74 @@ export interface ResolvedSkillView {
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
+  activation?: SkillActivation;
+  context?: SkillContext;
+  capabilities?: SkillCapabilities;
+  degradation?: SkillDegradation;
+  workflow?: SkillWorkflow;
   /** Originating layer priority (used by web board to display origin). */
   priority: number;
+  /** Layer path used as current provenance until Phase 1B adds layer ids. */
+  source: string;
+  layer: LayerProvenance;
+  status: SkillResolutionStatus;
+  shadowedBy?: LayerProvenance;
+  conflictWith?: LayerProvenance[];
+}
+
+export interface ResolutionRecordView {
+  id: string;
+  status: "effective" | "conflicted";
+  reason: string;
+  candidates: ResolvedSkillView[];
 }
 
 function toView(skill: {
   id: string;
   name: string;
   description: string;
-  type: "prompt" | "tool";
+  type: SkillType;
+  schemaVersion: UniversalSkillSchemaVersion;
+  sourceFormat: "legacy" | "universal";
   prompt?: string;
   prompt_zh?: string;
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
+  activation?: SkillActivation;
+  context?: SkillContext;
+  capabilities?: SkillCapabilities;
+  degradation?: SkillDegradation;
+  workflow?: SkillWorkflow;
   priority: number;
+  source: string;
+  layer: LayerProvenance;
+  status: SkillResolutionStatus;
+  shadowedBy?: LayerProvenance;
+  conflictWith?: LayerProvenance[];
 }): ResolvedSkillView {
   return {
     id: skill.id,
     name: skill.name,
     description: skill.description,
     type: skill.type,
+    schemaVersion: skill.schemaVersion,
+    sourceFormat: skill.sourceFormat,
     prompt: skill.prompt,
     prompt_zh: skill.prompt_zh,
     inputSchema: skill.inputSchema,
     arguments: skill.arguments,
     tags: skill.tags,
+    activation: skill.activation,
+    context: skill.context,
+    capabilities: skill.capabilities,
+    degradation: skill.degradation,
+    workflow: skill.workflow,
     priority: skill.priority,
+    source: skill.source,
+    layer: skill.layer,
+    status: skill.status,
+    shadowedBy: skill.shadowedBy,
+    conflictWith: skill.conflictWith,
   };
 }

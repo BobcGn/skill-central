@@ -21,7 +21,7 @@ import type { ComposedPrompt } from "../core/composer.js";
 export function buildListPromptsHandler(engine: SkillEngine) {
   return async (): Promise<ListPromptsResult> => {
     await engine.waitForReady();
-    const skills = engine.listSkills().filter((s) => s.type === "prompt");
+    const skills = engine.querySkills({ type: "prompt" }).skills;
     return { prompts: skills.map(toPromptMeta) };
   };
 }
@@ -36,7 +36,7 @@ export function buildGetPromptHandler(engine: SkillEngine) {
     // ── Special: tag-based composition ───────────────────────────────────
     if (name === "skills:compose") {
       const tags = extractTags(args);
-      const matched = engine.getSkillsByTags(tags);
+      const matched = engine.querySkills({ type: "prompt", tags }).skills;
 
       if (matched.length === 0) {
         throw new Error(`No skills found for tags: ${tags.join(", ")}`);
@@ -50,15 +50,12 @@ export function buildGetPromptHandler(engine: SkillEngine) {
     }
 
     // ── Standard: single skill lookup ─────────────────────────────────────
-    const skill = engine.getSkill(name);
+    const skill = engine.querySkills({ id: name, type: "prompt" }).skills[0];
     if (!skill) {
       throw new Error(`Unknown prompt skill: ${name}`);
     }
 
-    const result = composeSkill(
-      skill as ResolvedSkillView & { priority: number; source: string },
-      args ?? {},
-    ) as ComposedPrompt;
+    const result = composeSkill(skill, args ?? {}) as ComposedPrompt;
 
     return {
       description: skill.description,

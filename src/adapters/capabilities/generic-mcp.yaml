@@ -1,0 +1,17 @@
+target: generic-mcp
+capabilities:
+  mcp.prompts.list:
+    support: supported
+    description: Lists prompt assets exposed through MCP.
+  mcp.prompts.get:
+    support: supported
+    description: Reads a selected prompt through MCP.
+  mcp.tools.list:
+    support: supported
+    description: Lists tool assets exposed through MCP.
+  mcp.tools.call:
+    support: supported
+    description: Invokes tool assets through MCP.
+  mcp.resources.read:
+    support: supported
+    description: Reads generated skill resources.
