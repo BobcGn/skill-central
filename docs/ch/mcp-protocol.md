@@ -21,7 +21,7 @@ skill-central 通过 Stdio 实现了 [模型上下文协议 (Model Context Proto
 
 ## 能力
 
-skill-central 声明了 `prompts` 和 `tools` 能力。每个加载的技能都作为 `Prompt` (如果 `type: prompt`) 或 `Tool` (如果 `type: tool`) 暴露出来。
+skill-central 声明了 `prompts`、`tools` 和 `resources` 能力。Effective skills 会通过共享 Registry Query API 选择：`type: prompt` 暴露为 prompts，`type: tool` 暴露为 tools。Shadowed 和 conflicted 候选不会暴露为 prompt/tool，但可以通过 `skill://registry` Resource 作为审计证据读取。
 
 ## 方法
 
@@ -93,7 +93,7 @@ skill-central 声明了 `prompts` 和 `tools` 能力。每个加载的技能都�
 }
 ```
 
-引擎会收集所有其 `tags` 与 `{kmp, android}` 重叠的技能，按层优先级升序排序，并用 `\n\n---\n\n` 分隔符连接它们的 prompt 正文。组合后的 prompt 作为单个用户消息返回。
+Registry 会收集所有 effective prompt skills 中 `tags` 与 `{kmp, android}` 重叠的技能，按层优先级升序排序，并用 `\n\n---\n\n` 分隔符连接它们的 prompt 正文。组合后的 prompt 作为单个用户消息返回。
 
 ```json
 {
@@ -108,7 +108,7 @@ MCP `GetPrompt` 的参数被限制为字符串，所以标签作为逗号分隔�
 
 ### `tools/list`
 
-列出所有 tool 类型的技能。
+列出所有 tool 类型的技能，以及 skill-central 内置的 workflow 控制面工具。内置工具不来自 `.skills` 文件，因此 IDE 健康检查会把它们作为 MCP 可见基准的一部分单独纳入计数。
 
 **请求:** `{}`
 
@@ -129,6 +129,18 @@ MCP `GetPrompt` 的参数被限制为字符串，所以标签作为逗号分隔�
           "body":    { "type": "string" }
         },
         "required": ["type", "summary"]
+      }
+    },
+    {
+      "name": "workflow.start",
+      "description": "Create a workflow session and return initial Data Plane Tasks.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "workflowId": { "type": "string" },
+          "appStateDir": { "type": "string" }
+        },
+        "required": ["workflowId"]
       }
     }
   ]
@@ -174,6 +186,59 @@ MCP `GetPrompt` 的参数被限制为字符串，所以标签作为逗号分隔�
 ```
 
 参数验证位于 `src/core/composer.ts:75`，检查 `required` + 简单的 JSON-Schema 类型匹配 (string, number, integer, boolean, array, object)。对于更深层次的验证，可以在技能的 prompt 中或通过自定义工具加入您自己的 schema 检查。
+
+#### 内置 workflow tools
+
+Phase 5M 起，`tools/call` 也支持以下内置控制面工具：
+
+| Tool | 作用 |
+|---|---|
+| `workflow.start` | 创建 workflow session，并返回第一批 ready Data Plane Task |
+| `workflow.next` | 根据当前 blackboard topic 推进 session，返回 ready / blocked / completed report |
+| `workflow.publish` | 向指定 session topic 追加 agent 结果 |
+| `workflow.summarize` | 聚合 session 当前 topic 摘要 |
+
+这些工具复用 `skill-central workflow` CLI 的控制面逻辑，响应体以 `content[0].text` 返回格式化 JSON。Data Plane Task 会包含 `promptBundle`：`text` 是给 IDE Agent 的执行提示，`resourceUris` 只列出当前 step 显式需要读取的 `skill://session/{sessionId}/topic/{topic}`。它不会注入全量 session history，也不会执行 Bash、读取项目文件或写 skill source。
+
+### `resources/list`
+
+列出可读取的只读 Resource。
+
+**请求:** `{}`
+
+**响应:**
+
+```json
+{
+  "resources": [
+    {
+      "uri": "skill://registry",
+      "name": "skill-central registry",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "skill://skill/review-pr",
+      "name": "review-pr",
+      "mimeType": "application/json"
+    }
+  ]
+}
+```
+
+### `resources/read`
+
+读取一个 `skill://` Resource。当前支持以下只读 URI：
+
+| URI | 内容 |
+|---|---|
+| `skill://registry` | Registry resolution records，包含 effective/conflicted 候选与 layer provenance |
+| `skill://skill/{skillId}` | 单个 effective skill 的规范化 JSON |
+| `skill://bundle/{target}/{intent}` | 复用 compiler dry-run 的 `CompiledSkillBundle` |
+| `skill://session/{sessionId}/context` | app state 中持久化的 workflow session JSON，包含状态和 audit events |
+| `skill://session/{sessionId}/topic/{topic}` | app state 中持久化的 blackboard topic JSON，包含 entries、summary 和 refs |
+| `skill://workflow/{workflowId}/plan` | 只读 workflow definition plan，包含 step 依赖、topic 边界和可用 `workflow.*` 控制面工具 |
+
+`skill://bundle/{target}/{intent}` 只返回编译证据，不写 IDE 文件，不执行项目数据面操作。`skill://session/{sessionId}/topic/{topic}` 只读取指定 session 下的指定 topic，不会注入全量 session 历史。`skill://workflow/{workflowId}/plan` 不创建 session、不读取 blackboard live state，只解释 workflow 定义和调度边界。Workflow 推进通过 `workflow.*` tools 完成，Resource 层只承担只读证据读取。
 
 ## 错误处理
 

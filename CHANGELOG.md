@@ -1,110 +1,109 @@
-# Changelog
+# 更新日志
 
-All notable changes to skill-central are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
-
+本文件记录 `skill-central` 的重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/)。
 
 ## [0.4.0] - 2026-07-20
 
-### Added
+### 新增
 
-- **`register` command**: New CLI command (`skill-central register [ide]`) to automatically inject skill-central into IDE MCP configurations (Claude Desktop, Cursor, Windsurf, Cline).
-- **Auto-registration on `init`**: The `skill-central init` command now attempts to auto-register the MCP server in detected local IDEs.
+- **`register` 命令**：新增 CLI 命令 `skill-central register [ide]`，用于把 `skill-central` 自动注入 IDE 的 MCP 配置，当前覆盖 Claude Desktop、Cursor、Windsurf 和 Cline。
+- **`init` 自动注册**：`skill-central init` 现在会尝试检测本机 IDE，并自动注册 MCP Server。
 
 ## [0.3.0] - 2026-07-18
 
-### Fixed
+### 修复
 
-- **MCP Stdio Protocol**: Redirected `console.info` and `console.debug` to `stderr` to prevent JSON-RPC stdout pollution.
-- **MCP Tool Discovery**: Ensured `inputSchema` format strictly adheres to JSON schema requirements (removed empty arrays for `required`, strictly enforced `type: "object"`).
-- **MCP Async Timing**: Added `waitForReady` lock in prompt and tool handlers to prevent returning empty lists before the engine finishes initializing.
-- **MCP Descriptor Strictness**: Provided reliable fallback descriptions for tools and prompts to ensure full LLM compatibility.
+- **MCP Stdio 协议**：将 `console.info` 和 `console.debug` 重定向到 `stderr`，避免污染 JSON-RPC 的 `stdout`。
+- **MCP Tool 发现**：确保 `inputSchema` 格式严格符合 JSON Schema 要求，移除空的 `required` 数组，并严格要求 `type: "object"`。
+- **MCP 异步时序**：在 prompt 和 tool handler 中加入 `waitForReady` 锁，避免引擎初始化完成前返回空列表。
+- **MCP 描述符严格性**：为 tools 和 prompts 提供可靠的兜底描述，确保与 LLM 客户端兼容。
 
 ## [0.2.5] - 2026-06-16
 
-### Added
+### 新增
 
-- **`lint` script** (`tsc --noEmit`) — TypeScript 类型检查作为发布门禁，防止类型错误进入发布包。
-- **`test` script** (`scripts/test.sh`) — CLI 集成测试脚本，覆盖 `add`、`list`、`doctor` 核心命令，通过 `pretest` 钩子自动构建后执行。
-- **`pretest` script** — 确保 `npm test` 在任何环境下"开箱即用"（自动执行 `npm run build && npm run build:web`）。
+- **`lint` 脚本**（`tsc --noEmit`）：把 TypeScript 类型检查纳入发布门禁，防止类型错误进入发布包。
+- **`test` 脚本**（`scripts/test.sh`）：新增 CLI 集成测试脚本，覆盖 `add`、`list`、`doctor` 核心命令，并通过 `pretest` 钩子自动构建后执行。
+- **`pretest` 脚本**：确保 `npm test` 在任何环境下开箱即用，会自动执行 `npm run build && npm run build:web`。
 
-### Changed
+### 变更
 
-- **Release 流水线重构** (`release.yml`)：
-  - 双触发器机制（`push: tags` + `release: published`），内置幂等性保护。
-  - 标准化 CI 步骤：`checkout → npm ci → lint → build+test → verify → publish → GitHub Release`。
-  - `--provenance` CLI 标志 + `NPM_CONFIG_PROVENANCE=true` 环境变量 + `publishConfig.provenance` 三重保障。
-  - 预发布版本自动使用 `--tag next`（如 `v1.0.0-beta.1` 不会覆盖 `latest`）。
+- **Release 流水线重构**（`release.yml`）：
+  - 使用双触发机制：`push: tags` 和 `release: published`，并内置幂等保护。
+  - 标准化 CI 步骤：`checkout -> npm ci -> lint -> build+test -> verify -> publish -> GitHub Release`。
+  - 通过 `--provenance` CLI 标志、`NPM_CONFIG_PROVENANCE=true` 环境变量和 `publishConfig.provenance` 三层保障发布来源证明。
+  - 预发布版本自动使用 `--tag next`，例如 `v1.0.0-beta.1` 不会覆盖 `latest`。
   - 权限配置新增 `attestations: write`。
 
 ## [0.2.4] - 2026-06-16
 
-### Changed
+### 变更
 
-- **Retry OIDC publish via release.yml** — Trusted Publisher re-configured on npmjs.com. This release attempts the OIDC `npm publish --provenance` path again.
+- **通过 `release.yml` 重试 OIDC 发布**：已在 npmjs.com 重新配置 Trusted Publisher，本版本再次尝试 OIDC 的 `npm publish --provenance` 路径。
 
 ## [0.2.3] - 2026-06-16
 
-### Changed
+### 变更
 
-- **First release published via Trusted Publisher OIDC** — v0.2.3 is the first version published through `.github/workflows/release.yml` with npm Trusted Publishing (OIDC). Each `npm publish --provenance` in this workflow attaches a Sigstore-signed provenance attestation to the tarball, verifiable via `npm view @bobcgn/skill-central@0.2.3 --json | jq .dist.attestations`.
+- **首次通过 Trusted Publisher OIDC 发布**：v0.2.3 是第一个通过 `.github/workflows/release.yml` 和 npm Trusted Publishing（OIDC）发布的版本。该工作流中的每次 `npm publish --provenance` 都会为 tarball 附加 Sigstore 签名的 provenance attestation，可通过 `npm view @bobcgn/skill-central@0.2.3 --json | jq .dist.attestations` 验证。
 
-### Notes
+### 说明
 
-- v0.2.2 was published manually (without provenance) because the Trusted Publisher had not been configured on npmjs.com at release time. From v0.2.3 onward, all releases go through the OIDC workflow.
+- v0.2.2 是手动发布版本，未包含 provenance，因为当时还没有在 npmjs.com 配置 Trusted Publisher。从 v0.2.3 开始，所有发布都走 OIDC 工作流。
 
 ## [0.2.2] - 2026-06-16
 
-### Changed
+### 变更
 
-- **All 16 project skill files are now fully bilingual.** Each YAML carries both `prompt:` (English) and `prompt_zh:` (Chinese). Previously, 7 large skills (`backend-code-review`, `frontend-vue-review`, `readme-writer`, `database-review`, `ai-model-agent`, `kotlin-multiplatform`, `python-code-review`) carried only a partial English translation; they now have complete translations matching the depth and length of the Chinese original (1085 lines for kotlin-multiplatform, 1338 for ai-model-agent, etc.). Generated via parallel sub-agents and merged back via a small Node script.
+- **16 个项目 skill 文件已全部双语化**：每个 YAML 同时包含 `prompt:`（英文）和 `prompt_zh:`（中文）。此前 7 个大型技能（`backend-code-review`、`frontend-vue-review`、`readme-writer`、`database-review`、`ai-model-agent`、`kotlin-multiplatform`、`python-code-review`）只有部分英文翻译；现在它们拥有与中文原文深度和长度匹配的完整翻译，例如 `kotlin-multiplatform` 为 1085 行，`ai-model-agent` 为 1338 行。翻译由并行子 Agent 生成，并通过一个小型 Node 脚本合并回仓库。
 
-### Notes
+### 说明
 
-- During the merge, 7 affected YAML files needed 2-space indentation inside the `prompt: |` block (js-yaml literal-block fragility at column 0). All skills now follow the same indent convention as the working `error-handling-patterns.yaml`.
+- 合并过程中，7 个受影响的 YAML 文件需要在 `prompt: |` 块内使用 2 空格缩进，因为 `js-yaml` 的 literal block 在第 0 列较脆弱。所有技能现在都遵循与可工作的 `error-handling-patterns.yaml` 相同的缩进约定。
 
 ## [0.2.1] - 2026-06-16
 
-### Added
+### 新增
 
-- **`.github/workflows/release.yml`** — automated npm publish + GitHub Release on `v*` tag push, via npm Trusted Publishing (OIDC). `npm publish --provenance` attaches a Sigstore-signed attestation to every release. See [`docs/trusted-publishing.md`](./docs/trusted-publishing.md) for the one-time setup (register the workflow on <https://www.npmjs.com/package/@bobcgn/skill-central/settings>).
-- **`docs/trusted-publishing.md`** — full walkthrough of the OIDC trust handshake, including a probe-tag procedure, the four common failure modes, and a rollback recipe.
+- **`.github/workflows/release.yml`**：在 `v*` tag push 时自动发布 npm 包并创建 GitHub Release，使用 npm Trusted Publishing（OIDC）。`npm publish --provenance` 会给每个发布包附加 Sigstore 签名的 attestation。一次性设置见 [`docs/trusted-publishing.md`](./docs/trusted-publishing.md)：需要在 <https://www.npmjs.com/package/@bobcgn/skill-central/settings> 注册该 workflow。
+- **`docs/trusted-publishing.md`**：完整说明 OIDC 信任握手流程，包括探测 tag 流程、四类常见失败模式和回滚方案。
 
-### Fixed
+### 修复
 
-- **CLI `--version` reported `0.1.0`** after publishing 0.2.0 because `src/index.ts` hardcoded the version string. Now reads from a single source (`src/version.ts` → `VERSION`).
-- **MCP `serverInfo.version` reported `0.1.0`** for the same reason — `src/mcp.ts` had a hardcoded `"0.1.0"` literal in the `Server` constructor. Now reads `VERSION`.
-- **Web board crashed** with `Web assets not found at <cwd>/dist/web` when invoked from any directory other than the project root (e.g. `npx skill-central board`, `node_modules/.bin/skill-central board` from a sub-directory). `resolveWebRoot()` now searches script-relative candidates derived from `import.meta.url` first, with cwd-relative paths as a last-resort fallback. The pre-bind check in `src/commands/board.ts` calls the same resolver so the two stay in lock-step.
+- **CLI `--version` 发布 0.2.0 后仍显示 `0.1.0`**：原因是 `src/index.ts` 硬编码了版本字符串。现在改为从单一来源读取：`src/version.ts` -> `VERSION`。
+- **MCP `serverInfo.version` 同样显示 `0.1.0`**：原因相同，`src/mcp.ts` 的 `Server` 构造函数里硬编码了 `"0.1.0"`。现在改为读取 `VERSION`。
+- **Web Board 在非项目根目录调用时崩溃**：从项目根目录以外运行时，例如在子目录执行 `npx skill-central board` 或 `node_modules/.bin/skill-central board`，曾出现 `Web assets not found at <cwd>/dist/web`。现在 `resolveWebRoot()` 会优先搜索基于 `import.meta.url` 推导出的脚本相对路径，最后才回退到基于 `cwd` 的路径。`src/commands/board.ts` 中 bind 前检查也调用同一个 resolver，保证两处行为一致。
 
-### Changed
+### 变更
 
-- Added `src/version.ts` as the single source of truth for the package version (inlines `package.json` at build time via `import ... with { type: "json" }`). Eliminates the version-drift class of bugs at future releases.
-- `.gitignore`: added `.ai/` and `.codex/` (sibling AI-tool dirs that should not be tracked).
+- 新增 `src/version.ts` 作为包版本的单一事实来源，构建时通过 `import ... with { type: "json" }` 内联 `package.json`，避免后续发布再次出现版本漂移。
+- `.gitignore` 新增 `.ai/` 和 `.codex/`，这些相邻 AI 工具目录不应进入版本控制。
 
 ## [0.2.0] - 2026-06-15
 
-### Added
+### 新增
 
-- **CLI subcommands** for the local CRUD surface that previously required hand-writing YAML:
-  - `add <id> [--tags ...]` — create a skill with tag-driven layer inference
-  - `list [--layer | --tag | --type]` — filtered skill inventory
-  - `show <id>` — full skill details + prompt body
-  - `remove <id> [--layer]` — delete a skill file (with ambiguity guard)
-  - `validate <files…>` — parse + validate files outside the engine path
-  - `doctor` — scan layers for missing dirs, parse errors, id collisions, orphan backups
-- **Remote install** via `install <source>` with `update` and `uninstall` companions:
-  - `github:<user>/<repo>/<path>[@<ref>` — direct raw-URL fetch with sha256
-  - `npm:<pkg>[@<version>]` — registry + tarball extraction via `tar-stream` + `node:zlib`; requires `skill-central.paths` in the package's `package.json`
-  - `~/.skill-central/lock.json` records every installed skill (source, version, sha256, layer, filePath)
-  - `update [id]` re-fetches; preserves original scope (project vs user)
-  - `uninstall <id>` removes file + lock entry; `--purge-backups` also clears `.bak.*` siblings
-- **Web board** (`board` command now opens a local Hono dashboard by default):
-  - Read + edit skills in the browser, with optimistic-concurrency (`sha256` conflict → 409 with current content)
-  - Automatic `.bak.<ISO-no-colons>` backup on every save (never auto-deleted)
-  - Backups pane with one-click restore
-  - Default port `5417`, conflict-aware retry `+1..+10`
-  - Loopback-only by default; non-loopback `--host` requires `--i-understand-nonlocal` acknowledgement
-  - `--cli` / `--no-web` flags for the v0.1.0 terminal fallback
-- **Docs**: new `docs/` directory with reference pages:
+- **CLI 子命令**：为过去需要手写 YAML 的本地 CRUD 操作提供命令入口：
+  - `add <id> [--tags ...]`：创建 skill，并根据 tag 推断 layer。
+  - `list [--layer | --tag | --type]`：按条件筛选 skill 清单。
+  - `show <id>`：展示完整 skill 详情和 prompt 正文。
+  - `remove <id> [--layer]`：删除 skill 文件，并带有歧义保护。
+  - `validate <files...>`：解析并校验引擎路径之外的文件。
+  - `doctor`：扫描 layer，检查缺失目录、解析错误、id 冲突和孤立备份。
+- **远程安装**：新增 `install <source>`，并配套 `update` 和 `uninstall`：
+  - `github:<user>/<repo>/<path>[@<ref>`：通过 raw URL 直接拉取，并校验 sha256。
+  - `npm:<pkg>[@<version>]`：通过 registry 和 tarball 提取安装，使用 `tar-stream` 与 `node:zlib`；包的 `package.json` 必须声明 `skill-central.paths`。
+  - `~/.skill-central/lock.json` 记录每个已安装 skill 的 source、version、sha256、layer 和 filePath。
+  - `update [id]` 会重新拉取，并保留原始 scope（project 或 user）。
+  - `uninstall <id>` 删除文件和 lock entry；`--purge-backups` 会同时清理相邻的 `.bak.*` 文件。
+- **Web Board**：`board` 命令默认打开本地 Hono Dashboard：
+  - 可在浏览器中读取和编辑 skill，并通过 sha256 乐观并发控制处理冲突；冲突时返回 409 和当前内容。
+  - 每次保存都会自动创建 `.bak.<ISO-no-colons>` 备份，且不会自动删除。
+  - 备份面板支持一键恢复。
+  - 默认端口为 `5417`，端口冲突时自动尝试 `+1..+10`。
+  - 默认仅绑定 loopback；非 loopback 的 `--host` 必须显式传入 `--i-understand-nonlocal` 确认。
+  - `--cli` / `--no-web` 标志保留 v0.1.0 的终端 fallback。
+- **文档**：新增 `docs/` 目录和参考文档：
   - [`docs/cli-reference.md`](./docs/cli-reference.md)
   - [`docs/web-board.md`](./docs/web-board.md)
   - [`docs/remote-sources.md`](./docs/remote-sources.md)
@@ -112,32 +111,32 @@ All notable changes to skill-central are documented here. The format follows [Ke
   - [`docs/layered-override.md`](./docs/layered-override.md)
   - [`docs/mcp-protocol.md`](./docs/mcp-protocol.md)
 
-### Changed
+### 变更
 
-- **BREAKING**: `skill-central board` now opens a web dashboard by default. The terminal-table output is reachable via `board --cli` (or `--no-web`).
-- Internal functions `validateSkill` and `discoverSkillFiles` / `readAllLayers` are now exported from `src/storage/parser.ts` and `src/storage/reader.ts` for use by the CLI. Existing internal callers unchanged.
-- `src/board.ts` moved into `src/commands/board.ts` and exports `runBoard()` + the legacy `showBoard()`.
-- `ResolvedSkillView` now exposes `priority` so the web board can render origin metadata.
+- **破坏性变更**：`skill-central board` 现在默认打开 Web Dashboard。终端表格输出可以通过 `board --cli` 或 `--no-web` 使用。
+- 内部函数 `validateSkill`、`discoverSkillFiles` 和 `readAllLayers` 现在从 `src/storage/parser.ts` 与 `src/storage/reader.ts` 导出，供 CLI 使用。现有内部调用方保持不变。
+- `src/board.ts` 移动到 `src/commands/board.ts`，并导出 `runBoard()` 和旧的 `showBoard()`。
+- `ResolvedSkillView` 现在暴露 `priority`，Web Board 可展示来源元数据。
 
-### Security
+### 安全
 
-- Install: HTTPS-only URLs; sha256 verified on every install/update
-- Install: tar-slip defence — npm tarball entries must start with `package/` and reject `..` / `\`
-- Install: refuse loopback hosts in tarball source URLs (SSRF mitigation)
-- Web board: bound to `127.0.0.1` by default; non-loopback hosts require explicit `--i-understand-nonlocal`
-- Web board: PUT enforces sha256-conflict detection; rejects id changes (would orphan the original file)
+- 安装：仅允许 HTTPS URL；每次 install/update 都校验 sha256。
+- 安装：防御 tar-slip；npm tarball entry 必须以 `package/` 开头，并拒绝 `..` 和 `\`。
+- 安装：拒绝 tarball source URL 中的 loopback host，降低 SSRF 风险。
+- Web Board：默认绑定 `127.0.0.1`；非 loopback host 必须显式使用 `--i-understand-nonlocal`。
+- Web Board：PUT 强制执行 sha256 冲突检测，并拒绝修改 id，避免遗留孤立原文件。
 
-### Dependencies
+### 依赖
 
-- New: `hono@^4.12.25`, `@hono/node-server@^2.0.4`, `tar-stream@^3.2.0`
+- 新增：`hono@^4.12.25`、`@hono/node-server@^2.0.4`、`tar-stream@^3.2.0`
 
 ## [0.1.0] - 2026-05-21
 
-### Added
+### 新增
 
-- Initial public release to npm
-- Stdio MCP server with prompt + tool composition
-- 4-layer skill directories (`.skills/01-global` … `.skills/04-tech-stack`)
-- CLI: `mcp`, `board`, `init`
-- 12 bundled sample skills
-- Multi-skill tag composition via `GetPrompt("skills:compose", { tags })`
+- 首次公开发布到 npm。
+- Stdio MCP Server，支持 prompt 和 tool 组合。
+- 4 层 skill 目录：`.skills/01-global` 到 `.skills/04-tech-stack`。
+- CLI：`mcp`、`board`、`init`。
+- 12 个内置示例 skill。
+- 通过 `GetPrompt("skills:compose", { tags })` 支持多 skill tag 组合。

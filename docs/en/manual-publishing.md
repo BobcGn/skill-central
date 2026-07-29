@@ -1,125 +1,125 @@
-# Manual Publishing Guide
+# 手动发布指南
 
-> **Audience:** the project owner. Use this when you want to publish a new version of `@bobcgn/skill-central` by hand. If you can wire a release job into CI (Trusted Publishing via OIDC, or a long-lived Automation Token in a repo secret), do that instead — this guide exists for the case when that's not viable.
+> **受众：** 项目所有者。当您想手动发布 `@bobcgn/skill-central` 的新版本时使用本指南。如果您可以在 CI 中集成发布作业（通过 OIDC 的可信发布，或仓库 secret 中的长期自动化令牌），请优先选择该方式——本指南仅适用于 CI 发布不可行的情况。
 >
-> **Scope:** every release from v0.2.0 onward. For v0.1.0 you used a different procedure; cross-reference [`CHANGELOG.md`](../CHANGELOG.md) if you need to reconstruct it.
+> **范围：** v0.2.0 及之后的所有版本。v0.1.0 使用了不同的流程；如果需要重构，请交叉参考 [`CHANGELOG.md`](../CHANGELOG.md)。
 >
-> **Recommended path:** see [`docs/trusted-publishing.md`](./trusted-publishing.md) for the one-time OIDC setup that turns `git push --tags` into a fully automated publish + GitHub Release. Use this manual guide only as a fallback when Trusted Publisher is unavailable (e.g. shipping a hotfix before the npmjs.com config is wired up, or publishing from a fork under a different scope).
+> **推荐路径：** 参见 [`docs/trusted-publishing.md`](./trusted-publishing.md) 进行一次性 OIDC 设置，这将把 `git push --tags` 变为完全自动化的发布 + GitHub Release。仅在可信发布者不可用时（例如，在 npmjs.com 配置完成前发布热修复，或从不同 scope 的 fork 发布）才使用本手动指南作为后备方案。
 
-## When to use this
+## 何时使用本指南
 
-Use this guide if **any** of the following is true:
+如果以下**任何**一项为真，请使用本指南：
 
-- The CI pipeline does not have a release job that runs `npm publish` automatically.
-- You want to verify a release locally before announcing it.
-- The CI release job is broken and you need to ship a hotfix.
-- You are publishing a private fork under a different scope.
+- CI 流水线没有自动运行 `npm publish` 的发布作业。
+- 您想在发布前在本地验证版本。
+- CI 发布作业损坏，您需要发布一个热修复。
+- 您正在从一个不同的 scope 发布一个私有 fork。
 
-If you have Trusted Publishing configured (OIDC between GitHub Actions and npm), prefer that path; this guide's purpose is the fallback. See [`docs/trusted-publishing.md`](./trusted-publishing.md) for the one-time setup.
+如果您已配置可信发布（GitHub Actions 和 npm 之间的 OIDC），请优先选择该路径；本指南的目的是作为后备。一次性设置请参见 [`docs/trusted-publishing.md`](./trusted-publishing.md)。
 
-## Prerequisites
+## 先决条件
 
-- [ ] `node --version` is **v22+** (the project targets Node 22 ESM)
-- [ ] `npm --version` is **v10+**
-- [ ] You are on the **`main` branch** in a clean working tree (`git status` reports no uncommitted changes)
-- [ ] You can run `npm whoami` and it returns your npm username (e.g. `bobcgn`)
-- [ ] You have completed [`docs/release-testing.md`](./release-testing.md) end-to-end and ticked every box
-- [ ] You have **a Granular Access Token** or **Automation Token** with publish scope for `@bobcgn/*` (see [§ 1](#1-get-a-publishing-token) below)
-- [ ] The version you intend to publish is **not yet on npm** (verified by `npm view @bobcgn/skill-central versions`)
+- [ ] `node --version` 为 **v22+** (项目目标为 Node 22 ESM)
+- [ ] `npm --version` 为 **v10+**
+- [ ] 您位于一个干净工作树的 **`main` 分支** (`git status` 显示无未提交的更改)
+- [ ] 您可以运行 `npm whoami` 并返回您的 npm 用户名 (例如 `bobcgn`)
+- [ ] 您已端到端完成 [`docs/release-testing.md`](./release-testing.md) 并勾选了所有项目
+- [ ] 您拥有一个**粒度访问令牌 (Granular Access Token)** 或**自动化令牌 (Automation Token)**，具有 `@bobcgn/*` 的发布权限 (见下文 [§ 1](#1-获取发布令牌))
+- [ ] 您打算发布的版本**尚未在 npm 上** (通过 `npm view @bobcgn/skill-central versions` 验证)
 
-> **Heads-up about tokens.** Two operations in this guide require fresh credentials:
-> 1. The `npm publish` itself (Granular / Automation token — no OTP).
-> 2. Post-publish cleanup like `npm token revoke` and `git tag --delete` (require a 2FA OTP because they modify account or repo state).
+> **关于令牌的提醒。** 本指南中有两个操作需要新的凭据：
+> 1. `npm publish` 本身 (粒度/自动化令牌 — 无需 OTP)。
+> 2. 发布后的清理工作，如 `npm token revoke` 和 `git tag --delete` (因为它们会修改账户或仓库状态，需要 2FA OTP)。
 >
-> If your account has 2FA enforced, have your authenticator ready for the second category.
+> 如果您的账户强制执行了 2FA，请为第二类操作准备好您的身份验证器。
 
 ---
 
-## 1. Get a publishing token
+## 1. 获取发布令牌
 
-> **Critical.** The token you need is **not** the "Publish token" option in the npm web UI. That one is for the website only. For CLI publish you need a **Granular Access Token** (recommended) or an **Automation Token**.
+> **关键。** 您需要的令牌**不是** npm 网页界面中的 "Publish token" 选项。那个只适用于网站。对于 CLI 发布，您需要一个**粒度访问令牌 (Granular Access Token)** (推荐) 或一个**自动化令牌 (Automation Token)**。
 
-### Option A — Granular Access Token (recommended)
+### 方案 A — 粒度访问令牌 (推荐)
 
-1. Go to <https://www.npmjs.com/settings/~/tokens>.
-2. Click **"Generate New Token"** → **"Granular Access Token"** (do not pick "Classic Token" or "Publish token").
-3. **Token name:** something memorable, e.g. `skill-central-publish-2026-06`.
-4. **Expiration:** pick the shortest window you can tolerate. For a one-time publish, **1 day** is fine.
-5. **Packages and scopes:** choose **"Read and write"**; then under "Select packages" pick **Only `@bobcgn`** (or "All packages" if you want flexibility).
-6. **Other permissions:** leave the defaults.
-7. Click **"Generate token"**. npm will show the token **once** — copy it immediately and store it in a password manager. The string will start with `npm_` and look like `npm_XXXXXXXXXXXXXXXXXXXX`.
-8. Verify the token: run `NPM_CONFIG_TOKEN=npm_xxx npm whoami` — should print your username without asking for an OTP.
+1. 前往 <https://www.npmjs.com/settings/~/tokens>。
+2. 点击 **"Generate New Token"** → **"Granular Access Token"** (不要选择 "Classic Token" 或 "Publish token")。
+3. **令牌名称：** 起一个容易记住的名字，例如 `skill-central-publish-2026-06`。
+4. **过期时间：** 选择您能容忍的最短窗口。对于一次性发布，**1 天**即可。
+5. **包和范围：** 选择 **"Read and write"**；然后在 "Select packages" 下选择 **Only `@bobcgn`** (如果您需要灵活性，可以选择 "All packages")。
+6. **其他权限：** 保留默认值。
+7. 点击 **"Generate token"**。npm 将**只显示一次**令牌——立即复制并存入密码管理器。该字符串将以 `npm_` 开头，看起来像 `npm_XXXXXXXXXXXXXXXXXXXX`。
+8. 验证令牌：运行 `NPM_CONFIG_TOKEN=npm_xxx npm whoami` — 应该会打印您的用户名，而不会要求 OTP。
 
-### Option B — Automation Token
+### 方案 B — 自动化令牌
 
-1. Same URL → **"Generate New Token"** → **"Automation Token"**.
-2. Choose "Publish" scope for `@bobcgn/*`.
-3. Expiration 1 day.
-4. Copy and verify as above.
+1. 相同 URL → **"Generate New Token"** → **"Automation Token"**。
+2. 为 `@bobcgn/*` 选择 "Publish" 范围。
+3. 过期时间 1 天。
+4. 按上述方法复制和验证。
 
-### If you need to revoke a leaked token
+### 如果您需要撤销泄露的令牌
 
-- In the website: Settings → Tokens → click the row's trash icon.
-- Or via CLI (requires 2FA OTP): `npm token revoke <id>` — the `<id>` is the hex you see in `npm token list`.
+- 在网站上：Settings → Tokens → 点击该行的垃圾桶图标。
+- 或通过 CLI (需要 2FA OTP)：`npm token revoke <id>` — `<id>` 是您在 `npm token list` 中看到的十六进制值。
 
 ---
 
-## 2. Pre-publish verification
+## 2. 发布前验证
 
-Run these in order. Stop at the first failure and fix it.
+按顺序运行这些命令。在第一个失败处停止并修复。
 
 ```bash
-# 0. Confirm you're on main, in a clean tree, with v0.X.0 ahead.
+# 0. 确认您在 main 分支，工作树干净，且 v0.X.0 版本领先。
 git checkout main
 git pull --ff-only
-git status                     # nothing uncommitted
+git status                     # 无未提交的更改
 git log --oneline -5
 
-# 1. Confirm Node + npm versions
+# 1. 确认 Node + npm 版本
 node --version
 npm --version
 
-# 2. Confirm you're logged in (existing ~/.npmrc)
-npm whoami                     # prints your npm username
+# 2. 确认您已登录 (通过现有的 ~/.npmrc)
+npm whoami                     # 打印您的 npm 用户名
 
-# 3. Confirm v0.X.0 is NOT on npm yet (would 409 otherwise)
+# 3. 确认 v0.X.0 尚未在 npm 上 (否则会 409)
 npm view @bobcgn/skill-central@0.X.0 version
-# expect: "npm error 404 No match found for version 0.X.0"
+# 期望: "npm error 404 No match found for version 0.X.0"
 
-# 4. Run the pre-publish dry-run
+# 4. 运行发布预演
 npm publish --dry-run --access public
-# expect: 119 files, ~78 kB tarball, "Publishing to ... with tag latest and public access (dry-run)"
+# 期望: 119 个文件, ~78 kB 的 tarball, "Publishing to ... with tag latest and public access (dry-run)"
 ```
 
-If any step in this section fails, **stop and investigate**. The most common failure modes and fixes are in [§ 6](#6-troubleshooting).
+如果本节中的任何步骤失败，**请停止并调查**。最常见的失败模式和修复方法在 [§ 6](#6-故障排除) 中。
 
 ---
 
-## 3. Bump the version
+## 3. 提升版本
 
-Choose the right bump for the change set:
+为变更集选择正确的版本提升：
 
-| Change shape | Bump | Example |
+| 变更类型 | 提升 | 示例 |
 |---|---|---|
-| Breaking API change or new feature set | **minor** | `0.1.0` → `0.2.0` |
-| Backward-compatible bug fix or doc update | **patch** | `0.2.0` → `0.2.1` |
-| Pre-release channel | **pre-release** | `0.2.0` → `0.3.0-rc.1` |
+| 破坏性 API 更改或新功能集 | **minor** | `0.1.0` → `0.2.0` |
+|向后兼容的错误修复或文档更新|**patch**| `0.2.0` → `0.2.1` |
+| 预发布渠道 | **pre-release** | `0.2.0` → `0.3.0-rc.1` |
 
-Update three places consistently:
+在三个地方保持一致地更新：
 
 ```bash
-# Use npm version — it updates package.json AND creates a git tag.
-# Pick one:
+# 使用 npm version — 它会更新 package.json 并创建一个 git 标签。
+# 选择一个:
 npm version minor -m "chore(release): %s"
 npm version patch -m "chore(release): %s"
 npm version prerelease --preid=rc -m "chore(release): %s"
 
-# (Alternative: edit package.json by hand, then `git tag -a v0.X.0 -m "..."`)
+# (替代方案: 手动编辑 package.json, 然后 `git tag -a v0.X.0 -m "..."`)
 ```
 
-`npm version` also commits the change; if you prefer to keep the version bump in the same release commit as other code, edit `package.json` by hand and tag separately.
+`npm version` 也会提交更改；如果您希望将版本提升与代码更改放在同一个发布提交中，请手动编辑 `package.json` 并单独打标签。
 
-Push the new tag and the commit:
+推送新标签和提交：
 
 ```bash
 git push origin main
@@ -128,17 +128,17 @@ git push origin v0.X.0
 
 ---
 
-## 4. Publish
+## 4. 发布
 
-The script below uses a **temporary `.npmrc`** so the publish token does not overwrite your everyday `~/.npmrc` (which may carry a legacy auth token that triggers 2FA).
+以下脚本使用一个**临时 `.npmrc`**，这样发布令牌就不会覆盖您的日常 `~/.npmrc` (它可能带有一个会触发 2FA 的旧版 auth 令牌)。
 
 ```bash
 cd /path/to/skill-central
 
-# Substitute the token you generated in § 1.
+# 替换您在 § 1 中生成的令牌。
 export NPM_PUBLISH_TOKEN='npm_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
-# Build a temp .npmrc that uses ONLY the publish token.
+# 构建一个只使用发布令牌的临时 .npmrc。
 TMP_NPMRC="$(mktemp -t npmrc.XXXXXX)"
 cat > "$TMP_NPMRC" <<EOF
 registry=https://registry.npmjs.org
@@ -147,45 +147,45 @@ EOF
 chmod 600 "$TMP_NPMRC"
 trap "rm -f '$TMP_NPMRC'" EXIT
 
-# Sanity check: whoami with the publish token (no OTP prompt expected).
+# 健康检查: 使用发布令牌运行 whoami (不应提示 OTP)。
 npm whoami --userconfig "$TMP_NPMRC"
 
-# Publish. The prepublishOnly script in package.json runs `npm run build`
-# and `npm run build:web` first, so the dist/ tree is always fresh.
+# 发布。package.json 中的 prepublishOnly 脚本会先运行 `npm run build`
+# 和 `npm run build:web`，所以 dist/ 树总是最新的。
 npm publish --access public --tag latest --userconfig "$TMP_NPMRC"
 unset NPM_PUBLISH_TOKEN
 ```
 
-Expected output (last few lines):
+预期输出 (最后几行):
 
 ```
 + @bobcgn/skill-central@0.X.0
 ```
 
-If you do not see `+ @bobcgn/skill-central@0.X.0`, the publish failed. Do **not** retry blindly — see [§ 6](#6-troubleshooting).
+如果您没有看到 `+ @bobcgn/skill-central@0.X.0`，说明发布失败了。**不要**盲目重试——参见 [§ 6](#6-故障排除)。
 
-> **About `--tag latest`.** npm tags are independent of semver. By default a new top-of-range version is tagged `latest`, so `npm install @bobcgn/skill-central` resolves to it. You can omit `--tag latest` if you want to inherit npm's default, but the explicit form is less ambiguous. For pre-releases, prefer `--tag next` so `latest` keeps pointing at a stable release.
+> **关于 `--tag latest`。** npm 标签独立于 semver。默认情况下，一个新的最高范围版本会被标记为 `latest`，因此 `npm install @bobcgn/skill-central` 会解析到它。如果您想继承 npm 的默认行为，可以省略 `--tag latest`，但显式形式更明确。对于预发布版本，最好使用 `--tag next`，以便 `latest` 始终指向稳定版本。
 
 ---
 
-## 5. Post-publish verification
+## 5. 发布后验证
 
-Run these immediately after the publish succeeds. They confirm the package is reachable and the contents match what you intended.
+发布成功后立即运行这些命令。它们确认包是可访问的，并且内容与您预期的一致。
 
 ```bash
-# 5.1 Confirm the new version is on the registry
+# 5.1 确认新版本已在注册表上
 npm view @bobcgn/skill-central@0.X.0 version
-# expect: 0.X.0
+# 期望: 0.X.0
 
-# 5.2 Confirm the dist-tag moved
+# 5.2 确认 dist-tag 已移动
 npm view @bobcgn/skill-central dist-tags
-# expect: { "latest": "0.X.0", ... }
+# 期望: { "latest": "0.X.0", ... }
 
-# 5.3 Confirm the tarball contains the web assets
+# 5.3 确认 tarball 包含 web 资源
 npm view @bobcgn/skill-central@0.X.0 dist
-# expect: integrity sha512-..., tarball URL with version 0.X.0
+# 期望: integrity sha512-..., tarball URL 带有版本 0.X.0
 
-# 5.4 Smoke test: install in a clean dir and run
+# 5.4 冒烟测试：在一个干净的目录中安装并运行
 mkdir -p /tmp/sc-smoke && cd /tmp/sc-smoke
 npm init -y >/dev/null
 npm install @bobcgn/skill-central@0.X.0
@@ -195,117 +195,117 @@ npx skill-central init
 npx skill-central board --cli | head -5
 cd / && rm -rf /tmp/sc-smoke
 
-# 5.5 GitHub release (optional but recommended)
+# 5.5 GitHub release (可选但推荐)
 gh release create v0.X.0 \
   --title "v0.X.0" \
   --notes-file - <<'EOF'
-## What's in v0.X.0
+## v0.X.0 中的内容
 
 - …
 - …
 
-**Install:** `npm install @bobcgn/skill-central@0.X.0`
+**安装:** `npm install @bobcgn/skill-central@0.X.0`
 EOF
 ```
 
-If any of 5.1–5.3 fails, the publish did not actually land on the registry — investigate before announcing.
+如果 5.1–5.3 中有任何一项失败，说明发布实际上并未成功登陆注册表——在宣布前请进行调查。
 
 ---
 
-## 6. Troubleshooting
+## 6. 故障排除
 
 ### `npm error 401 Unauthorized`
 
-`npm` cannot find any usable auth. Either `~/.npmrc` is missing/wrong, or your token was revoked. Re-run § 1 to get a new Granular / Automation token, then re-run § 4.
+`npm` 找不到任何可用的身份验证。要么 `~/.npmrc` 缺失/错误，要么您的令牌已被撤销。重新运行 § 1 获取一个新的粒度/自动化令牌，然后重新运行 § 4。
 
 ### `npm error EOTP — This operation requires a one-time password`
 
-Two different things can trigger this:
+两件不同的事情可能触发此错误：
 
-- **You invoked `npm publish` with the wrong token type** (a "Publish token" from the web UI). It authenticates but cannot perform publish. The fix is to use a Granular or Automation token — see § 1.
-- **Your account has 2FA enforced AND you are not using a token.** Re-run with `--userconfig "$TMP_NPMRC"` pointing at a `.npmrc` that holds a Granular / Automation token. The token-based auth bypasses 2FA for publish.
+- **您使用了错误的令牌类型调用 `npm publish`** (来自 web UI 的 "Publish token")。它能通过身份验证但无法执行发布。修复方法是使用粒度或自动化令牌——参见 § 1。
+- **您的账户强制执行了 2FA 并且您没有使用令牌。** 使用 `--userconfig "$TMP_NPMRC"` 重新运行，指向一个包含粒度/自动化令牌的 `.npmrc`。基于令牌的身份验证会绕过发布的 2FA。
 
-Quick diagnosis:
+快速诊断：
 
 ```bash
-# Which token is in use?
+# 正在使用哪个令牌?
 npm token list --userconfig "$TMP_NPMRC"
-# Each row's "type" column should be "Granular" or "Automation", not "Publish".
+# 每行的 "type" 列应该是 "Granular" 或 "Automation"，而不是 "Publish"。
 ```
 
 ### `npm error 403 — You may not perform that action with these credentials`
 
-The token is valid but lacks publish scope for this package. Most common causes:
+令牌有效，但缺少此包的发布权限。最常见的原因：
 
-- Token's package scope is set to a different scope (e.g. `@other-org` instead of `@bobcgn`).
-- Token is a **"Publish token"** (web UI type) — see § 1.
-- Token is a read-only Granular token.
+- 令牌的包范围设置成了不同的 scope (例如 `@other-org` 而不是 `@bobcgn`)。
+- 令牌是一个 **"Publish token"** (web UI 类型) — 参见 § 1。
+- 令牌是一个只读的粒度令牌。
 
-Re-generate with the right scope and re-run § 4.
+重新生成具有正确权限的令牌，并重新运行 § 4。
 
 ### `npm error code E404 — No match found for version 0.X.0`
 
-You tried to view a version that does not exist yet. **This is the expected output for the "is it published yet?" check in § 2 step 3.** Do not treat it as a failure.
+您尝试查看一个尚不存在的版本。**这是 § 2 步骤 3 中“是否已发布？”检查的预期输出。** 不要将其视为失败。
 
-If it appears *after* a successful publish, the publish itself did not land — re-run § 2 and § 4.
+如果它在成功发布 *之后* 出现，说明发布本身没有成功——重新运行 § 2 和 § 4。
 
 ### `npm error code EPUBLISHCONFLICT — Cannot publish over existing version`
 
-Someone (or a CI run) already published `0.X.0`. Either:
+有人（或 CI 运行）已经发布了 `0.X.0`。可能是：
 
-- They were you on another machine — verify with `git log --all` and confirm you have not been working in two clones.
-- They are a CI release job that was not disabled. Check the `release` job in `.github/workflows/ci.yml` and either remove it or coordinate.
+- 您在另一台机器上操作的——用 `git log --all` 验证并确认您没有在两个克隆中工作。
+- 这是一个未被禁用的 CI 发布作业。检查 `.github/workflows/ci.yml` 中的 `release` 作业，并移除它或进行协调。
 
-Fix: bump to `0.X.1` (patch) and re-run from § 2.
+修复：提升到 `0.X.1` (patch) 并从 § 2 重新运行。
 
-### Tarball size is wrong / `dist/web/` is missing
+### Tarball 大小错误 / `dist/web/` 缺失
 
-The `files:` field in `package.json` controls what gets included. Verify:
+`package.json` 中的 `files:` 字段控制包含哪些内容。验证：
 
 ```bash
 npm pack --dry-run | grep -E "dist/web|index.html|app.js|style.css"
 ```
 
-You should see at least `dist/web/index.html`, `dist/web/app.js`, `dist/web/style.css`, plus all the `dist/commands/*.js`, `dist/storage/*.js`, `dist/protocol/*.js`. If `dist/web/` is missing, check that:
+您应该至少看到 `dist/web/index.html`、`dist/web/app.js`、`dist/web/style.css`，以及所有的 `dist/commands/*.js`、`dist/storage/*.js`、`dist/protocol/*.js`。如果 `dist/web/` 缺失，请检查：
 
-- `npm run build:web` ran (it copies `src/web/static/` to `dist/web/`)
-- The `files:` array in `package.json` includes `"dist/web/"`
-- `dist/web/index.html` exists locally
+- `npm run build:web` 已运行 (它将 `src/web/static/` 复制到 `dist/web/`)
+- `package.json` 中的 `files:` 数组包含 `"dist/web/"`
+- `dist/web/index.html` 在本地存在
 
-Fix the underlying issue, re-run `npm run build:web`, and re-run § 4.
+修复根本问题，重新运行 `npm run build:web`，然后重新运行 § 4。
 
-### `npm error EACCES` or `EPERM` writing to a file
+### `npm error EACCES` 或 `EPERM` 写入文件时出错
 
-Permission issue on the working tree. Check `ls -la dist/`, fix ownership, or re-clone the repo.
+工作树的权限问题。检查 `ls -la dist/`，修复所有权，或重新克隆仓库。
 
-### "I forgot to bump the version and published 0.1.0 over the existing 0.1.0"
+### "我忘了提升版本，将 0.1.0 覆盖了现有的 0.1.0"
 
-You cannot unpublish a single version. Options:
+您无法取消发布单个版本。选项：
 
-- **Deprecate the version**: `npm deprecate @bobcgn/skill-central@0.1.0 "reason"`. This is the right move — leaves the version published but warns users away.
-- **Unpublish the whole package**: `npm unpublish @bobcgn/skill-central --force`. Only available within **72 hours** of the publish and not allowed if the package has dependents. Use only as a last resort.
+- **弃用该版本**：`npm deprecate @bobcgn/skill-central@0.1.0 "reason"`。这是正确的做法——保留已发布的版本但警告用户不要使用。
+- **取消发布整个包**：`npm unpublish @bobcgn/skill-central --force`。仅在发布后的 **72 小时**内可用，且如果包有依赖项则不允许。仅作为最后手段使用。
 
-If you really need to "remove" a bad release, bump to the next patch, publish, and deprecate the broken one.
+如果您真的需要“移除”一个错误的发布，请提升到下一个补丁版本，发布，然后弃用那个损坏的版本。
 
 ---
 
-## 7. Quick reference (one-screen version)
+## 7. 快速参考 (单屏版本)
 
 ```bash
-# 0. Pre-flight
+# 0. 飞行前检查
 git checkout main && git pull --ff-only && git status
 node --version && npm --version && npm whoami
 
-# 1. Confirm not yet published
+# 1. 确认尚未发布
 npm view @bobcgn/skill-central@0.X.0 version
 npm publish --dry-run --access public
 
-# 2. Bump + tag + push
+# 2. 提升版本 + 打标签 + 推送
 npm version minor -m "chore(release): %s"
 git push origin main
 git push origin v0.X.0
 
-# 3. Publish
+# 3. 发布
 export NPM_PUBLISH_TOKEN='npm_xxx'
 TMP_NPMRC="$(mktemp -t npmrc.XXXXXX)"
 cat > "$TMP_NPMRC" <<EOF
@@ -317,27 +317,27 @@ trap "rm -f '$TMP_NPMRC'" EXIT
 npm publish --access public --tag latest --userconfig "$TMP_NPMRC"
 unset NPM_PUBLISH_TOKEN
 
-# 4. Verify
+# 4. 验证
 npm view @bobcgn/skill-central@0.X.0 version
 npm view @bobcgn/skill-central dist-tags
 
-# 5. Smoke install
+# 5. 冒烟安装
 mkdir -p /tmp/sc-smoke && cd /tmp/sc-smoke
 npm init -y >/dev/null && npm install @bobcgn/skill-central@0.X.0
 npx skill-central --version && npx skill-central --help | head -3
 cd / && rm -rf /tmp/sc-smoke
 
-# 6. Revoke the publish token (now public in chat / history)
-#    — manual at https://www.npmjs.com/settings/~/tokens
-#    — or `npm token revoke <id>` (needs 2FA OTP)
+# 6. 撤销发布令牌 (现在在聊天/历史记录中是公开的)
+#    — 手动在 https://www.npmjs.com/settings/~/tokens
+#    — 或 `npm token revoke <id>` (需要 2FA OTP)
 ```
 
 ---
 
-## 8. What to do after publishing
+## 8. 发布后做什么
 
-- [ ] Mark the v0.X.0 todo in your tracker as done
-- [ ] Update any dependent projects (none here, but if you have a downstream consumer)
-- [ ] Post a short announcement (project README badge, social, etc.) linking to the GitHub release
-- [ ] Close the milestone on GitHub if you use them
-- [ ] If a CI release job exists, make sure it is configured to skip this version (so it does not try to re-publish and fail with EPUBLISHCONFLICT)
+- [ ] 在您的追踪器中将 v0.X.0 的待办事项标记为完成
+- [ ] 更新任何依赖的项目 (这里没有，但如果您有下游消费者)
+- [ ] 发布一个简短的公告 (项目 README 徽章、社交媒体等)，链接到 GitHub release
+- [ ] 如果您使用里程碑，请在 GitHub 上关闭它
+- [ ] 如果存在 CI 发布作业，请确保将其配置为跳过此版本 (这样它就不会尝试重新发布并因 EPUBLISHCONFLICT 而失败)

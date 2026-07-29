@@ -57,14 +57,17 @@ skill-central install npm:@bobcgn/some-skills@1.2.3
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "entries": {
     "review-pr": {
       "id": "review-pr",
       "source": "github:BobcGn/skill-central/.skills/02-workflows/review-pr.yaml@main",
+      "sourceKind": "github",
       "version": "main",
+      "resolvedHash": "2e9897a8819c996f6bb677a4731626bd414f1008da1f93f3958a2a3391b77568",
       "sha256": "2e9897a8819c996f6bb677a4731626bd414f1008da1f93f3958a2a3391b77568",
       "installedAt": "2026-06-15T09:11:08.835Z",
+      "schemaVersion": "skillcentral.dev/v1",
       "layer": "02-workflows",
       "filePath": "/home/you/.skill-central/skills/02-workflows/review-pr.yaml"
     }
@@ -73,9 +76,14 @@ skill-central install npm:@bobcgn/some-skills@1.2.3
 ```
 
 - `source` — `update` 用于重新获取的规范原始形式
-- `sha256` — 安装时磁盘上文件的 sha256；用于漂移检测
+- `sourceKind` — `github`、`npm` 或 `unknown`；供后续同步/审计策略使用
+- `resolvedHash` — 实际写入磁盘的 YAML 内容 hash
+- `sha256` — 同一内容 hash 的兼容字段；现有漂移检测继续使用
+- `schemaVersion` — 已安装 skill 的 schema version；读取旧 lock 时为 `unknown`
 - `layer` — 文件写入的层的显示名称
 - `filePath` — 绝对路径；`update` 和 `uninstall` 会逐字信任此路径
+
+旧的 `version: 1` lock 文件可以读取，并会在内存中归一化为 `version: 2`。下一次 install/update/uninstall 会把升级后的 v2 结构写回磁盘。
 
 ## 安全模型
 
@@ -100,7 +108,7 @@ if (name.includes("..") || name.includes("\\")) return;  // tar-slip 攻击尝�
 
 ### sha256 验证
 
-锁文件记录了安装时文件的 sha256。`update` 重新获取，计算新的 sha256，并且只有在它们不同时才报告漂移。**没有签名验证**——我们信任源（GitHub 仓库，npm 包）。如果您需要更强的保证，请固定到 git 标签或带有 `@v1.2.3` 的 npm 版本。
+锁文件记录了安装时文件的 resolved hash。`update` 重新获取，计算新的 sha256/resolvedHash，并且只有在它们不同时才报告漂移。**没有签名验证**——我们信任源（GitHub 仓库，npm 包）。如果您需要更强的保证，请固定到 git 标签或带有 `@v1.2.3` 的 npm 版本。
 
 ### 确认提示
 

@@ -1,124 +1,124 @@
-# Trusted Publishing (npm OIDC)
+# 可信发布 (npm OIDC)
 
-> **Audience:** the project owner. Use this guide to wire npm Trusted Publishing to GitHub Actions for `@bobcgn/skill-central`. After the one-time setup, every `v*` tag push runs `.github/workflows/release.yml`, which publishes to npm and creates a GitHub Release — **no manual `npm publish`, no long-lived token in repo secrets**.
+> **受众：** 项目所有者。使用本指南将 npm 可信发布与 GitHub Actions 关联，用于 `@bobcgn/skill-central`。一次性设置后，每次 `v*` 标签推送都会运行 `.github/workflows/release.yml`，该工作流会发布到 npm 并创建一个 GitHub Release — **无需手动 `npm publish`，也无需在仓库 secret 中存储长期令牌**。
 >
-> **Scope:** applies from v0.2.1 onward (when `release.yml` was added). v0.2.0 was published manually before this flow existed; cross-reference [`CHANGELOG.md`](../CHANGELOG.md) if you need to reconstruct it.
+> **范围：** 适用于 v0.2.1 及之后版本 (此时添加了 `release.yml`)。v0.2.0 是在该流程存在前手动发布的；如果需要重构，请交叉参考 [`CHANGELOG.md`](../CHANGELOG.md)。
 
-## When to use this
+## 何时使用
 
-Set up Trusted Publishing if **any** of the following is true:
+如果以下**任何**一项为真，请设置可信发布：
 
-- You want `git push --tags` to ship a release end-to-end with no further action.
-- You want every published tarball to carry a **Sigstore-signed provenance attestation** verifiable via `npm view <pkg> --json | jq .dist.attestations`.
-- You're tired of minting Granular Access Tokens for each release and revoking them after.
+- 您希望 `git push --tags` 能够端到端地发布一个版本，无需进一步操作。
+- 您希望每个发布的 tarball 都带有一个**经 Sigstore 签名的来源证明**，可通过 `npm view <pkg> --json | jq .dist.attestations` 进行验证。
+- 您厌倦了为每个版本铸造粒度访问令牌并在之后撤销它们。
 
-If you specifically need to publish **without** configuring OIDC (e.g. forking the project under a different npm scope), use [`docs/manual-publishing.md`](./manual-publishing.md) instead — that guide is the long-lived-token fallback.
+如果您特别需要**不**配置 OIDC 进行发布 (例如，在不同的 npm scope 下 fork 项目)，请改用 [`docs/manual-publishing.md`](./manual-publishing.md) — 该指南是长期令牌的后备方案。
 
-## Prerequisites
+## 先决条件
 
-- [ ] You own (or have admin access to) [`@bobcgn/skill-central`](https://www.npmjs.com/package/@bobcgn/skill-central) on npmjs.com
-- [ ] You have admin access to [`BobcGn/skill-central`](https://github.com/BobcGn/skill-central) on GitHub
-- [ ] The `.github/workflows/release.yml` file exists in `main` (it does as of v0.2.1)
-- [ ] You have read [`docs/manual-publishing.md`](./manual-publishing.md) at least once, so you know what the workflow is automating
+- [ ] 您在 npmjs.com 上拥有 (或具有管理员权限) [`@bobcgn/skill-central`](https://www.npmjs.com/package/@bobcgn/skill-central)
+- [ ] 您在 GitHub 上拥有 [`BobcGn/skill-central`](https://github.com/BobcGn/skill-central) 的管理员权限
+- [ ] `.github/workflows/release.yml` 文件存在于 `main` 分支 (自 v0.2.1 起存在)
+- [ ] 您至少读过一次 [`docs/manual-publishing.md`](./manual-publishing.md)，以便了解该工作流正在自动化什么
 
 ---
 
-## 1. Register the workflow as a Trusted Publisher on npm
+## 1. 在 npm 上注册工作流为可信发布者
 
-This step happens once, on npmjs.com, and creates the OIDC trust anchor.
+此步骤在 npmjs.com 上进行一次，用于创建 OIDC 信任锚。
 
-1. Open <https://www.npmjs.com/package/@bobcgn/skill-central/settings>.
-2. Scroll to **Publishing access** → **Trusted Publishers** → **Add GitHub Actions**.
-3. Fill in:
+1. 打开 <https://www.npmjs.com/package/@bobcgn/skill-central/settings>。
+2. 滚动到 **Publishing access** → **Trusted Publishers** → **Add GitHub Actions**。
+3. 填写：
 
-   | Field | Value | Why |
+   | 字段 | 值 | 原因 |
    |---|---|---|
-   | Owner | `BobcGn` | The GitHub org / user that owns this repo |
-   | Repository | `skill-central` | The repo name |
-   | Workflow filename | `release.yml` | **Must match** the basename of `.github/workflows/release.yml`. If you ever rename the workflow, you must update this field — there's no auto-detection. |
-   | Environment name | *(leave blank)* | Optional. Setting one here gates the OIDC token to a [GitHub Environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) with its own protection rules. Recommended for high-stakes repos; skip for solo projects. |
+   | Owner | `BobcGn` | 拥有此仓库的 GitHub 组织/用户 |
+   | Repository | `skill-central` | 仓库名称 |
+   | Workflow filename | `release.yml` | **必须匹配** `.github/workflows/release.yml` 的基本名称。如果重命名工作流，必须更新此字段——没有自动检测。 |
+   | Environment name | *(留空)* | 可选。在此设置会使 OIDC 令牌仅限于具有自己保护规则的 [GitHub 环境](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)。建议用于高风险仓库；个人项目可跳过。 |
 
-4. Click **Add**. The new entry appears in the Trusted Publishers list with a truncated hash of its config — that hash is what npm checks on every publish, so **do not edit the workflow filename after this step without also updating the entry**.
+4. 点击 **Add**。新条目会出现在可信发布者列表中，并带有一个其配置的截断哈希——每次发布时 npm 都会检查此哈希，所以**在此步骤后不要编辑工作流文件名而不更新此条目**。
 
-> **Why not an npm Granular Access Token?** Tokens are bearer secrets: they outlive the workflow run, they can leak in logs, they have to be rotated. OIDC tokens are short-lived (a few minutes), tied to a specific workflow run, and never appear in logs as a usable secret. The npmjs.com docs call this "the recommended approach for npm publishing from CI" as of 2024.
-
----
-
-## 2. Sanity-check the workflow configuration
-
-Open `.github/workflows/release.yml` and confirm three things:
-
-- [ ] `permissions.id-token: write` is present (mandatory for `--provenance`)
-- [ ] `setup-node` step has `registry-url: 'https://registry.npmjs.org'` (this is what wires the OIDC token into npm's auth flow)
-- [ ] `npm publish` step uses `--provenance --access public`
-
-If any of these are missing, `npm publish` will fail with one of:
-
-- `npm error code EUNSUPPORTEDPROTOCOL` (no `registry-url`)
-- `npm error code E403` (no `id-token: write`)
-- `npm notice provenance attestation not generated` (no `--provenance`)
+> **为什么不使用 npm 粒度访问令牌？** 令牌是持有者秘密：它们的生命周期比工作流运行长，可能会在日志中泄露，并且必须轮换。OIDC 令牌是短暂的 (几分钟)，与特定的工作流运行相关联，并且永远不会作为可用的秘密出现在日志中。自 2024 年起，npmjs.com 文档称其为“从 CI 发布 npm 的推荐方法”。
 
 ---
 
-## 3. Dry-run the workflow without actually publishing
+## 2. 健康检查工作流配置
 
-Before you push a real tag, you can validate that the OIDC handshake works without burning a release attempt:
+打开 `.github/workflows/release.yml` 并确认三件事：
 
-1. In a throwaway branch, edit `release.yml` to comment out the `npm publish` step and the `Create GitHub Release` step, leaving only the build + checks.
-2. Push the branch. The workflow **will not run** (it only triggers on `v*` tags).
-3. Create a dummy tag: `git tag -a v0.0.0-test -m "OIDC handshake probe" && git push origin v0.0.0-test`.
-4. Watch the Actions tab — the build + version checks should pass.
-5. If `npm view` step is reached at the end (it now is, since the publish step is commented out — wait, it's also gated on `if: success()` after the publish), it will skip because the publish step did succeed (`if: success()` evaluates the upstream step's status, which is "skipped" = success). Skip this dry-run entirely; just push a real `v0.0.0-test.1` tag with a pre-release suffix and accept the throwaway publish.
+- [ ] `permissions.id-token: write` 存在 (对于 `--provenance` 是强制性的)
+- [ ] `setup-node` 步骤有 `registry-url: 'https://registry.npmjs.org'` (这是将 OIDC 令牌接入 npm auth 流程的关键)
+- [ ] `npm publish` 步骤使用 `--provenance --access public`
 
-Actually, a cleaner approach: **publish a real pre-release**. npm accepts and propagates `v0.0.0-trusted-publishing-test.1` as a `next` tag without disturbing `latest`:
+如果缺少其中任何一项，`npm publish` 将失败，并出现以下错误之一：
+
+- `npm error code EUNSUPPORTEDPROTOCOL` (无 `registry-url`)
+- `npm error code E403` (无 `id-token: write`)
+- `npm notice provenance attestation not generated` (无 `--provenance`)
+
+---
+
+## 3. 在不实际发布的情况下预演工作流
+
+在推送真实标签之前，您可以在不消耗一次发布尝试的情况下验证 OIDC 握手是否有效：
+
+1. 在一个一次性分支中，编辑 `release.yml`，注释掉 `npm publish` 步骤和 `Create GitHub Release` 步骤，只留下构建+检查。
+2. 推送该分支。工作流**不会运行** (它只在 `v*` 标签上触发)。
+3. 创建一个虚拟标签：`git tag -a v0.0.0-test -m "OIDC handshake probe" && git push origin v0.0.0-test`。
+4. 观察 Actions 选项卡——构建+版本检查应该会通过。
+5. 如果最后到达 `npm view` 步骤 (现在会，因为发布步骤被注释了——等等，它也在发布后的 `if: success()` 中)，它会跳过，因为发布步骤成功了 ("skipped" = success)。完全跳过此预演；直接推送一个带有预发布后缀的真实 `v0.0.0-test.1` 标签，并接受这次一次性发布。
+
+实际上，一个更干净的方法是：**发布一个真实的预发布版本**。npm 接受并传播 `v0.0.0-trusted-publishing-test.1` 作为一个 `next` 标签，而不会干扰 `latest`：
 
 ```bash
 git tag -a v0.0.0-trusted-publishing-test.1 -m "OIDC handshake probe — not a real release"
 git push origin v0.0.0-trusted-publishing-test.1
 ```
 
-Wait for the workflow to finish, then:
+等待工作流完成后，然后：
 
 ```bash
-# Confirm provenance
+# 确认来源
 npm view "@bobcgn/skill-central@0.0.0-trusted-publishing-test.1" --json | jq .dist.attestations
-# Deprecate so users get a warning if they ever hit this version
+# 弃用，以便用户如果遇到此版本会收到警告
 npm deprecate "@bobcgn/skill-central@0.0.0-trusted-publishing-test.1" "OIDC handshake probe, not a real release."
-# Delete the tag on both sides
+# 在两边删除标签
 git push origin :v0.0.0-trusted-publishing-test.1
 git tag -d v0.0.0-trusted-publishing-test.1
 ```
 
-> **You cannot unpublish a published version after 72 hours.** The deprecate step above adds an `npm WARN deprecated` line to anyone who installs, but does not remove the version. Pick your probe tag accordingly (e.g. `0.0.0-trusted-publishing-test.<date>`).
+> **您在 72 小时后无法取消发布一个已发布的版本。** 上述的弃用步骤会向任何安装者添加一个 `npm WARN deprecated` 行，但不会移除该版本。请相应地选择您的探测标签 (例如 `0.0.0-trusted-publishing-test.<date>`)。
 
 ---
 
-## 4. The actual release flow
+## 4. 实际的发布流程
 
-Once § 1–§ 2 are done, every release is:
+一旦 § 1–§ 2 完成，每个版本的发布都是：
 
 ```bash
-# On main, with a clean tree, after the changelog + package.json bump are committed:
+# 在 main 分支上，工作树干净，changelog + package.json 版本提升已提交后：
 git checkout main && git pull --ff-only
-git status                     # nothing uncommitted
-git log --oneline -3           # confirm you're where you think you are
+git status                     # 无未提交的更改
+git log --oneline -3           # 确认您在预期的位置
 
-# Tag — the workflow does the rest.
-git tag -a v0.X.Y -m "v0.X.Y — <one-line summary>"
+# 打标签 — 工作流会完成剩下的事情。
+git tag -a v0.X.Y -m "v0.X.Y — <一行摘要>"
 git push origin v0.X.Y
 ```
 
-The workflow will:
+工作流将：
 
-1. Build the project (tsc + build:web) on a fresh Ubuntu runner.
-2. Verify the built artifacts (`dist/index.js`, `dist/web/index.html`).
-3. Verify `package.json#version` matches the tag.
-4. Verify `CHANGELOG.md` has a `## [<version>]` section.
-5. Run `npm publish --provenance --access public` via OIDC. npm records the Sigstore provenance attestation.
-6. Extract the matching CHANGELOG section and create the GitHub Release with it as the body.
-7. Run a best-effort `npm view` against the new version to confirm registry propagation (warns, does not fail).
+1. 在一个全新的 Ubuntu runner 上构建项目 (tsc + build:web)。
+2. 验证构建的产物 (`dist/index.js`, `dist/web/index.html`)。
+3. 验证 `package.json#version` 与标签匹配。
+4. 验证 `CHANGELOG.md` 有一个 `## [<version>]` 部分。
+5. 通过 OIDC 运行 `npm publish --provenance --access public`。npm 记录 Sigstore 来源证明。
+6. 提取匹配的 CHANGELOG 部分，并用它作为正文创建 GitHub Release。
+7. 对新版本运行一个尽力而为的 `npm view` 以确认注册表传播 (会警告，但不会失败)。
 
-You can watch progress in the **Actions** tab on GitHub. Successful run looks like:
+您可以在 GitHub 的 **Actions** 选项卡中观察进度。成功运行看起来像：
 
 ```
 ✓ Publish to npm
@@ -127,25 +127,25 @@ You can watch progress in the **Actions** tab on GitHub. Successful run looks li
 ✓ Verify npm registry propagation
 ```
 
-A failed run shows up as a red ❌ on the first failed step with a direct link to the relevant log lines.
+失败的运行会在第一个失败的步骤上显示一个红色的 ❌，并有指向相关日志行的直接链接。
 
 ---
 
-## 5. After the workflow succeeds
+## 5. 工作流成功后
 
-The same checks that the manual flow runs are still useful:
+手动流程中运行的相同检查仍然有用：
 
 ```bash
-# 5.1 Confirm the new version is on the registry
+# 5.1 确认新版本已在注册表上
 npm view "@bobcgn/skill-central@0.X.Y" version
 
-# 5.2 Confirm the dist-tag moved
+# 5.2 确认 dist-tag 已移动
 npm view "@bobcgn/skill-central" dist-tags
 
-# 5.3 Confirm provenance attestation is present
+# 5.3 确认来源证明存在
 npm view "@bobcgn/skill-central@0.X.Y" --json | jq .dist.attestations
 
-# 5.4 Smoke test in a clean dir
+# 5.4 在干净目录中进行冒烟测试
 mkdir -p /tmp/sc-smoke && cd /tmp/sc-smoke
 npm init -y >/dev/null
 npm install "@bobcgn/skill-central@0.X.Y"
@@ -156,57 +156,57 @@ npx skill-central board --cli | head -5
 cd / && rm -rf /tmp/sc-smoke
 ```
 
-The GitHub Release is created automatically by the workflow — no need to run `gh release create` by hand. You can find it at <https://github.com/BobcGn/skill-central/releases/tag/v0.X.Y>.
+GitHub Release 由工作流自动创建——无需手动运行 `gh release create`。您可以在 <https://github.com/BobcGn/skill-central/releases/tag/v0.X.Y> 找到它。
 
 ---
 
-## 6. Troubleshooting
+## 6. 故障排除
 
-### `npm error code EUNSUPPORTEDPROTOCOL` or `E403` on `npm publish`
+### `npm publish` 时出现 `npm error code EUNSUPPORTEDPROTOCOL` 或 `E403`
 
-The OIDC handshake failed. Most likely causes, in order of frequency:
+OIDC 握手失败。最可能的原因，按频率排序：
 
-1. **The Trusted Publisher entry on npmjs.com doesn't exist yet**, or the workflow filename doesn't match `release.yml` exactly. Re-check § 1.
-2. **`id-token: write` is missing** from `.github/workflows/release.yml#permissions`. Re-check § 2.
-3. **`registry-url` is missing** from the `setup-node` step. Re-check § 2.
-4. **The tag was pushed to a fork**. OIDC tokens carry the repo they were minted for. A `git push origin vX.Y` from a fork goes to *your* fork's origin, not the trusted `BobcGn/skill-central`. Push from a clone of the upstream repo, or update the Trusted Publisher entry to include the fork.
+1. **npmjs.com 上的可信发布者条目尚不存在**，或者工作流文件名与 `release.yml` 不完全匹配。重新检查 § 1。
+2. **`.github/workflows/release.yml#permissions` 中缺少 `id-token: write`**。重新检查 § 2。
+3. **`setup-node` 步骤中缺少 `registry-url`**。重新检查 § 2。
+4. **标签被推送到了一个 fork**。OIDC 令牌携带了它们被铸造的仓库。来自 fork 的 `git push origin vX.Y` 会推送到*您的* fork 的 origin，而不是受信任的 `BobcGn/skill-central`。从上游仓库的克隆中推送，或更新可信发布者条目以包含该 fork。
 
 ### `npm error code EPUBLISHCONFLICT — Cannot publish over existing version`
 
-The version is already on the registry. Most likely cause: a previous workflow run succeeded but the later steps (release creation, post-publish) failed, and you're re-running the job. **Do not re-run** — instead:
+该版本已在注册表上。最可能的原因是：上一个工作流运行成功了，但后续步骤 (release 创建、发布后) 失败了，而您正在重新运行该作业。**不要重新运行**——相反：
 
-- Confirm the version is on npm (`npm view @bobcgn/skill-central versions`).
-- If yes: skip the publish and only re-run the GitHub Release creation manually with `gh release create`.
-- If no (registry cache lag, usually <5 min): wait and try `gh release create` without re-running the workflow.
+- 确认该版本在 npm 上 (`npm view @bobcgn/skill-central versions`)。
+- 如果是：跳过发布，只用 `gh release create` 手动重新运行 GitHub Release 创建。
+- 如果否 (注册表缓存延迟，通常 <5 分钟)：等待并尝试 `gh release create` 而不重新运行工作流。
 
-### `gh release create` fails with "Release with the same tag name already exists"
+### `gh release create` 失败并提示 "Release with the same tag name already exists"
 
-A previous run created the release but failed later. Delete it and re-run, or just edit the existing release body via the web UI.
+上一个运行创建了 release 但后来失败了。删除它并重新运行，或者直接通过 web UI 编辑现有的 release 正文。
 
-### "Provenance attestation not generated" (warning, not error)
+### "Provenance attestation not generated" (警告，非错误)
 
-`npm publish` succeeded but didn't attach a Sigstore attestation. Causes:
+`npm publish` 成功了，但没有附加 Sigstore 证明。原因：
 
-- `--provenance` flag missing — re-check § 2.
-- npm ran in a context where OIDC isn't supported (e.g. a self-hosted runner with old `npm`). The hosted runners (`ubuntu-latest` etc.) all support it.
+- 缺少 `--provenance` 标志——重新检查 § 2。
+- npm 在 OIDC 不受支持的环境中运行 (例如，带有旧版 `npm` 的自托管 runner)。托管的 runner (`ubuntu-latest` 等) 都支持它。
 
-The published tarball is still usable; it just won't have the provenance attestation. Fix before the next release.
+发布的 tarball 仍然可用；只是没有来源证明。在下一次发布前修复。
 
-### A pre-release tag accidentally became `latest`
+### 预发布标签意外地成为了 `latest`
 
-Happens when the tag's semver doesn't carry a pre-release suffix. For example, `v0.2.1` (no suffix) → `latest`. `v0.2.1-rc.1` → `next` (or whatever you pass via `--tag`). Fix:
+当标签的 semver 没有预发布后缀时发生。例如，`v0.2.1` (无后缀) → `latest`。`v0.2.1-rc.1` → `next` (或您通过 `--tag` 传递的任何内容)。修复：
 
 ```bash
 npm dist-tag add @bobcgn/skill-central@<previous-stable> latest
-# e.g. if 0.2.0 was the previous stable:
+# 例如，如果 0.2.0 是上一个稳定版：
 npm dist-tag add @bobcgn/skill-central@0.2.0 latest
 ```
 
-Then deprecate the offending version: `npm deprecate @bobcgn/skill-central@<bad> "wrong dist-tag"`.
+然后弃用有问题的版本：`npm deprecate @bobcgn/skill-central@<bad> "wrong dist-tag"`。
 
-### I lost the GitHub Release
+### 我丢失了 GitHub Release
 
-Re-create it from the existing CHANGELOG entry:
+从现有的 CHANGELOG 条目重新创建它：
 
 ```bash
 VERSION="0.X.Y"
@@ -217,49 +217,49 @@ sed -n "${START},$((END-1))p" CHANGELOG.md > /tmp/notes.md
 gh release create "v$VERSION" --title "v$VERSION" --notes-file /tmp/notes.md
 ```
 
-(Same awk idiom the workflow uses, copied out for manual recovery.)
+(与工作流使用的 awk 惯用法相同，为手动恢复复制出来。)
 
 ---
 
-## 7. Rolling back a bad release
+## 7. 回滚一个糟糕的发布
 
-Trusted Publisher doesn't change the rollback story much — npm's 72-hour unpublish window still applies. The sequence:
+可信发布对回滚的故事没有太大改变——npm 的 72 小时取消发布窗口仍然适用。顺序：
 
-1. Within 72 hours of publish: `npm unpublish @bobcgn/skill-central@0.X.Y --force`. Permanent removal.
-2. After 72 hours, or if the version has dependents: bump to the next patch, publish that, then `npm deprecate @bobcgn/skill-central@0.X.Y "reason"`. Users who upgrade past the deprecation warning will not be affected.
-3. Either way, delete the GitHub Release: `gh release delete v0.X.Y --yes`. If the version was already yanked, the release tarball will 404; deleting it removes the misleading UI.
+1. 在发布后 72 小时内：`npm unpublish @bobcgn/skill-central@0.X.Y --force`。永久移除。
+2. 72 小时后，或者如果版本有依赖项：提升到下一个补丁版本，发布它，然后 `npm deprecate @bobcgn/skill-central@0.X.Y "reason"`。升级并越过弃用警告的用户不会受到影响。
+3. 无论哪种方式，删除 GitHub Release：`gh release delete v0.X.Y --yes`。如果版本已被撤销，release tarball 会 404；删除它会移除误导性的 UI。
 
-For a hotfix that can't wait for Trusted Publisher to be configured (e.g. the workflow itself is broken), fall back to [`docs/manual-publishing.md`](./manual-publishing.md). Do **not** add a `NPM_TOKEN` secret to bypass — that defeats the OIDC trust model and the next `git push` could publish anything.
+对于无法等待可信发布者配置完成的热修复 (例如，工作流本身已损坏)，请回退到 [`docs/manual-publishing.md`](./manual-publishing.md)。**不要**添加 `NPM_TOKEN` secret 来绕过——这会破坏 OIDC 信任模型，下一次 `git push` 可能会发布任何东西。
 
 ---
 
-## 8. Quick reference (one-screen version)
+## 8. 快速参考 (单屏版本)
 
-**Setup (one time):**
+**设置 (一次性):**
 
 ```bash
-# 1. On https://www.npmjs.com/package/@bobcgn/skill-central/settings
+# 1. 在 https://www.npmjs.com/package/@bobcgn/skill-central/settings
 #    → Publishing access → Trusted Publishers → Add GitHub Actions
 #    Owner=BobcGn, Repo=skill-central, Workflow filename=release.yml
-# 2. Confirm `.github/workflows/release.yml` has:
+# 2. 确认 `.github/workflows/release.yml` 有：
 #       permissions: { contents: write, id-token: write }
 #       setup-node:  { registry-url: 'https://registry.npmjs.org', ... }
 #       publish step: npm publish --provenance --access public
 ```
 
-**Release:**
+**发布:**
 
 ```bash
 git checkout main && git pull --ff-only
-# ... edit CHANGELOG.md, package.json, code ...
+# ... 编辑 CHANGELOG.md, package.json, 代码 ...
 git commit -m "chore(release): bump to 0.X.Y"
 git push origin main
-git tag -a v0.X.Y -m "v0.X.Y — <summary>"
+git tag -a v0.X.Y -m "v0.X.Y — <摘要>"
 git push origin v0.X.Y
-# → watch https://github.com/BobcGn/skill-central/actions
+# → 观察 https://github.com/BobcGn/skill-central/actions
 ```
 
-**Verify:**
+**验证:**
 
 ```bash
 npm view "@bobcgn/skill-central@0.X.Y" version
@@ -267,12 +267,12 @@ npm view "@bobcgn/skill-central" dist-tags
 npm view "@bobcgn/skill-central@0.X.Y" --json | jq .dist.attestations
 ```
 
-**Rollback:**
+**回滚:**
 
 ```bash
-# Within 72h:
+# 72小时内:
 npm unpublish "@bobcgn/skill-central@0.X.Y" --force
-# Otherwise:
+# 否则:
 npm deprecate "@bobcgn/skill-central@0.X.Y" "reason"
 gh release delete v0.X.Y --yes
 ```

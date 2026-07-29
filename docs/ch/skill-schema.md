@@ -1,8 +1,10 @@
 # 技能 Schema
 
-一个技能是层目录中的一个 YAML (或 JSON) 文件。该 schema 很小，并在加载时进行严格验证。
+一个技能是 layer 目录中的一个 YAML 或 JSON 文件。`skill-central` 现在可以同时加载 legacy skill 和 Universal Skill v1，并在冲突解析与 MCP 暴露之前统一为同一个内部模型。
 
-## 最小示例
+没有 `schemaVersion` 的旧文件仍然受支持，不需要用户手动迁移。
+
+## Legacy 示例
 
 ```yaml
 id: review-pr
@@ -18,92 +20,129 @@ prompt: |
   标记：安全问题、缺失的测试、破坏性变更。
 ```
 
+## Universal Skill V1 示例
+
+```yaml
+schemaVersion: skillcentral.dev/v1
+id: pr-review-workflow
+name: Pull Request Review Workflow
+description: Review a pull request with policy, security and maintainability checks.
+version: 0.3.0
+type: workflow
+tags:
+  - review
+  - git
+  - workflow
+activation:
+  intents:
+    - review-pr
+    - code-review
+capabilities:
+  required:
+    - ide.context.currentDiff
+    - ide.agent.readFiles
+  optional:
+    - ide.agent.runCommand
+context:
+  subscribe:
+    - topic: diff.summary
+  publish:
+    - topic: review.summary
+prompt:
+  role: reviewer
+  template: |
+    Review the current diff and return findings ordered by severity.
+workflow:
+  strategy: sequential
+  steps:
+    - id: collect-context
+      uses: prompt
+      outputTopic: diff.summary
+targets:
+  genericMcp:
+    injection:
+      mode: resource
+degradation:
+  fallbackTarget: genericMcp
+```
+
 ## 字段
 
 | 字段 | 类型 | 必需 | 说明 |
 |---|---|---|---|
-| `id` | string | **是** | 全局唯一。Kebab-case (`[a-z0-9]+(-[a-z0-9]+)*`)。在 MCP 中用作 prompt/tool 的名称。 |
-| `name` | string | **是** | 人类可读的标签。 |
-| `description` | string | **是** | 一句话描述。在 MCP 的 `ListPrompts` / `ListTools` 输出中显示。 |
-| `type` | `"prompt"` \| `"tool"` | **是** | 鉴别器：`prompt` → 发送给 AI 的指令；`tool` → 可调用的函数。 |
-| `tags` | string[] | 否 | 用于基于标签的组合 (`GetPrompt("skills:compose", { tags: "kmp,android" })`) 以及 `add` / `install` 中的层自动推断。 |
-| `prompt` | string | 当 `type: prompt` 时必需 | 多行字符串。`{{handlebars}}` 占位符会从 MCP `GetPrompt` 的参数中插值替换。 |
-| `inputSchema` | object | 当 `type: tool` 时必需 | 工具参数的 JSON Schema。在 `CallTool` 时进行验证。 |
-| `arguments` | object[] | 否 | 用于 IDE UI 的信息性元数据。与 MCP `Prompt.arguments` 的形状相同。 |
-| `version` | string | 否 | 自由格式的版本字符串。缺失时默认为 `"0.1.0"`。 |
+| `schemaVersion` | string | 仅 v1 需要 | 必须为 `skillcentral.dev/v1`。缺失时按 legacy 格式处理。 |
+| `id` | string | 是 | 全局唯一技能 id。 |
+| `name` | string | 是 | 人类可读的名称。 |
+| `description` | string | 是 | 用于 MCP 与 UI 元数据。 |
+| `type` | `prompt` \| `tool` \| `workflow` \| `policy` \| `context-router` | 是 | legacy 只支持 `prompt` 和 `tool`；v1 支持五类资产。 |
+| `tags` | string[] | 否 | 用于组合、发现和 layer 推断。 |
+| `activation` | object | v1 可选 | 意图、文件模式和仓库信号匹配元数据。 |
+| `capabilities` | object | v1 可选 | `required`、`optional`、`denied` 能力名。能力名是点分隔标识符，例如 `ide.agent.readFiles`。 |
+| `targets` | object | v1 可选 | 后续 compiler 阶段使用的目标端 adapter 配置。 |
+| `context` | object | v1 可选 | Blackboard 订阅与发布 topic 声明。 |
+| `degradation` | object | v1 可选 | 目标能力缺失时的降级策略。 |
+| `prompt` | string 或 `{ role, template }` | prompt skill 必需 | legacy 使用字符串。v1 支持字符串或带 `template` 的对象。 |
+| `prompt_zh` | string | 否 | 可选中文 prompt 变体。 |
+| `inputSchema` | object | tool 可选 | 工具参数的 JSON Schema。 |
+| `inputs` | object | v1 可选 | 通用输入契约。v1 tool 没有 `inputSchema` 时，可将 `inputs` 用作 MCP 输入 schema。 |
+| `outputs` | object | v1 可选 | 后续 compiler/workflow 阶段使用的通用输出契约。 |
+| `workflow` | object | workflow 可选 | 工作流策略和步骤。 |
+| `arguments` | object[] | 否 | MCP prompt 参数元数据。 |
+| `version` | string | 否 | 自由格式版本。解析后缺失时默认 `0.1.0`。 |
 
-## 工具示例
+## Legacy 自动提升
 
-```yaml
-id: commit-conventions
-name: Commit Conventions
-description: 遵循约定式提交标准生成或验证 git 提交信息
-type: tool
-tags:
-  - git
-  - workflow
-  - commit
-inputSchema:
-  type: object
-  properties:
-    type:
-      type: string
-      description: '提交类型 (feat, fix, chore, docs, refactor, test, style)'
-    scope:
-      type: string
-      description: '变更范围 (例如 api, cli, core)'
-    summary:
-      type: string
-      description: 简短的祈使句描述
-    body:
-      type: string
-      description: 带有动机的更长描述
-  required:
-    - type
-    - summary
-arguments:
-  - name: type
-    description: 提交类型
-    required: true
-  - name: summary
-    description: 简短的祈使句描述
-    required: true
-prompt: |
-  生成一个约定式提交信息：
-  {{type}}({{scope}}): {{summary}}
-  {{body}}
-```
+当文件没有 `schemaVersion` 时，parser 会按 legacy skill 读取并在内部提升：
+
+- `schemaVersion` 变为 `skillcentral.dev/v1`。
+- `sourceFormat` 变为 `legacy`。
+- `type` 保持为 `prompt` 或 `tool`。
+- 保留旧的 `prompt`、`prompt_zh`、`inputSchema`、`arguments`、`tags` 和 `version`。
+- MCP `prompts/list`、`prompts/get`、`tools/list`、`tools/call` 行为保持兼容。
 
 ## 验证
 
-验证逻辑位于 `src/storage/parser.ts` 中，并由引擎和 CLI 共享：
+验证逻辑位于 `src/schema/universal-skill.ts`、`src/schema/legacy.ts`，共享入口是 `src/storage/parser.ts`。
 
-- `id` 必须为非空字符串
-- `type` 必须为 `"prompt"` 或 `"tool"`
-- `tags` 会被规范化：单个字符串会变为 `["that-string"]`；非字符串条目会被丢弃
+`skill-central validate <file...>` 会运行和引擎加载一致的检查。校验错误包含：
 
-`skill-central validate <file…>` 从命令行运行相同的检查，并在任何失败时以退出码 1 退出。`skill-central doctor` 在每个加载的层上运行这些检查，并报告带有文件路径的错误。
+- 文件路径
+- 字段路径
+- 错误原因
 
-## 文件名约定
+示例格式：
 
-文件命名为 `<id>.yaml` (或 `.yml`, `.json`)。引擎会忽略以 `_` (被视为模板) 或 `.` (隐藏文件) 开头的文件。参见 `src/storage/reader.ts`。
-
-## Schema 如何在系统中流动
-
-```
-.skills/04-tech-stack/languages/python-code-review.yaml
-        │
-        │  parseSkillFile()  (js-yaml + validateSkill)
-        ▼
-SkillSchema  { id, name, type, ... }
-        │
-        │  OverrideTree.insert()   (per-layer)
-        ▼
-ResolvedSkill { ...schema, source, priority }
-        │
-        │  ListPrompts / ListTools / GetPrompt / CallTool
-        ▼
-IDE (Cursor, Windsurf, Claude Code, ...)
+```text
+[skill-central] .skills/example.yaml: capabilities.required[0]: invalid capability name; expected dot-separated identifier such as ide.agent.readFiles
 ```
 
-Schema 是技能作者和引擎之间的契约；如果您更改它，请同时更新 `src/storage/schemas.ts` 和 `parser.ts` 中的验证器。
+## 流程
+
+```text
+.skills/02-workflows/review-pr.yaml
+        |
+        |  parseSkillFile()
+        v
+legacy or v1 object
+        |
+        |  validateSkill() + upgradeLegacySkill()
+        v
+UniversalSkill
+        |
+        |  OverrideTree.insert()
+        v
+ResolvedSkill { ...skill, source, priority }
+        |
+        |  ListPrompts / ListTools / GetPrompt / CallTool
+        v
+IDE or agent client
+```
+
+## 检查命令
+
+```bash
+npm test
+npm run build
+skill-central validate .skills/**/*.yaml
+skill-central doctor
+```
