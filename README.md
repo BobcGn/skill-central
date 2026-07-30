@@ -17,22 +17,23 @@ Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared sk
 - Preview, backup, apply, verify, and rollback for IDE configuration writes.
 - GitHub registry sync plans with conflict choices, audit records, and backups.
 - MCP prompts, tools, resources, sessions, blackboard topics, and workflow scheduling.
-- In-app update checks: Homebrew Cask on macOS and GitHub Release/NSIS on Windows.
+- In-app updates through GitHub Release/NSIS on Windows; macOS updates are manual in this release.
 
 ## Install
 
-### macOS: Homebrew Cask
+### macOS: DMG
 
-The macOS alpha is not signed or notarized because the project does not currently use an Apple Developer Program certificate. Install it through the project tap and explicitly disable quarantine:
+Download the `.dmg` for your Mac from [GitHub Releases](https://github.com/BobcGn/skill-central/releases), open it, and drag **Skill Central** into **Applications**.
+
+The macOS alpha is not signed or notarized because the project does not currently use an Apple Developer Program certificate. On first launch, macOS may report that the app is damaged. Click **Cancel** in that dialog, open Terminal, and run:
 
 ```bash
-brew tap bobcgn/skill-central https://github.com/BobcGn/skill-central
-brew install --cask skill-central --no-quarantine
+sudo xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 ```
 
-Only use this command for the official `BobcGn/skill-central` repository. `--no-quarantine` bypasses Gatekeeper quarantine checks for this unsigned build.
+Then launch Skill Central again from **Applications**. This command removes the quarantine attribute only from the app at the exact path shown above. Verify that the DMG came from the official `BobcGn/skill-central` release before running a command with `sudo`.
 
-Homebrew-managed installations can check and apply later releases from **Personal settings > Software updates**. The app runs fixed `brew update`, `brew outdated`, and `brew upgrade --cask skill-central` commands; it never executes command text supplied by the browser UI.
+The Homebrew download and in-app update path did not work in current user testing and is not recommended for `1.0.0-alpha.1`. macOS users should update manually from GitHub Releases for now. The Homebrew flow is scheduled for another end-to-end test with `1.0.0-alpha.2`.
 
 ### Windows
 
@@ -73,7 +74,7 @@ Open the local board:
 skill-central board
 ```
 
-The board binds to `127.0.0.1:5417` by default. If the port is occupied it tries the next ten ports. Use the packaged desktop app when you need in-app software updates.
+The board binds to `127.0.0.1:5417` by default. If the port is occupied it tries the next ten ports. Updater availability depends on the platform and installation method.
 
 Start the stdio MCP server:
 
@@ -174,7 +175,7 @@ The current alpha still uses a development file-backed TokenStore outside a comp
 
 ## Automatic Updates
 
-- **macOS:** packaged builds check the tapped Homebrew Cask in the background. Available versions are applied from Personal settings and the app restarts after `brew upgrade` completes.
+- **macOS:** use manual DMG updates for `1.0.0-alpha.1`. The Homebrew download and in-app update flow remains experimental and will be retested with `1.0.0-alpha.2`.
 - **Windows:** packaged NSIS builds check GitHub Releases, download the update and blockmap automatically, then expose **Install and restart** when ready.
 - **CLI/Web-only mode:** reports the updater as unavailable and never tries to mutate an installation.
 - Prereleases are enabled while the installed app version is an alpha.
@@ -185,7 +186,7 @@ The current alpha still uses a development file-backed TokenStore outside a comp
 - IDE writes use preview, backup, verification, and rollback stages.
 - Sync requires explicit plans and confirmation for remote writes.
 - Device codes and access tokens are kept out of browser responses and Web Storage.
-- The macOS package is unsigned. The Homebrew command above intentionally bypasses quarantine, so verify the repository and release source first.
+- The macOS package is unsigned. The `xattr` command above removes quarantine from the installed app, so verify the repository and release source first.
 
 ## Development
 

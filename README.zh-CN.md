@@ -17,22 +17,23 @@ Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共�
 - IDE 配置写入支持预览、备份、应用、验证与回退。
 - GitHub Registry 同步支持冲突选择、审计记录和备份。
 - 提供 MCP prompts、tools、resources、sessions、blackboard topics 和 workflow scheduler。
-- 支持应用内检查更新：macOS 使用 Homebrew Cask，Windows 使用 GitHub Release/NSIS。
+- Windows 通过 GitHub Release/NSIS 支持应用内更新；当前版本的 macOS 更新需要手动完成。
 
 ## 安装
 
-### macOS：Homebrew Cask
+### macOS：DMG
 
-项目当前没有使用 Apple Developer Program 证书，因此 macOS Alpha 包未签名、未公证。请通过项目 Tap 安装，并显式关闭 quarantine：
+请从 [GitHub Releases](https://github.com/BobcGn/skill-central/releases) 下载适合当前 Mac 架构的 `.dmg`，打开后将 **Skill Central** 拖入 **Applications（应用程序）**。
+
+项目当前没有使用 Apple Developer Program 证书，因此 macOS Alpha 包未签名、未公证。首次启动时，macOS 可能提示应用“已损坏”。请先在弹窗中点击**取消**，然后打开终端执行：
 
 ```bash
-brew tap bobcgn/skill-central https://github.com/BobcGn/skill-central
-brew install --cask skill-central --no-quarantine
+sudo xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 ```
 
-请只对官方 `BobcGn/skill-central` 仓库使用该命令。`--no-quarantine` 会绕过 Gatekeeper 对该未签名构建的隔离检查。
+执行完成后，从 **Applications（应用程序）** 再次启动 Skill Central。该命令只会移除上述准确路径中应用的 quarantine 属性。执行带 `sudo` 的命令前，请确认 DMG 来自官方 `BobcGn/skill-central` Release。
 
-通过 Homebrew 管理的安装可以在 **个人设置 > 软件更新** 中检查并应用后续版本。应用只会运行固定参数的 `brew update`、`brew outdated` 和 `brew upgrade --cask skill-central`，不会执行来自浏览器界面的命令文本。
+当前用户测试中，Homebrew 下载和应用内更新路径未能正常工作，因此 `1.0.0-alpha.1` 暂不推荐使用 Homebrew。macOS 用户目前应从 GitHub Releases 手动更新；Homebrew 全流程将在 `1.0.0-alpha.2` 发布时重新进行端到端测试。
 
 ### Windows
 
@@ -73,7 +74,7 @@ skill-central init
 skill-central board
 ```
 
-Board 默认监听 `127.0.0.1:5417`；端口被占用时会继续尝试后续十个端口。需要应用内软件更新时，请使用打包后的桌面应用。
+Board 默认监听 `127.0.0.1:5417`；端口被占用时会继续尝试后续十个端口。更新器是否可用取决于平台和安装方式。
 
 启动 stdio MCP Server：
 
@@ -174,7 +175,7 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 
 ## 自动更新
 
-- **macOS：** 打包应用会在后台检查已 Tap 的 Homebrew Cask；发现新版本后可在个人设置中应用，`brew upgrade` 完成后自动重启。
+- **macOS：** `1.0.0-alpha.1` 请使用 DMG 手动更新。Homebrew 下载与应用内更新仍是实验能力，将在 `1.0.0-alpha.2` 重新测试。
 - **Windows：** NSIS 安装版本检查 GitHub Releases，自动下载更新包和 blockmap，准备完成后显示 **安装并重启**。
 - **仅 CLI/Web 模式：** 明确显示更新器不可用，不会尝试修改安装目录。
 - 当前安装版本为 Alpha 时允许接收预发布更新。
@@ -185,7 +186,7 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 - IDE 写入经过预览、备份、验证与回退阶段。
 - Sync 的远程写入需要明确计划和确认。
 - Device code 和 access token 不进入浏览器响应或 Web Storage。
-- macOS 包未签名；Homebrew 命令会主动绕过 quarantine，执行前必须确认仓库和 Release 来源。
+- macOS 包未签名；上述 `xattr` 命令会移除已安装应用的 quarantine 属性，执行前必须确认仓库和 Release 来源。
 
 ## 开发
 
