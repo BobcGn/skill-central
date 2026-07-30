@@ -10,25 +10,22 @@ Skill Central 是一个本地优先的可复用 AI Skill 控制中心。它从�
 
 ## 运行入口
 
-```text
-桌面应用                                  CLI / IDE 进程
-┌───────────────────────────────┐          ┌──────────────────────────────┐
-│ Electron 主进程               │          │ skill-central <command>      │
-│  └─ 本地 Hono Board Server    │          │ skill-central mcp            │
-│      └─ HTML/CSS/JS UI        │          │  └─ stdio MCP transport      │
-└──────────────┬────────────────┘          └──────────────┬───────────────┘
-               │                                          │
-               └────────────────┬─────────────────────────┘
-                                v
-                    ┌────────────────────────┐
-                    │ SkillEngine / Registry │
-                    │ 解析与统一查询         │
-                    └────────────┬───────────┘
-                                 v
-                 用户配置 -> 项目配置 -> 默认配置
-                                 │
-                                 v
-                          受治理的 Skill Layers
+```mermaid
+flowchart TD
+    Electron[Electron 主进程] --> Board[本地 Hono Board Server]
+    Electron --> Window[沙箱化 BrowserWindow]
+    Window -->|Loopback HTTP| Board
+
+    CLI[skill-central 命令] --> Engine[SkillEngine / Registry]
+    IDE[IDE Client] -->|stdio MCP| MCP[MCP Handlers]
+    MCP --> Engine
+    Board --> Engine
+
+    Global[用户配置] --> Config[配置加载器]
+    Project[项目配置] --> Config
+    Defaults[内置默认配置] --> Config
+    Config --> Layers[受治理的 Skill Layers]
+    Layers --> Engine
 ```
 
 桌面壳不会向渲染进程提供 Node.js 权限。Electron 启动 loopback Board Server，在启用沙箱和上下文隔离的 `BrowserWindow` 中加载页面，并将外部链接交给系统浏览器。CLI 与桌面端复用相同的 TypeScript 服务，不各自维护业务逻辑。
@@ -76,28 +73,43 @@ Skill Central 是一个本地优先的可复用 AI Skill 控制中心。它从�
 
 ### Skill 解析
 
-```text
-配置文件 -> Layer 补全 -> YAML 发现 -> Schema 标准化
-         -> Override 解析 -> Registry 查询 -> CLI / MCP / Board
+```mermaid
+flowchart LR
+    Config[配置文件] --> Promotion[Layer 补全]
+    Promotion --> Discovery[YAML 发现]
+    Discovery --> Normalization[Schema 标准化]
+    Normalization --> Resolution[Override 解析]
+    Resolution --> Registry[Registry 查询]
+    Registry --> Consumers[CLI / MCP / Board]
 ```
 
 解析先比较 priority，再比较 scope distance。无法区分的并列项会成为显式冲突，并从有效 Skill 视图中排除。详见 [Skills 与 Layers](./skills-and-layers.md)。
 
 ### IDE 连接
 
-```text
-目标 Registry -> 路径检测 -> 结构化解析 -> 合并预览
-              -> 备份 -> 写入 -> MCP 健康探测 -> 回退证据
+```mermaid
+flowchart LR
+    Registry[目标 Registry] --> Detection[路径检测]
+    Detection --> Parse[结构化解析]
+    Parse --> Preview[合并预览]
+    Preview --> Backup[备份]
+    Backup --> Write[写入]
+    Write --> Probe[MCP 健康探测]
+    Probe --> Evidence[回退证据]
 ```
 
 系统只新增或替换 `skill-central` Server Entry，保留其他 MCP 配置。详见 [IDE 集成](./ide-integration.md)。
 
 ### Registry 同步
 
-```text
-本地受治理 Layer + 已检出的 Registry -> Hash 比较 -> dry-run 计划
-                                               -> 显式冲突选择
-                                               -> Apply + Audit + Backup
+```mermaid
+flowchart LR
+    Layers[本地受治理 Layers] --> Compare[Hash 比较]
+    Remote[已检出的 Registry] --> Compare
+    Compare --> Plan[Dry-run 计划]
+    Plan --> Conflicts[显式冲突选择]
+    Conflicts --> Apply[Apply]
+    Apply --> Audit[Audit Record 与 Backup]
 ```
 
 关闭同步的 Layer 会被标记为 excluded，不会静默上传。远端写入需要显式执行 Apply。

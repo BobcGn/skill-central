@@ -10,25 +10,22 @@ The project deliberately separates source assets from derived runtime state. Ski
 
 ## Runtime Surfaces
 
-```text
-Desktop application                       CLI / IDE process
-┌───────────────────────────────┐          ┌──────────────────────────────┐
-│ Electron main process         │          │ skill-central <command>      │
-│  └─ local Hono Board server   │          │ skill-central mcp            │
-│      └─ HTML/CSS/JS UI        │          │  └─ stdio MCP transport      │
-└──────────────┬────────────────┘          └──────────────┬───────────────┘
-               │                                          │
-               └────────────────┬─────────────────────────┘
-                                v
-                    ┌────────────────────────┐
-                    │ SkillEngine / Registry │
-                    │ resolution + queries   │
-                    └────────────┬───────────┘
-                                 v
-              global config -> project config -> defaults
-                                 │
-                                 v
-                       governed skill layers
+```mermaid
+flowchart TD
+    Electron[Electron main process] --> Board[Local Hono Board server]
+    Electron --> Window[Sandboxed BrowserWindow]
+    Window -->|Loopback HTTP| Board
+
+    CLI[skill-central commands] --> Engine[SkillEngine / Registry]
+    IDE[IDE client] -->|stdio MCP| MCP[MCP handlers]
+    MCP --> Engine
+    Board --> Engine
+
+    Global[User configuration] --> Config[Configuration loader]
+    Project[Project configuration] --> Config
+    Defaults[Built-in defaults] --> Config
+    Config --> Layers[Governed skill layers]
+    Layers --> Engine
 ```
 
 The desktop shell does not grant Node.js access to renderer code. Electron starts the loopback Board server, loads it in a sandboxed `BrowserWindow`, and opens external links in the operating system browser. The CLI and desktop surface reuse the same TypeScript services rather than maintaining separate business logic.
@@ -76,28 +73,43 @@ The desktop shell does not grant Node.js access to renderer code. Electron start
 
 ### Skill resolution
 
-```text
-config files -> layer promotion -> YAML discovery -> schema normalization
-             -> override resolution -> Registry query -> CLI / MCP / Board
+```mermaid
+flowchart LR
+    Config[Configuration files] --> Promotion[Layer promotion]
+    Promotion --> Discovery[YAML discovery]
+    Discovery --> Normalization[Schema normalization]
+    Normalization --> Resolution[Override resolution]
+    Resolution --> Registry[Registry query]
+    Registry --> Consumers[CLI / MCP / Board]
 ```
 
 Resolution uses priority first and scope distance second. An unresolved tie is represented as an explicit conflict and is excluded from the effective skill view. See [Skills and Layers](./skills-and-layers.md).
 
 ### IDE connection
 
-```text
-target registry -> path detection -> structured parse -> merge preview
-                -> backup -> write -> MCP health probe -> rollback evidence
+```mermaid
+flowchart LR
+    Registry[Target registry] --> Detection[Path detection]
+    Detection --> Parse[Structured parse]
+    Parse --> Preview[Merge preview]
+    Preview --> Backup[Backup]
+    Backup --> Write[Write]
+    Write --> Probe[MCP health probe]
+    Probe --> Evidence[Rollback evidence]
 ```
 
 Only the `skill-central` server entry is added or replaced. Other MCP entries are preserved. See [IDE Integration](./ide-integration.md).
 
 ### Registry sync
 
-```text
-local governed layers + checked-out registry -> hash comparison -> dry-run plan
-                                               -> explicit conflict choices
-                                               -> apply + audit + backups
+```mermaid
+flowchart LR
+    Layers[Local governed layers] --> Compare[Hash comparison]
+    Remote[Checked-out registry] --> Compare
+    Compare --> Plan[Dry-run plan]
+    Plan --> Conflicts[Explicit conflict choices]
+    Conflicts --> Apply[Apply]
+    Apply --> Audit[Audit records and backups]
 ```
 
 Layers with sync disabled are reported as excluded rather than silently uploaded. Remote writes require an explicit apply operation.
