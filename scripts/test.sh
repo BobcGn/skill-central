@@ -1317,6 +1317,64 @@ printf '%s' "$malformed_output" | grep -q "not readable JSON" \
   && pass "connect 对异常 IDE config 明确阻断且不写文件" \
   || fail "connect 异常 IDE config 保护不完整"
 
+codex_config="$connect_dir/codex-config.toml"
+cat > "$codex_config" <<'TOML'
+# user comment must survive
+model = "test-model"
+
+[mcp_servers.existing]
+command = "existing"
+args = ["serve"]
+TOML
+
+codex_dry_run=$(node dist/index.js connect --target codex --config-path "$codex_config" --dry-run --json)
+CODEX_DRY_RUN_JSON="$codex_dry_run" node --input-type=module <<'NODE'
+const plan = JSON.parse(process.env.CODEX_DRY_RUN_JSON);
+if (plan.target !== "codex" || plan.configFormat !== "toml") {
+  throw new Error(`unexpected Codex plan: ${plan.target}/${plan.configFormat}`);
+}
+if (!plan.diffPreview.includes("mcp_servers.skill-central")) {
+  throw new Error("Codex plan missing TOML MCP table");
+}
+NODE
+grep -q "user comment must survive" "$codex_config" \
+  && ! grep -q "mcp_servers.skill-central" "$codex_config" \
+  && pass "Codex connect dry-run 生成 TOML 计划且不写配置" \
+  || fail "Codex connect dry-run 修改了 TOML"
+
+codex_apply=$(node dist/index.js connect --target codex --config-path "$codex_config" --json)
+codex_backup_path=$(CODEX_APPLY_JSON="$codex_apply" node --input-type=module <<'NODE'
+const plan = JSON.parse(process.env.CODEX_APPLY_JSON);
+if (plan.configFormat !== "toml" || !plan.backupPath) throw new Error("Codex apply missing TOML/backup evidence");
+process.stdout.write(plan.backupPath);
+NODE
+)
+grep -q "user comment must survive" "$codex_config" \
+  && grep -q "mcp_servers.existing" "$codex_config" \
+  && grep -q "mcp_servers.skill-central" "$codex_config" \
+  && [ -f "$codex_backup_path" ] \
+  && pass "Codex connect 保留注释和其他 MCP table 并创建备份" \
+  || fail "Codex TOML merge 或备份不完整"
+
+node dist/index.js connect --target codex --config-path "$codex_config" --rollback --backup-path "$codex_backup_path" --json > /dev/null
+grep -q "user comment must survive" "$codex_config" \
+  && grep -q "mcp_servers.existing" "$codex_config" \
+  && ! grep -q "mcp_servers.skill-central" "$codex_config" \
+  && pass "Codex connect rollback 恢复原始 TOML" \
+  || fail "Codex connect rollback 未恢复 TOML"
+
+for target in trae claude; do
+  target_plan=$(node dist/index.js connect --target "$target" --config-path "$connect_dir/$target-mcp.json" --dry-run --json)
+  TARGET_PLAN_JSON="$target_plan" TARGET_NAME="$target" node --input-type=module <<'NODE'
+const plan = JSON.parse(process.env.TARGET_PLAN_JSON);
+if (plan.target !== process.env.TARGET_NAME || plan.configFormat !== "json") {
+  throw new Error(`unexpected target plan ${plan.target}/${plan.configFormat}`);
+}
+if (!plan.diffPreview.includes("skill-central")) throw new Error("target plan missing MCP server");
+NODE
+done
+pass "Trae 与 Claude 可生成 JSON MCP 连接计划"
+
 rm -rf "$connect_dir"
 
 # ── 20. Web local console APIs ─────────────────────────────────────────────
@@ -1470,7 +1528,141 @@ const runtime = {
     return this.snapshot;
   },
 };
-const app = createBoardApp({ config, engine, rootDir: process.cwd(), version: "test", runtime });
+let storedToken;
+const tokenStore = {
+  async get() { return storedToken; },
+  async set(token) {
+    const now = "2026-07-30T00:00:00.000Z";
+    storedToken = { ...token, createdAt: now, updatedAt: now };
+    return storedToken;
+  },
+  async delete() { storedToken = undefined; },
+  describe() { return { kind: "development-file", productionReady: false }; },
+};
+const githubClientFactory = () => ({
+  async requestDeviceCode() {
+    return {
+      deviceCode: "private-device-code",
+      userCode: "ABCD-1234",
+      verificationUri: "https://github.com/login/device",
+      expiresIn: 900,
+      interval: 1,
+    };
+  },
+  async pollForToken() {
+    return { accessToken: "private-access-token", tokenType: "bearer", scope: "repo" };
+  },
+  async fetchUser() { return { id: 1, login: "octocat", name: "Octo Cat" }; },
+});
+let updateChecks = 0;
+let updateInstalls = 0;
+let updateSnapshot = {
+  supported: true,
+  provider: "homebrew",
+  currentVersion: "1.0.0-alpha.0",
+  status: "idle",
+};
+const updater = {
+  getSnapshot() { return { ...updateSnapshot }; },
+  async check() {
+    updateChecks += 1;
+    updateSnapshot = { ...updateSnapshot, status: "available", availableVersion: "1.0.0-alpha.1" };
+    return { ...updateSnapshot };
+  },
+  async install() {
+    updateInstalls += 1;
+    updateSnapshot = { ...updateSnapshot, status: "ready", progressPercent: 100 };
+    return { ...updateSnapshot };
+  },
+};
+const app = createBoardApp({
+  config,
+  engine,
+  rootDir: process.cwd(),
+  version: "test",
+  runtime,
+  tokenStore,
+  githubClientFactory,
+  updater,
+});
+
+const updateStatus = await (await app.request("/api/update/status")).json();
+if (!updateStatus.supported || updateStatus.status !== "idle") {
+  throw new Error("web update status did not expose updater snapshot");
+}
+const updateCheck = await (await app.request("/api/update/check", { method: "POST" })).json();
+if (updateCheck.availableVersion !== "1.0.0-alpha.1" || updateChecks !== 1) {
+  throw new Error("web update check did not call updater");
+}
+const updateInstall = await (await app.request("/api/update/install", { method: "POST" })).json();
+if (updateInstall.status !== "ready" || updateInstalls !== 1) {
+  throw new Error("web update install did not call updater");
+}
+const crossOriginCheck = await app.request("/api/update/check", {
+  method: "POST",
+  headers: { origin: "https://attacker.example" },
+});
+if (crossOriginCheck.status !== 403 || updateChecks !== 1) {
+  throw new Error("web update check did not reject a cross-origin request");
+}
+const crossOriginInstall = await app.request("/api/update/install", {
+  method: "POST",
+  headers: { origin: "null" },
+});
+if (crossOriginInstall.status !== 403 || updateInstalls !== 1) {
+  throw new Error("web update install did not reject an opaque origin");
+}
+const sameOriginCheck = await app.request("http://localhost/api/update/check", {
+  method: "POST",
+  headers: { origin: "http://localhost" },
+});
+if (sameOriginCheck.status !== 200 || updateChecks !== 2) {
+  throw new Error("web update check rejected its own origin");
+}
+
+const ideTargetsRes = await app.request("/api/ide-targets");
+const ideTargets = await ideTargetsRes.json();
+for (const [target, format] of [["codex", "toml"], ["trae", "json"], ["claude", "json"]]) {
+  const entry = ideTargets.find((candidate) => candidate.target === target);
+  if (!entry || entry.configFormat !== format || !entry.configPath) {
+    throw new Error(`web IDE metadata missing ${target}/${format}`);
+  }
+}
+
+const githubStatusBefore = await (await app.request("/api/auth/github/status")).json();
+if (githubStatusBefore.loggedIn || JSON.stringify(githubStatusBefore).includes("private-access-token")) {
+  throw new Error("GitHub status leaked token or started logged in");
+}
+const githubDeviceRes = await app.request("/api/auth/github/device", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ clientId: "client-fixture" }),
+});
+const githubDevice = await githubDeviceRes.json();
+if (!githubDevice.flowId || githubDevice.userCode !== "ABCD-1234") {
+  throw new Error("GitHub device flow did not return public authorization data");
+}
+if (JSON.stringify(githubDevice).includes("private-device-code")) {
+  throw new Error("GitHub device endpoint leaked device code");
+}
+const githubPollRes = await app.request("/api/auth/github/poll", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ flowId: githubDevice.flowId }),
+});
+const githubPoll = await githubPollRes.json();
+if (!githubPoll.loggedIn || githubPoll.user?.login !== "octocat") {
+  throw new Error("GitHub device polling did not complete login");
+}
+if (JSON.stringify(githubPoll).includes("private-access-token")) {
+  throw new Error("GitHub poll endpoint leaked access token");
+}
+const githubStatusAfter = await (await app.request("/api/auth/github/status")).json();
+if (!githubStatusAfter.loggedIn || JSON.stringify(githubStatusAfter).includes("private-access-token")) {
+  throw new Error("GitHub status did not report safe logged-in metadata");
+}
+await app.request("/api/auth/github/logout", { method: "POST" });
+if (storedToken) throw new Error("GitHub logout did not clear TokenStore");
 
 const skillsRes = await app.request("/api/skills");
 const skills = await skillsRes.json();
@@ -1929,6 +2121,53 @@ try {
 }
 NODE
 pass "DevelopmentFileTokenStore 可测试且拒绝生产默认使用"
+
+node --input-type=module <<'NODE'
+import { BrewCaskUpdater } from "./dist/update/brew-cask.js";
+
+const calls = [];
+let restarted = false;
+const updater = new BrewCaskUpdater({
+  currentVersion: "1.0.0-alpha.0",
+  restart: () => { restarted = true; },
+  brewCandidates: ["/mock/bin/brew"],
+  canExecute: async (candidate) => candidate === "/mock/bin/brew",
+  runCommand: async (command, args) => {
+    calls.push([command, ...args]);
+    if (args[0] === "outdated") {
+      return {
+        stdout: JSON.stringify({ casks: [{ name: "skill-central", current_version: "1.0.0-alpha.1" }] }),
+        stderr: "",
+      };
+    }
+    return { stdout: "", stderr: "" };
+  },
+});
+
+const available = await updater.check();
+if (available.status !== "available" || available.availableVersion !== "1.0.0-alpha.1") {
+  throw new Error("Homebrew updater did not detect available cask version");
+}
+const installed = await updater.install();
+if (installed.status !== "ready" || installed.progressPercent !== 100) {
+  throw new Error("Homebrew updater did not finish install contract");
+}
+await new Promise((resolve) => setTimeout(resolve, 300));
+if (!restarted) throw new Error("Homebrew updater did not request app restart");
+
+const upgrade = calls.find((call) => call[1] === "upgrade");
+if (JSON.stringify(upgrade) !== JSON.stringify([
+  "/mock/bin/brew",
+  "upgrade",
+  "--cask",
+  "skill-central",
+  "--no-ask",
+  "--no-quit",
+])) {
+  throw new Error(`unexpected Homebrew upgrade command: ${JSON.stringify(upgrade)}`);
+}
+NODE
+pass "Homebrew Cask 更新器使用固定参数并完成更新状态流"
 
 node --input-type=module <<'NODE'
 import { GitHubDeviceFlowClient, tokenResponseToStoredToken } from "./dist/auth/github.js";

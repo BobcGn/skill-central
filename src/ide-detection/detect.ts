@@ -13,19 +13,22 @@
 
 import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
-import { defaultIdeConfigPath, SKILL_CENTRAL_MCP_SERVER_NAME } from "./registry.js";
-import type { IdeDetectionOptions, IdeRegistration, IdeTarget, McpServerConfig } from "./types.js";
+import { parseIdeMcpConfig } from "./config-codec.js";
+import { defaultIdeConfigPath, getIdeDefinition } from "./registry.js";
+import type { IdeDetectionOptions, IdeRegistration, IdeTarget } from "./types.js";
 
 export async function detectIdeRegistration(
   target: IdeTarget,
   options: IdeDetectionOptions = {},
 ): Promise<IdeRegistration> {
   const configPath = options.configPath ?? defaultIdeConfigPath(target);
+  const configFormat = getIdeDefinition(target).configFormat;
   const exists = await fileExists(configPath);
   if (!exists) {
     return {
       target,
       configPath,
+      configFormat,
       configExists: false,
       configReadable: false,
       registered: false,
@@ -34,11 +37,11 @@ export async function detectIdeRegistration(
 
   try {
     const raw = await readFile(configPath, "utf-8");
-    const parsed = JSON.parse(raw) as { mcpServers?: Record<string, unknown> };
-    const server = normaliseServer(parsed.mcpServers?.[SKILL_CENTRAL_MCP_SERVER_NAME]);
+    const server = parseIdeMcpConfig(raw, configFormat).server;
     return {
       target,
       configPath,
+      configFormat,
       configExists: true,
       configReadable: true,
       registered: !!server,
@@ -48,25 +51,13 @@ export async function detectIdeRegistration(
     return {
       target,
       configPath,
+      configFormat,
       configExists: true,
       configReadable: false,
       registered: false,
       error: err instanceof Error ? err.message : String(err),
     };
   }
-}
-
-function normaliseServer(value: unknown): McpServerConfig | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const candidate = value as Record<string, unknown>;
-  if (typeof candidate.command !== "string" || candidate.command.length === 0) return undefined;
-  return {
-    command: candidate.command,
-    args: Array.isArray(candidate.args)
-      ? candidate.args.filter((arg): arg is string => typeof arg === "string")
-      : undefined,
-    env: isStringRecord(candidate.env) ? candidate.env : undefined,
-  };
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -76,9 +67,4 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  return Object.values(value).every((entry) => typeof entry === "string");
 }

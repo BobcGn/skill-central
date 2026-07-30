@@ -3,64 +3,272 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>skill-central · Web Board</title>
+  <meta name="color-scheme" content="light dark" />
+  <title>skill-central</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <script>
+    try {
+      const theme = localStorage.getItem("skill-central.theme");
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+      const locale = localStorage.getItem("skill-central.locale");
+      if (locale) document.documentElement.lang = locale;
+    } catch {}
+  </script>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header>
-    <h1>skill-central <span class="muted">/ web board</span></h1>
-    <div id="health" class="muted">connecting…</div>
-  </header>
-  <main>
-    <aside id="sidebar">
-      <div class="section-title">
-        <span>Skills</span>
-        <button id="btn-refresh" title="Re-fetch the skill list and re-pull detail. Use after editing YAML files outside the board.">↻ Refresh</button>
+  <div class="app-shell">
+    <aside class="app-sidebar" aria-label="Primary navigation">
+      <div class="brand-block">
+        <span class="brand-mark" aria-hidden="true">SC_</span>
+        <div class="brand-copy">
+          <strong>skill-central</strong>
+          <span id="brand-version">loading</span>
+        </div>
       </div>
-      <ul id="skill-list"></ul>
+
+      <nav class="primary-nav">
+        <button class="nav-item active" type="button" data-view="skills">
+          <span class="nav-icon" aria-hidden="true">▤</span>
+          <span data-i18n="nav.skills">Skills</span>
+          <span id="skill-count" class="nav-count">0</span>
+        </button>
+        <button class="nav-item" type="button" data-view="ide">
+          <span class="nav-icon" aria-hidden="true">⌁</span>
+          <span data-i18n="nav.ide">IDE Connections</span>
+        </button>
+        <button class="nav-item" type="button" data-view="sync">
+          <span class="nav-icon" aria-hidden="true">⇄</span>
+          <span data-i18n="nav.sync">Sync</span>
+        </button>
+        <button class="nav-item" type="button" data-view="runtime">
+          <span class="nav-icon" aria-hidden="true">&gt;_</span>
+          <span data-i18n="nav.runtime">Runtime</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="btn-settings" class="profile-button" type="button">
+          <span class="profile-avatar" aria-hidden="true">GH</span>
+          <span class="profile-copy">
+            <strong data-i18n="settings.account">Personal settings</strong>
+            <span id="github-sidebar-status" data-i18n="github.notConnected">GitHub not connected</span>
+          </span>
+          <span class="profile-settings" aria-hidden="true">⚙</span>
+        </button>
+      </div>
     </aside>
-    <section id="detail">
-      <div id="console-panel" class="console-panel">
-        <div class="console-actions">
-          <button id="btn-ide-health">IDE Health</button>
-          <button id="btn-connect-plan">Connect Plan</button>
-          <button id="btn-connect-apply">Apply Connect</button>
-          <button id="btn-connect-rollback">Rollback</button>
-          <button id="btn-runtime-status">Runtime</button>
-          <button id="btn-runtime-start">Start MCP</button>
-          <button id="btn-runtime-stop">Stop MCP</button>
-          <button id="btn-compile-preview">Compile Preview</button>
-          <input id="sync-registry-dir" type="text" placeholder="./skill-central-registry" aria-label="Sync registry directory" />
-          <select id="sync-direction" aria-label="Sync direction">
-            <option value="both">both</option>
-            <option value="pull">pull</option>
-            <option value="push">push</option>
-          </select>
-          <label class="console-check"><input id="sync-force" type="checkbox" /> force</label>
-          <input id="sync-confirm" type="text" placeholder="APPLY SYNC" aria-label="Sync apply confirmation" />
-          <button id="btn-sync-status">Sync Status</button>
-          <button id="btn-sync-plan">Sync Plan</button>
-          <button id="btn-sync-apply">Apply Sync</button>
-          <button id="btn-sync-audits">Sync Audit</button>
+
+    <div class="workspace-shell">
+      <header class="workspace-header">
+        <div>
+          <span class="workspace-kicker" data-i18n="workspace.label">Workspace</span>
+          <h1 id="view-title" data-i18n="nav.skills">Skills</h1>
         </div>
-        <div id="console-output" class="console-output muted">Local console ready.</div>
-      </div>
-      <div id="skill-detail">
-        <div class="placeholder">Select a skill to preview.</div>
-      </div>
-      <section id="sync-audit-view" class="audit-view" hidden>
-        <div class="audit-view-header">
-          <div>
-            <h2>Sync Audit</h2>
-            <p class="muted">Recent apply reports, filtered by outcome.</p>
+        <div id="health" class="health-status"><span class="status-dot"></span><span>connecting...</span></div>
+      </header>
+
+      <main class="workspace-content">
+        <section class="view-panel active" data-view-panel="skills">
+          <div class="skills-workspace">
+            <aside class="skill-browser">
+              <div class="panel-toolbar">
+                <label class="search-field">
+                  <span aria-hidden="true">/</span>
+                  <input id="skill-search" type="search" data-i18n-placeholder="skills.search" placeholder="Filter skills" autocomplete="off" />
+                </label>
+                <button id="btn-refresh" class="icon-button" type="button" title="Refresh" aria-label="Refresh">↻</button>
+              </div>
+              <ul id="skill-list"></ul>
+            </aside>
+            <div class="skill-stage">
+              <div class="compact-command-bar">
+                <div>
+                  <span class="command-label" data-i18n="skills.compile">Compile preview</span>
+                  <select id="compile-target" aria-label="Compile target">
+                    <option value="cursor">Cursor</option>
+                    <option value="windsurf">Windsurf</option>
+                    <option value="generic-mcp">Generic MCP</option>
+                  </select>
+                </div>
+                <button id="btn-compile-preview" class="button secondary" type="button" data-i18n="action.preview">Preview</button>
+              </div>
+              <div id="skills-output" class="output-surface" hidden></div>
+              <div id="skill-detail">
+                <div class="empty-state">
+                  <span class="empty-glyph" aria-hidden="true">{ }</span>
+                  <strong data-i18n="skills.emptyTitle">Select a skill</strong>
+                  <span data-i18n="skills.emptyBody">Choose an entry from the index.</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <button id="btn-close-sync-audit" type="button">Close</button>
-        </div>
-        <div id="sync-audit-detail" class="audit-detail muted">Select an audit or backup path.</div>
-      </section>
+        </section>
+
+        <section class="view-panel" data-view-panel="ide" hidden>
+          <div class="section-heading">
+            <div>
+              <span class="section-index">01 / MCP</span>
+              <h2 data-i18n="ide.title">IDE Connections</h2>
+            </div>
+            <span id="ide-summary" class="section-stat">0 / 0</span>
+          </div>
+          <div id="ide-targets" class="ide-grid" aria-label="IDE targets"></div>
+          <div class="tool-surface ide-tool-surface">
+            <div class="tool-surface-header">
+              <div>
+                <span class="command-label" data-i18n="ide.selected">Selected target</span>
+                <strong id="active-ide-label">Codex</strong>
+              </div>
+              <code id="active-ide-path">~/.codex/config.toml</code>
+            </div>
+            <div class="button-row">
+              <button id="btn-ide-health" class="button secondary" type="button" data-i18n="ide.health">Check health</button>
+              <button id="btn-connect-plan" class="button secondary" type="button" data-i18n="ide.plan">Build plan</button>
+              <button id="btn-connect-apply" class="button primary" type="button" data-i18n="ide.connect">Connect</button>
+              <button id="btn-connect-rollback" class="button danger" type="button" data-i18n="ide.rollback">Rollback</button>
+            </div>
+          </div>
+          <div id="ide-output" class="output-surface" aria-live="polite">
+            <span class="output-prompt">$</span> <span data-i18n="ide.ready">connection console ready</span>
+          </div>
+        </section>
+
+        <section class="view-panel" data-view-panel="sync" hidden>
+          <div class="section-heading">
+            <div>
+              <span class="section-index">02 / REGISTRY</span>
+              <h2 data-i18n="sync.title">Registry Sync</h2>
+            </div>
+          </div>
+          <div class="tool-surface sync-controls">
+            <label class="field span-2">
+              <span data-i18n="sync.path">Registry checkout</span>
+              <input id="sync-registry-dir" type="text" placeholder="./skill-central-registry" aria-label="Sync registry directory" />
+            </label>
+            <label class="field">
+              <span data-i18n="sync.direction">Direction</span>
+              <select id="sync-direction" aria-label="Sync direction">
+                <option value="both">both</option>
+                <option value="pull">pull</option>
+                <option value="push">push</option>
+              </select>
+            </label>
+            <label class="check-field"><input id="sync-force" type="checkbox" /> <span data-i18n="sync.force">Force with backup</span></label>
+            <label class="field span-2">
+              <span data-i18n="sync.confirm">Apply confirmation</span>
+              <input id="sync-confirm" type="text" placeholder="APPLY SYNC" aria-label="Sync apply confirmation" />
+            </label>
+            <div class="button-row span-full">
+              <button id="btn-sync-status" class="button secondary" type="button" data-i18n="sync.status">Status</button>
+              <button id="btn-sync-plan" class="button secondary" type="button" data-i18n="sync.plan">Build plan</button>
+              <button id="btn-sync-apply" class="button primary" type="button" data-i18n="sync.apply">Apply sync</button>
+              <button id="btn-sync-audits" class="button secondary" type="button" data-i18n="sync.audit">Audit log</button>
+            </div>
+          </div>
+          <div id="sync-output" class="output-surface" aria-live="polite">
+            <span class="output-prompt">$</span> <span data-i18n="sync.ready">sync console ready</span>
+          </div>
+          <section id="sync-audit-view" class="audit-view" hidden>
+            <div class="audit-view-header">
+              <div>
+                <span class="section-index">EVENT / EVIDENCE</span>
+                <h2 data-i18n="sync.audit">Audit log</h2>
+              </div>
+              <button id="btn-close-sync-audit" class="icon-button" type="button" aria-label="Close" title="Close">×</button>
+            </div>
+            <div id="sync-audit-detail" class="audit-detail muted" data-i18n="sync.selectAudit">Select an audit or backup path.</div>
+          </section>
+        </section>
+
+        <section class="view-panel" data-view-panel="runtime" hidden>
+          <div class="section-heading">
+            <div>
+              <span class="section-index">03 / PROCESS</span>
+              <h2 data-i18n="runtime.title">Local Runtime</h2>
+            </div>
+          </div>
+          <div class="runtime-strip">
+            <div>
+              <span class="status-dot neutral"></span>
+              <span class="command-label" data-i18n="runtime.mcp">MCP stdio process</span>
+            </div>
+            <div class="button-row">
+              <button id="btn-runtime-status" class="button secondary" type="button" data-i18n="runtime.status">Inspect</button>
+              <button id="btn-runtime-start" class="button primary" type="button" data-i18n="runtime.start">Start</button>
+              <button id="btn-runtime-stop" class="button danger" type="button" data-i18n="runtime.stop">Stop</button>
+            </div>
+          </div>
+          <div id="runtime-output" class="output-surface tall" aria-live="polite">
+            <span class="output-prompt">$</span> <span data-i18n="runtime.ready">runtime console ready</span>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="settings-dialog" class="settings-dialog">
+    <div class="dialog-header">
+      <div>
+        <span class="section-index">USER / LOCAL</span>
+        <h2 data-i18n="settings.title">Personal settings</h2>
+      </div>
+      <button id="btn-close-settings" class="icon-button" type="button" aria-label="Close" title="Close">×</button>
+    </div>
+
+    <section class="settings-section">
+      <div class="settings-section-title">
+        <span class="profile-avatar">GH</span>
+        <div><strong>GitHub</strong><span id="github-status-text" data-i18n="github.notConnected">Not connected</span></div>
+      </div>
+      <label class="field">
+        <span data-i18n="github.clientId">OAuth App Client ID</span>
+        <input id="github-client-id" type="text" autocomplete="off" placeholder="Iv1..." />
+      </label>
+      <div class="button-row">
+        <button id="btn-github-login" class="button primary" type="button" data-i18n="github.connect">Connect GitHub</button>
+        <button id="btn-github-logout" class="button danger" type="button" data-i18n="github.disconnect">Disconnect</button>
+      </div>
+      <div id="github-auth-output" class="auth-output" aria-live="polite"></div>
     </section>
-  </main>
-  <div id="flash" class="flash" style="display:none"></div>
+
+    <section class="settings-section settings-row">
+      <div><strong data-i18n="settings.theme">Theme</strong></div>
+      <div class="segmented-control" aria-label="Theme">
+        <button type="button" data-theme-value="system" data-i18n="theme.system">System</button>
+        <button type="button" data-theme-value="light" data-i18n="theme.light">Light</button>
+        <button type="button" data-theme-value="dark" data-i18n="theme.dark">Dark</button>
+      </div>
+    </section>
+
+    <section class="settings-section settings-row">
+      <div><strong data-i18n="settings.language">Language</strong></div>
+      <div class="segmented-control" aria-label="Language">
+        <button type="button" data-locale-value="en">English</button>
+        <button type="button" data-locale-value="zh-CN">中文</button>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <div class="settings-section-title">
+        <span class="update-mark" aria-hidden="true">↑</span>
+        <div>
+          <strong data-i18n="update.title">Software updates</strong>
+          <span id="update-status-text" data-i18n="update.idle">Ready to check</span>
+        </div>
+      </div>
+      <div id="update-progress" class="update-progress" hidden>
+        <div id="update-progress-bar"></div>
+      </div>
+      <div class="button-row">
+        <button id="btn-update-check" class="button secondary" type="button" data-i18n="update.check">Check for updates</button>
+        <button id="btn-update-install" class="button primary" type="button" data-i18n="update.install" disabled>Install and restart</button>
+      </div>
+      <div id="update-output" class="auth-output" aria-live="polite"></div>
+    </section>
+  </dialog>
+
+  <div id="flash" class="flash" hidden></div>
   <script src="/app.js"></script>
 </body>
 </html>

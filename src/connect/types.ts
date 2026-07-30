@@ -11,7 +11,7 @@
 // ============================================================================
 
 import type { IdeConnectionHealth } from "../health/ide-connection.js";
-import type { IdeTarget, McpServerConfig } from "../ide-detection/types.js";
+import type { IdeConfigFormat, IdeTarget, McpServerConfig } from "../ide-detection/types.js";
 
 export type ConnectStepKind = "detect" | "preview" | "backup" | "write" | "verify" | "rollback";
 export type ConnectStepStatus = "pending" | "applied" | "skipped";
@@ -26,6 +26,7 @@ export interface ConnectPlanStep {
 export interface OneClickConnectPlan {
   target: IdeTarget;
   configPath: string;
+  configFormat: IdeConfigFormat;
   serverName: "skill-central";
   desiredServer: McpServerConfig;
   currentRegistered: boolean;

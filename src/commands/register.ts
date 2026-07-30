@@ -1,11 +1,18 @@
-import fs from "node:fs";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import * as readline from "node:readline/promises";
+
+import { applyConnectPlan, buildConnectPlan } from "../connect/connect-plan.js";
 import {
-  DEFAULT_MCP_SERVER_CONFIG,
+  emptyIdeConfig,
+  removeSkillCentralServerConfig,
+} from "../ide-detection/config-codec.js";
+import { detectIdeRegistration } from "../ide-detection/detect.js";
+import {
   defaultIdeConfigPath,
+  getIdeDefinition,
+  ideConfigPathCandidates,
   isIdeTarget,
-  SKILL_CENTRAL_MCP_SERVER_NAME,
   SUPPORTED_IDES,
 } from "../ide-detection/registry.js";
 import type { IdeTarget } from "../ide-detection/types.js";
@@ -17,86 +24,67 @@ export interface RegisterOptions {
 export type IdeType = IdeTarget;
 
 export async function cmdRegister(ideInput: string | undefined, opts: RegisterOptions): Promise<void> {
-  let targets: IdeType[] = [];
-
-  if (ideInput) {
-    const ide = ideInput.toLowerCase() as IdeType;
-    if (!isIdeTarget(ide)) {
-      throw new Error(`Unsupported IDE: ${ide}. Supported IDEs: ${SUPPORTED_IDES.join(", ")}`);
-    }
-    targets = [ide];
-  } else {
-    // If no IDE specified, we will find all existing configuration files
-    console.log("No IDE specified. Searching for all known MCP configuration files...");
-    for (const ide of SUPPORTED_IDES) {
-      const configPath = defaultIdeConfigPath(ide);
-      if (fs.existsSync(configPath)) {
-        targets.push(ide);
+  const targets = resolveTargets(ideInput);
+  for (const target of targets) {
+    if (opts.remove) {
+      await removeRegistration(target);
+    } else {
+      const plan = await buildConnectPlan(target);
+      if (plan.currentRegistered) {
+        console.log(`[${target}] skill-central is already registered.`);
+        continue;
       }
-    }
-    
-    if (targets.length === 0) {
-      console.log("No existing IDE configurations found. Please specify an IDE or create the config manually.");
-      return;
-    }
-    console.log(`Found configurations for: ${targets.join(", ")}`);
-  }
-
-  for (const ide of targets) {
-    const configPath = defaultIdeConfigPath(ide);
-    await processIdeConfig(ide, configPath, opts.remove);
-  }
-}
-
-async function processIdeConfig(ide: IdeType, configPath: string, remove?: boolean) {
-  let config: any = {};
-  
-  if (fs.existsSync(configPath)) {
-    try {
-      const raw = fs.readFileSync(configPath, "utf-8");
-      config = JSON.parse(raw);
-    } catch (e) {
-      console.error(`Failed to parse configuration for ${ide} at ${configPath}. Is it valid JSON?`);
-      return;
-    }
-  } else {
-    if (remove) {
-      console.log(`[${ide}] Config file does not exist, nothing to remove.`);
-      return;
-    }
-    // Create directory if it doesn't exist
-    const dir = path.dirname(configPath);
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  if (!config.mcpServers) {
-    config.mcpServers = {};
-  }
-
-  if (remove) {
-    if (config.mcpServers[SKILL_CENTRAL_MCP_SERVER_NAME]) {
-      delete config.mcpServers[SKILL_CENTRAL_MCP_SERVER_NAME];
-      console.log(`[${ide}] Removed skill-central from MCP servers.`);
-      saveConfig(configPath, config);
-    } else {
-      console.log(`[${ide}] skill-central is not registered, nothing to remove.`);
-    }
-  } else {
-    const existing = config.mcpServers[SKILL_CENTRAL_MCP_SERVER_NAME];
-    if (
-      existing &&
-      existing.command === DEFAULT_MCP_SERVER_CONFIG.command &&
-      JSON.stringify(existing.args) === JSON.stringify(DEFAULT_MCP_SERVER_CONFIG.args)
-    ) {
-      console.log(`[${ide}] skill-central is already registered with the correct configuration.`);
-    } else {
-      config.mcpServers[SKILL_CENTRAL_MCP_SERVER_NAME] = DEFAULT_MCP_SERVER_CONFIG;
-      console.log(`[${ide}] Successfully registered skill-central.`);
-      saveConfig(configPath, config);
+      await applyConnectPlan(plan);
+      console.log(`[${target}] Registered skill-central in ${plan.configPath}.`);
     }
   }
 }
 
-function saveConfig(filePath: string, config: any) {
-  fs.writeFileSync(filePath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+function resolveTargets(ideInput: string | undefined): IdeTarget[] {
+  if (ideInput) {
+    const target = ideInput.toLowerCase();
+    if (!isIdeTarget(target)) {
+      throw new Error(`Unsupported IDE: ${ideInput}. Supported IDEs: ${SUPPORTED_IDES.join(", ")}`);
+    }
+    return [target];
+  }
+
+  console.log("No IDE specified. Searching for all known MCP configuration files...");
+  const detected = SUPPORTED_IDES.filter((target) =>
+    ideConfigPathCandidates(target).some((candidate) => existsSync(candidate)),
+  );
+  if (detected.length === 0) {
+    console.log("No existing IDE configurations found. Specify an IDE to create its default config.");
+    return [];
+  }
+  console.log(`Found configurations for: ${detected.join(", ")}`);
+  return detected;
+}
+
+async function removeRegistration(target: IdeTarget): Promise<void> {
+  const configPath = defaultIdeConfigPath(target);
+  const format = getIdeDefinition(target).configFormat;
+  const registration = await detectIdeRegistration(target, { configPath });
+  if (!registration.configExists) {
+    console.log(`[${target}] Config file does not exist, nothing to remove.`);
+    return;
+  }
+  if (!registration.configReadable) {
+    throw new Error(`Cannot parse ${format.toUpperCase()} config at ${configPath}: ${registration.error}`);
+  }
+  if (!registration.registered) {
+    console.log(`[${target}] skill-central is not registered, nothing to remove.`);
+    return;
+  }
+
+  let raw = emptyIdeConfig(format);
+  try {
+    raw = await readFile(configPath, "utf-8");
+  } catch (err) {
+    if (!(err && typeof err === "object" && "code" in err && err.code === "ENOENT")) throw err;
+  }
+  const next = removeSkillCentralServerConfig(raw, format);
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(configPath, next, "utf-8");
+  console.log(`[${target}] Removed skill-central from ${configPath}.`);
 }

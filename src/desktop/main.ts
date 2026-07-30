@@ -2,16 +2,21 @@ import { app, BrowserWindow, shell } from "electron";
 import { createServer } from "node:net";
 
 import { startBoardServer } from "../web/server.js";
+import { createDesktopUpdater } from "./updater.js";
+import type { UpdateController } from "../update/types.js";
 
 const DEFAULT_PORT = 5417;
 const MAX_PORT_TRIES = 10;
 
 let mainWindow: BrowserWindow | undefined;
+let desktopUpdater: UpdateController | undefined;
+let automaticUpdateCheckStarted = false;
 
 async function createMainWindow(): Promise<void> {
   const host = "127.0.0.1";
   const port = await findAvailablePort(host, DEFAULT_PORT);
-  startBoardServer({ host, port });
+  desktopUpdater ??= createDesktopUpdater();
+  startBoardServer({ host, port, updater: desktopUpdater });
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -37,6 +42,11 @@ async function createMainWindow(): Promise<void> {
   });
 
   await mainWindow.loadURL(`http://${host}:${port}/`);
+
+  if (!automaticUpdateCheckStarted) {
+    automaticUpdateCheckStarted = true;
+    setTimeout(() => void desktopUpdater?.check(), 3000);
+  }
 }
 
 app.setName("Skill Central");

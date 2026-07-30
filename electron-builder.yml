@@ -7,6 +7,7 @@ directories:
   buildResources: build
 
 artifactName: Skill-Central-${version}-${os}-${arch}.${ext}
+generateUpdatesFilesForAllChannels: true
 
 files:
   - dist/**/*
@@ -17,6 +18,11 @@ files:
 
 extraMetadata:
   main: dist/desktop/main.js
+
+publish:
+  provider: github
+  owner: BobcGn
+  repo: skill-central
 
 mac:
   category: public.app-category.developer-tools
@@ -34,9 +40,17 @@ mac:
 win:
   icon: build/icon.ico
   target:
+    - target: nsis
+      arch:
+        - x64
     - target: msi
       arch:
         - x64
     - target: zip
       arch:
         - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

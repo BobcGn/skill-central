@@ -9,7 +9,17 @@
 const state = {
   skills: [],
   activeId: null,
+  skillFilter: "",
   detail: null,        // last fetched /api/skills/:id
+  ideTargets: [],
+  activeIde: readPreference("skill-central.ide", "codex"),
+  activeView: readPreference("skill-central.view", "skills"),
+  theme: readPreference("skill-central.theme", "system"),
+  locale: readPreference("skill-central.locale", navigator.language.startsWith("zh") ? "zh-CN" : "en"),
+  githubPollTimer: null,
+  githubStatus: null,
+  updatePollTimer: null,
+  updateStatus: null,
   connectPlan: null,   // last preview/apply result for rollback evidence
   syncPlan: null,      // last dry-run plan; conflict choices must match it
   syncAudits: [],
@@ -23,6 +33,227 @@ const state = {
   },
   editing: false,
 };
+
+const messages = {
+  en: {
+    "nav.skills": "Skills",
+    "nav.ide": "IDE Connections",
+    "nav.sync": "Sync",
+    "nav.runtime": "Runtime",
+    "workspace.label": "Workspace",
+    "settings.account": "Personal settings",
+    "settings.title": "Personal settings",
+    "settings.theme": "Theme",
+    "settings.language": "Language",
+    "theme.system": "System",
+    "theme.light": "Light",
+    "theme.dark": "Dark",
+    "skills.search": "Filter skills",
+    "skills.compile": "Compile preview",
+    "skills.emptyTitle": "Select a skill",
+    "skills.emptyBody": "Choose an entry from the index.",
+    "skills.noResults": "No matching skills",
+    "skills.noSkills": "No skills loaded",
+    "action.preview": "Preview",
+    "action.edit": "Edit",
+    "action.resolution": "Resolution",
+    "action.backups": "Backups",
+    "action.save": "Save",
+    "action.cancel": "Cancel",
+    "ide.title": "IDE Connections",
+    "ide.selected": "Selected target",
+    "ide.health": "Check health",
+    "ide.plan": "Build plan",
+    "ide.connect": "Connect",
+    "ide.rollback": "Rollback",
+    "ide.ready": "connection console ready",
+    "ide.registered": "registered",
+    "ide.notRegistered": "not registered",
+    "ide.invalidConfig": "invalid config",
+    "ide.checking": "Checking {target}...",
+    "ide.building": "Building {target} connect plan...",
+    "ide.applying": "Applying {target} connect plan...",
+    "ide.rollingBack": "Rolling back {target} connect plan...",
+    "ide.noPlan": "Build or apply a connect plan before rollback.",
+    "sync.title": "Registry Sync",
+    "sync.path": "Registry checkout",
+    "sync.direction": "Direction",
+    "sync.force": "Force with backup",
+    "sync.confirm": "Apply confirmation",
+    "sync.status": "Status",
+    "sync.plan": "Build plan",
+    "sync.apply": "Apply sync",
+    "sync.audit": "Audit log",
+    "sync.ready": "sync console ready",
+    "sync.selectAudit": "Select an audit or backup path.",
+    "runtime.title": "Local Runtime",
+    "runtime.mcp": "MCP stdio process",
+    "runtime.status": "Inspect",
+    "runtime.start": "Start",
+    "runtime.stop": "Stop",
+    "runtime.ready": "runtime console ready",
+    "github.notConnected": "GitHub not connected",
+    "github.connected": "GitHub connected",
+    "github.clientId": "OAuth App Client ID",
+    "github.connect": "Connect GitHub",
+    "github.disconnect": "Disconnect",
+    "github.unavailable": "GitHub authentication unavailable",
+    "github.open": "Open GitHub",
+    "github.waiting": "Waiting for authorization...",
+    "github.success": "GitHub authentication complete",
+    "update.title": "Software updates",
+    "update.check": "Check for updates",
+    "update.install": "Install and restart",
+    "update.unsupported": "Desktop updater unavailable",
+    "update.idle": "Ready to check",
+    "update.checking": "Checking for updates...",
+    "update.up-to-date": "Skill Central is up to date",
+    "update.available": "Version {version} is available",
+    "update.downloading": "Downloading {percent}%",
+    "update.ready": "Version {version} is ready",
+    "update.installing": "Installing and restarting...",
+    "update.error": "Update failed",
+  },
+  "zh-CN": {
+    "nav.skills": "Skills",
+    "nav.ide": "IDE 连接",
+    "nav.sync": "同步",
+    "nav.runtime": "运行时",
+    "workspace.label": "工作区",
+    "settings.account": "个人设置",
+    "settings.title": "个人设置",
+    "settings.theme": "主题",
+    "settings.language": "语言",
+    "theme.system": "跟随系统",
+    "theme.light": "亮色",
+    "theme.dark": "暗色",
+    "skills.search": "筛选 Skills",
+    "skills.compile": "编译预览",
+    "skills.emptyTitle": "选择一个 Skill",
+    "skills.emptyBody": "从左侧索引中选择条目。",
+    "skills.noResults": "没有匹配的 Skill",
+    "skills.noSkills": "尚未加载 Skill",
+    "action.preview": "预览",
+    "action.edit": "编辑",
+    "action.resolution": "解析链",
+    "action.backups": "备份",
+    "action.save": "保存",
+    "action.cancel": "取消",
+    "ide.title": "IDE 连接",
+    "ide.selected": "当前目标",
+    "ide.health": "健康检查",
+    "ide.plan": "生成计划",
+    "ide.connect": "连接",
+    "ide.rollback": "回退",
+    "ide.ready": "连接控制台已就绪",
+    "ide.registered": "已注册",
+    "ide.notRegistered": "未注册",
+    "ide.invalidConfig": "配置异常",
+    "ide.checking": "正在检查 {target}...",
+    "ide.building": "正在生成 {target} 连接计划...",
+    "ide.applying": "正在应用 {target} 连接计划...",
+    "ide.rollingBack": "正在回退 {target} 连接计划...",
+    "ide.noPlan": "请先生成或应用连接计划。",
+    "sync.title": "Registry 同步",
+    "sync.path": "Registry 本地目录",
+    "sync.direction": "同步方向",
+    "sync.force": "强制执行并备份",
+    "sync.confirm": "执行确认",
+    "sync.status": "状态",
+    "sync.plan": "生成计划",
+    "sync.apply": "执行同步",
+    "sync.audit": "审计日志",
+    "sync.ready": "同步控制台已就绪",
+    "sync.selectAudit": "选择一条审计或备份记录。",
+    "runtime.title": "本地运行时",
+    "runtime.mcp": "MCP stdio 进程",
+    "runtime.status": "检查",
+    "runtime.start": "启动",
+    "runtime.stop": "停止",
+    "runtime.ready": "运行时控制台已就绪",
+    "github.notConnected": "GitHub 未连接",
+    "github.connected": "GitHub 已连接",
+    "github.clientId": "OAuth App Client ID",
+    "github.connect": "连接 GitHub",
+    "github.disconnect": "断开连接",
+    "github.unavailable": "GitHub 认证不可用",
+    "github.open": "打开 GitHub",
+    "github.waiting": "等待授权...",
+    "github.success": "GitHub 认证完成",
+    "update.title": "软件更新",
+    "update.check": "检查更新",
+    "update.install": "安装并重启",
+    "update.unsupported": "桌面更新器不可用",
+    "update.idle": "可以检查更新",
+    "update.checking": "正在检查更新...",
+    "update.up-to-date": "Skill Central 已是最新版本",
+    "update.available": "发现版本 {version}",
+    "update.downloading": "正在下载 {percent}%",
+    "update.ready": "版本 {version} 已准备好",
+    "update.installing": "正在安装并重启...",
+    "update.error": "更新失败",
+  },
+};
+
+function readPreference(key, fallback) {
+  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+
+function writePreference(key, value) {
+  try { localStorage.setItem(key, value); } catch {}
+}
+
+function t(key, replacements = {}) {
+  const dictionary = messages[state.locale] || messages.en;
+  let value = dictionary[key] || messages.en[key] || key;
+  for (const [name, replacement] of Object.entries(replacements)) {
+    value = value.replace(`{${name}}`, replacement);
+  }
+  return value;
+}
+
+function applyPreferences() {
+  if (state.theme === "light" || state.theme === "dark") {
+    document.documentElement.dataset.theme = state.theme;
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
+  document.documentElement.lang = state.locale;
+  for (const el of document.querySelectorAll("[data-i18n]")) {
+    el.textContent = t(el.dataset.i18n);
+  }
+  for (const el of document.querySelectorAll("[data-i18n-placeholder]")) {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  }
+  for (const button of document.querySelectorAll("[data-theme-value]")) {
+    button.classList.toggle("active", button.dataset.themeValue === state.theme);
+  }
+  for (const button of document.querySelectorAll("[data-locale-value]")) {
+    button.classList.toggle("active", button.dataset.localeValue === state.locale);
+  }
+  navigate(state.activeView, false);
+  renderList();
+  renderIdeTargets();
+  if (state.detail && !state.editing) renderDetail(state.detail);
+  if (state.githubStatus) renderGithubStatus(state.githubStatus);
+  if (state.updateStatus) renderUpdateStatus(state.updateStatus);
+}
+
+function navigate(view, persist = true) {
+  const known = ["skills", "ide", "sync", "runtime"];
+  state.activeView = known.includes(view) ? view : "skills";
+  if (persist) writePreference("skill-central.view", state.activeView);
+  for (const button of document.querySelectorAll("[data-view]")) {
+    button.classList.toggle("active", button.dataset.view === state.activeView);
+  }
+  for (const panel of document.querySelectorAll("[data-view-panel]")) {
+    const active = panel.dataset.viewPanel === state.activeView;
+    panel.hidden = !active;
+    panel.classList.toggle("active", active);
+  }
+  const title = document.getElementById("view-title");
+  if (title) title.textContent = t(`nav.${state.activeView}`);
+}
 
 // ── API helpers ────────────────────────────────────────────────────────────
 
@@ -47,37 +278,49 @@ async function api(path, opts = {}) {
 function renderHealth(health) {
   const el = document.getElementById("health");
   if (health.ok) {
-    el.textContent = `v${health.version} · ${state.skills.length} skills`;
+    el.innerHTML = `<span class="status-dot"></span><span>v${escapeHtml(health.version)} · ${state.skills.length} skills</span>`;
     el.classList.remove("error");
   } else {
-    el.textContent = "offline";
+    el.innerHTML = `<span class="status-dot"></span><span>offline</span>`;
     el.classList.add("error");
   }
+  document.getElementById("skill-count").textContent = state.skills.length;
+  const brandVersion = document.getElementById("brand-version");
+  if (brandVersion) brandVersion.textContent = health.version;
 }
 
 function renderList() {
   const ul = document.getElementById("skill-list");
+  if (!ul) return;
   ul.innerHTML = "";
-  if (state.skills.length === 0) {
+  const filter = state.skillFilter.trim().toLowerCase();
+  const visibleSkills = filter
+    ? state.skills.filter((skill) =>
+        [skill.id, skill.name, skill.description, ...(skill.tags || [])]
+          .some((value) => String(value || "").toLowerCase().includes(filter)),
+      )
+    : state.skills;
+  if (visibleSkills.length === 0) {
     const li = document.createElement("li");
-    li.className = "muted";
-    li.textContent = "(no skills loaded)";
+    li.className = "list-empty";
+    li.textContent = state.skills.length === 0 ? t("skills.noSkills") : t("skills.noResults");
     ul.appendChild(li);
     return;
   }
   const byLayer = new Map();
-  for (const s of state.skills) {
+  for (const s of visibleSkills) {
     const k = s.layer || "(unknown)";
     if (!byLayer.has(k)) byLayer.set(k, []);
     byLayer.get(k).push(s);
   }
   for (const [layer, skills] of byLayer) {
     const title = document.createElement("li");
-    title.className = "section-title";
+    title.className = "skill-layer";
     title.textContent = `${layer} (${skills.length})`;
     ul.appendChild(title);
     for (const s of skills) {
       const li = document.createElement("li");
+      li.className = "skill-item";
       if (s.id === state.activeId) li.classList.add("active");
       li.dataset.id = s.id;
       li.innerHTML = `
@@ -93,7 +336,12 @@ function renderList() {
 function renderDetail(skill) {
   const el = document.getElementById("skill-detail");
   if (!skill) {
-    el.innerHTML = `<div class="placeholder">Select a skill to preview.</div>`;
+    el.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-glyph" aria-hidden="true">{ }</span>
+        <strong>${escapeHtml(t("skills.emptyTitle"))}</strong>
+        <span>${escapeHtml(t("skills.emptyBody"))}</span>
+      </div>`;
     return;
   }
   const tags = (skill.tags || []).join(", ");
@@ -140,9 +388,9 @@ function renderDetail(skill) {
         </div>
       </div>
       <div class="actions">
-        <button id="btn-edit">Edit</button>
-        <button id="btn-resolution">Resolution</button>
-        <button id="btn-backups">Backups</button>
+        <button id="btn-edit" class="button secondary">${escapeHtml(t("action.edit"))}</button>
+        <button id="btn-resolution" class="button secondary">${escapeHtml(t("action.resolution"))}</button>
+        <button id="btn-backups" class="button secondary">${escapeHtml(t("action.backups"))}</button>
       </div>
     </div>
     <p>${escapeHtml(skill.description || "")}</p>
@@ -167,8 +415,8 @@ function renderEditForm(skill, draftYaml, conflictMsg) {
         </div>
       </div>
       <div class="actions">
-        <button id="btn-save">Save</button>
-        <button id="btn-cancel">Cancel</button>
+        <button id="btn-save" class="button primary">${escapeHtml(t("action.save"))}</button>
+        <button id="btn-cancel" class="button secondary">${escapeHtml(t("action.cancel"))}</button>
       </div>
     </div>
     ${conflictMsg ? `<div class="error">${escapeHtml(conflictMsg)}</div>` : ""}
@@ -319,14 +567,84 @@ async function selectSkill(id) {
   }
 }
 
-async function showIdeHealth() {
-  const output = document.getElementById("console-output");
-  output.textContent = "Checking Cursor registration...";
+async function loadIdeTargets() {
   try {
-    const health = await api("/api/ide-health?target=cursor");
-    output.classList.toggle("error", !["connected", "registered"].includes(health.status));
+    state.ideTargets = await api("/api/ide-targets");
+    if (!state.ideTargets.some((target) => target.target === state.activeIde)) {
+      state.activeIde = state.ideTargets[0]?.target || "codex";
+    }
+    renderIdeTargets();
+  } catch (err) {
+    const container = document.getElementById("ide-targets");
+    if (container) container.innerHTML = `<div class="error">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderIdeTargets() {
+  const container = document.getElementById("ide-targets");
+  if (!container) return;
+  container.innerHTML = state.ideTargets.map((target) => {
+    const invalid = !target.configReadable && target.configExists;
+    const statusKey = invalid ? "ide.invalidConfig" : target.registered ? "ide.registered" : "ide.notRegistered";
+    const statusClass = invalid ? "error" : target.registered ? "connected" : "";
+    return `
+      <button class="ide-card ${target.target === state.activeIde ? "active" : ""}" type="button" data-ide-target="${escapeHtml(target.target)}">
+        <span class="ide-card-head">
+          <strong>${escapeHtml(target.label)}</strong>
+          <span class="connection-state ${statusClass}">${escapeHtml(t(statusKey))}</span>
+        </span>
+        <p>${escapeHtml(ideDescription(target))}</p>
+        <span class="ide-card-foot">
+          <code>${escapeHtml(target.configPath)}</code>
+          <span>${escapeHtml(target.configFormat.toUpperCase())}</span>
+        </span>
+      </button>`;
+  }).join("");
+  const registered = state.ideTargets.filter((target) => target.registered).length;
+  const summary = document.getElementById("ide-summary");
+  if (summary) summary.textContent = `${registered} / ${state.ideTargets.length} connected`;
+  const active = activeIdeRecord();
+  if (active) {
+    document.getElementById("active-ide-label").textContent = active.label;
+    document.getElementById("active-ide-path").textContent = active.configPath;
+  }
+}
+
+function ideDescription(target) {
+  if (state.locale !== "zh-CN") return target.description;
+  const descriptions = {
+    codex: "Codex 当前项目或用户范围共享的 MCP 配置。",
+    claude: "Claude Code 用户配置或 Claude Desktop MCP 配置。",
+    trae: "兼容 Trae 国际版与中国版的全局 MCP 配置。",
+    cursor: "Cursor 全局 MCP 配置。",
+    windsurf: "Windsurf 全局 MCP 配置。",
+    cline: "Cline VS Code 扩展的 MCP 配置。",
+  };
+  return descriptions[target.target] || target.description;
+}
+
+function selectIde(target) {
+  if (!state.ideTargets.some((candidate) => candidate.target === target)) return;
+  state.activeIde = target;
+  state.connectPlan = null;
+  writePreference("skill-central.ide", target);
+  renderIdeTargets();
+}
+
+function activeIdeRecord() {
+  return state.ideTargets.find((target) => target.target === state.activeIde) || state.ideTargets[0];
+}
+
+async function showIdeHealth() {
+  const output = document.getElementById("ide-output");
+  const target = activeIdeRecord();
+  if (!target) return;
+  output.textContent = t("ide.checking", { target: target.label });
+  try {
+    const health = await api(`/api/ide-health?target=${encodeURIComponent(target.target)}&verify=true`);
+    output.classList.toggle("error", health.status !== "connected");
     output.innerHTML = `
-      <strong>Cursor</strong> · ${escapeHtml(health.status)}<br>
+      <strong>${escapeHtml(target.label)}</strong> · ${escapeHtml(health.status)}<br>
       config: <code>${escapeHtml(health.configPath)}</code><br>
       loaded: ${health.loadedSkillCount} / registry ${health.registryLoadedSkillCount}<br>
       next: ${escapeHtml((health.nextActions || []).join(" "))}
@@ -338,12 +656,14 @@ async function showIdeHealth() {
 }
 
 async function showConnectPlan() {
-  const output = document.getElementById("console-output");
-  output.textContent = "Building Cursor connect plan...";
+  const output = document.getElementById("ide-output");
+  const target = activeIdeRecord();
+  if (!target) return;
+  output.textContent = t("ide.building", { target: target.label });
   try {
     const plan = await api("/api/connect/plan", {
       method: "POST",
-      body: JSON.stringify({ target: "cursor" }),
+      body: JSON.stringify({ target: target.target }),
     });
     state.connectPlan = plan;
     output.classList.remove("error");
@@ -355,10 +675,12 @@ async function showConnectPlan() {
 }
 
 async function applyConnect() {
-  const output = document.getElementById("console-output");
-  const target = state.connectPlan?.target || "cursor";
+  const output = document.getElementById("ide-output");
+  const active = activeIdeRecord();
+  if (!active) return;
+  const target = state.connectPlan?.target || active.target;
   const configPath = state.connectPlan?.configPath;
-  output.textContent = "Applying Cursor connect plan...";
+  output.textContent = t("ide.applying", { target: active.label });
   try {
     const plan = await api("/api/connect/apply", {
       method: "POST",
@@ -367,6 +689,7 @@ async function applyConnect() {
     state.connectPlan = plan;
     output.classList.toggle("error", !!plan.health && plan.health.status !== "connected");
     output.innerHTML = renderConnectPlan(plan, "Connect applied");
+    await loadIdeTargets();
   } catch (err) {
     output.classList.add("error");
     output.textContent = err.message;
@@ -374,13 +697,14 @@ async function applyConnect() {
 }
 
 async function rollbackConnect() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("ide-output");
   if (!state.connectPlan) {
     output.classList.add("error");
-    output.textContent = "Build or apply a connect plan before rollback.";
+    output.textContent = t("ide.noPlan");
     return;
   }
-  output.textContent = "Rolling back Cursor connect plan...";
+  const target = activeIdeRecord();
+  output.textContent = t("ide.rollingBack", { target: target?.label || state.connectPlan.target });
   try {
     const plan = await api("/api/connect/rollback", {
       method: "POST",
@@ -393,6 +717,7 @@ async function rollbackConnect() {
     state.connectPlan = plan;
     output.classList.remove("error");
     output.innerHTML = renderConnectPlan(plan, "Connect rolled back");
+    await loadIdeTargets();
   } catch (err) {
     output.classList.add("error");
     output.textContent = err.message;
@@ -408,7 +733,7 @@ function renderConnectPlan(plan, title) {
     : "";
   return `
     <strong>${escapeHtml(title)}</strong> · ${escapeHtml(plan.target)}<br>
-    config: <code>${escapeHtml(plan.configPath)}</code><br>
+    config: <code>${escapeHtml(plan.configPath)}</code> · ${escapeHtml((plan.configFormat || "json").toUpperCase())}<br>
     backup: <code>${escapeHtml(plan.backupPath || "(new file)")}</code>${health}
     <pre>${escapeHtml(steps)}</pre>
     <pre>${escapeHtml(plan.diffPreview)}</pre>
@@ -416,17 +741,19 @@ function renderConnectPlan(plan, title) {
 }
 
 async function showCompilePreview() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("skills-output");
+  output.hidden = false;
   const intent = state.activeId || "ci-workflow";
-  output.textContent = "Compiling Cursor preview...";
+  const target = document.getElementById("compile-target")?.value || "cursor";
+  output.textContent = `Compiling ${target} preview...`;
   try {
     const bundle = await api("/api/compile/preview", {
       method: "POST",
-      body: JSON.stringify({ target: "cursor", intent }),
+      body: JSON.stringify({ target, intent }),
     });
     output.classList.remove("error");
     output.innerHTML = `
-      <strong>Compile preview</strong> · cursor · ${escapeHtml(intent)}<br>
+      <strong>Compile preview</strong> · ${escapeHtml(target)} · ${escapeHtml(intent)}<br>
       hash: <code>${escapeHtml(bundle.hash)}</code><br>
       selected: ${bundle.selectedSkills.length} · artifacts: ${bundle.artifacts.length}
       <pre>${escapeHtml((bundle.artifacts[0]?.preview || "").split("\n").slice(0, 8).join("\n"))}</pre>
@@ -438,7 +765,7 @@ async function showCompilePreview() {
 }
 
 async function showSyncStatus() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("sync-output");
   output.textContent = "Reading sync status...";
   try {
     const report = await api("/api/sync/status");
@@ -457,7 +784,7 @@ async function showSyncStatus() {
 }
 
 async function showSyncPlan() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("sync-output");
   const registryDir = syncRegistryDir();
   if (!registryDir) {
     output.classList.add("error");
@@ -480,7 +807,7 @@ async function showSyncPlan() {
 }
 
 async function applySync() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("sync-output");
   const registryDir = syncRegistryDir();
   if (!registryDir) {
     output.classList.add("error");
@@ -517,7 +844,7 @@ async function applySync() {
 }
 
 async function showSyncAudits(append = false) {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("sync-output");
   output.textContent = "Reading sync audit reports...";
   try {
     const page = await api(syncAuditQuery(append ? state.syncAuditNextCursor : null));
@@ -686,7 +1013,6 @@ function ensureSyncAuditList(view) {
 
 function showAuditView(visible) {
   document.getElementById("sync-audit-view").hidden = !visible;
-  document.getElementById("skill-detail").hidden = visible;
 }
 
 async function openSyncEvidence(kind, filePath) {
@@ -812,7 +1138,7 @@ function shortHash(value) {
 }
 
 async function showRuntimeStatus() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("runtime-output");
   output.textContent = "Reading runtime status...";
   try {
     const snapshot = await api("/api/runtime/status");
@@ -825,7 +1151,7 @@ async function showRuntimeStatus() {
 }
 
 async function startRuntime() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("runtime-output");
   output.textContent = "Starting local MCP runtime...";
   try {
     const snapshot = await api("/api/runtime/start", { method: "POST" });
@@ -838,7 +1164,7 @@ async function startRuntime() {
 }
 
 async function stopRuntime() {
-  const output = document.getElementById("console-output");
+  const output = document.getElementById("runtime-output");
   output.textContent = "Stopping local MCP runtime...";
   try {
     const snapshot = await api("/api/runtime/stop", { method: "POST" });
@@ -865,26 +1191,211 @@ function renderRuntime(snapshot) {
   `;
 }
 
+async function loadGithubStatus() {
+  const statusText = document.getElementById("github-status-text");
+  if (statusText) statusText.textContent = "...";
+  try {
+    const status = await api("/api/auth/github/status");
+    state.githubStatus = status;
+    renderGithubStatus(status);
+  } catch (err) {
+    state.githubStatus = { available: false, loggedIn: false, error: err.message };
+    renderGithubStatus(state.githubStatus);
+  }
+}
+
+function renderGithubStatus(status) {
+  const connected = !!status?.loggedIn;
+  const available = status?.available !== false;
+  const label = connected
+    ? t("github.connected")
+    : available
+      ? t("github.notConnected")
+      : t("github.unavailable");
+  const sidebar = document.getElementById("github-sidebar-status");
+  const detail = document.getElementById("github-status-text");
+  if (sidebar) sidebar.textContent = label;
+  if (detail) detail.textContent = label;
+  const login = document.getElementById("btn-github-login");
+  const logout = document.getElementById("btn-github-logout");
+  if (login) login.disabled = connected || !available;
+  if (logout) logout.disabled = !connected || !available;
+  if (!available && status?.error) {
+    const output = document.getElementById("github-auth-output");
+    output.classList.add("error");
+    output.textContent = status.error;
+  }
+}
+
+async function startGithubLogin() {
+  const output = document.getElementById("github-auth-output");
+  const clientId = document.getElementById("github-client-id").value.trim();
+  if (clientId) writePreference("skill-central.githubClientId", clientId);
+  output.classList.remove("error");
+  output.textContent = "Requesting GitHub device code...";
+  clearGithubPollTimer();
+  try {
+    const device = await api("/api/auth/github/device", {
+      method: "POST",
+      body: JSON.stringify({ clientId: clientId || undefined }),
+    });
+    output.innerHTML = `
+      <a href="${escapeHtml(device.verificationUri)}" target="_blank" rel="noreferrer">${escapeHtml(t("github.open"))}</a><br>
+      <span class="device-code">${escapeHtml(device.userCode)}</span><br>
+      <span>${escapeHtml(t("github.waiting"))}</span>`;
+    scheduleGithubPoll(device.flowId, device.interval);
+  } catch (err) {
+    output.classList.add("error");
+    output.textContent = err.message;
+  }
+}
+
+function scheduleGithubPoll(flowId, intervalSeconds) {
+  clearGithubPollTimer();
+  state.githubPollTimer = setTimeout(() => pollGithubLogin(flowId), Math.max(1, intervalSeconds) * 1000);
+}
+
+async function pollGithubLogin(flowId) {
+  const output = document.getElementById("github-auth-output");
+  try {
+    const result = await api("/api/auth/github/poll", {
+      method: "POST",
+      body: JSON.stringify({ flowId }),
+    });
+    if (result.pending) {
+      scheduleGithubPoll(flowId, result.retryAfter);
+      return;
+    }
+    clearGithubPollTimer();
+    output.classList.remove("error");
+    output.textContent = result.user?.login
+      ? `${t("github.success")}: @${result.user.login}`
+      : t("github.success");
+    await loadGithubStatus();
+  } catch (err) {
+    clearGithubPollTimer();
+    output.classList.add("error");
+    output.textContent = err.message;
+  }
+}
+
+async function logoutGithub() {
+  const output = document.getElementById("github-auth-output");
+  clearGithubPollTimer();
+  try {
+    await api("/api/auth/github/logout", { method: "POST" });
+    output.classList.remove("error");
+    output.textContent = t("github.notConnected");
+    await loadGithubStatus();
+  } catch (err) {
+    output.classList.add("error");
+    output.textContent = err.message;
+  }
+}
+
+function clearGithubPollTimer() {
+  if (state.githubPollTimer) clearTimeout(state.githubPollTimer);
+  state.githubPollTimer = null;
+}
+
+async function loadUpdateStatus() {
+  try {
+    state.updateStatus = await api("/api/update/status");
+  } catch (err) {
+    state.updateStatus = {
+      supported: false,
+      status: "error",
+      currentVersion: "unknown",
+      message: err.message,
+    };
+  }
+  renderUpdateStatus(state.updateStatus);
+  scheduleUpdatePollIfNeeded();
+}
+
+function renderUpdateStatus(status) {
+  const statusText = document.getElementById("update-status-text");
+  const output = document.getElementById("update-output");
+  const checkButton = document.getElementById("btn-update-check");
+  const installButton = document.getElementById("btn-update-install");
+  const progress = document.getElementById("update-progress");
+  const progressBar = document.getElementById("update-progress-bar");
+  if (!statusText || !output || !checkButton || !installButton || !progress || !progressBar) return;
+
+  const version = status.availableVersion || status.currentVersion || "";
+  const percent = Number.isFinite(status.progressPercent) ? status.progressPercent : 0;
+  const key = status.supported === false ? "unsupported" : (status.status || "idle");
+  statusText.textContent = t(`update.${key}`, { version, percent: String(percent) });
+  output.textContent = status.message || (status.provider ? `${status.provider} · v${status.currentVersion}` : "");
+  output.classList.toggle("error", status.status === "error");
+  checkButton.disabled = !status.supported || ["checking", "downloading", "installing"].includes(status.status);
+  installButton.disabled = !status.supported || !["available", "ready"].includes(status.status);
+  progress.hidden = !["downloading", "ready", "installing"].includes(status.status);
+  progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+}
+
+async function checkForUpdates() {
+  clearUpdatePollTimer();
+  try {
+    state.updateStatus = await api("/api/update/check", { method: "POST" });
+  } catch (err) {
+    state.updateStatus = { ...state.updateStatus, status: "error", message: err.message };
+  }
+  renderUpdateStatus(state.updateStatus);
+  scheduleUpdatePollIfNeeded();
+}
+
+async function installUpdate() {
+  clearUpdatePollTimer();
+  try {
+    state.updateStatus = await api("/api/update/install", { method: "POST" });
+  } catch (err) {
+    state.updateStatus = { ...state.updateStatus, status: "error", message: err.message };
+  }
+  renderUpdateStatus(state.updateStatus);
+  scheduleUpdatePollIfNeeded();
+}
+
+function scheduleUpdatePollIfNeeded() {
+  clearUpdatePollTimer();
+  if (!["checking", "downloading", "installing"].includes(state.updateStatus?.status)) return;
+  state.updatePollTimer = setTimeout(loadUpdateStatus, 1500);
+}
+
+function clearUpdatePollTimer() {
+  if (state.updatePollTimer) clearTimeout(state.updatePollTimer);
+  state.updatePollTimer = null;
+}
+
+function openSettings() {
+  const dialog = document.getElementById("settings-dialog");
+  document.getElementById("github-client-id").value = readPreference("skill-central.githubClientId", "");
+  if (!dialog.open) dialog.showModal();
+  loadGithubStatus();
+  loadUpdateStatus();
+}
+
 async function loadAll() {
   try {
-    const health = await api("/api/health");
-    state.skills = await api("/api/skills");
+    const [health, skills] = await Promise.all([api("/api/health"), api("/api/skills")]);
+    state.skills = skills;
     renderHealth(health);
     renderList();
   } catch (err) {
-    document.getElementById("health").textContent = "offline";
+    document.getElementById("health").innerHTML = `<span class="status-dot"></span><span>offline</span>`;
     document.getElementById("health").classList.add("error");
     console.error(err);
   }
+  await loadIdeTargets();
 }
 
 function flash(msg, isError) {
   const el = document.getElementById("flash");
   if (!el) return;
   el.textContent = msg;
-  el.className = isError ? "error" : "ok";
-  el.style.display = "block";
-  setTimeout(() => { el.style.display = "none"; }, 3500);
+  el.className = `flash ${isError ? "error" : "ok"}`;
+  el.hidden = false;
+  setTimeout(() => { el.hidden = true; }, 3500);
 }
 
 function escapeHtml(s) {
@@ -897,6 +1408,17 @@ function escapeHtml(s) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  for (const button of document.querySelectorAll("[data-view]")) {
+    button.addEventListener("click", () => navigate(button.dataset.view));
+  }
+  document.getElementById("ide-targets").addEventListener("click", (event) => {
+    const card = event.target.closest("[data-ide-target]");
+    if (card) selectIde(card.dataset.ideTarget);
+  });
+  document.getElementById("skill-search").addEventListener("input", (event) => {
+    state.skillFilter = event.target.value;
+    renderList();
+  });
   document.getElementById("btn-ide-health").addEventListener("click", showIdeHealth);
   document.getElementById("btn-connect-plan").addEventListener("click", showConnectPlan);
   document.getElementById("btn-connect-apply").addEventListener("click", applyConnect);
@@ -910,7 +1432,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-sync-apply").addEventListener("click", applySync);
   document.getElementById("btn-sync-audits").addEventListener("click", showSyncAudits);
   document.getElementById("btn-close-sync-audit").addEventListener("click", () => showAuditView(false));
-  document.getElementById("console-output").addEventListener("click", (event) => {
+  document.getElementById("sync-output").addEventListener("click", (event) => {
     const filterButton = event.target.closest("[data-sync-audit-filter]");
     if (!filterButton) return;
     state.syncAuditFilters.outcome = filterButton.dataset.syncAuditFilter;
@@ -962,5 +1484,31 @@ document.addEventListener("DOMContentLoaded", () => {
       flash(`✗ ${err.message}`, true);
     }
   });
+  document.getElementById("btn-settings").addEventListener("click", openSettings);
+  document.getElementById("btn-close-settings").addEventListener("click", () => {
+    document.getElementById("settings-dialog").close();
+  });
+  document.getElementById("settings-dialog").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
+  for (const button of document.querySelectorAll("[data-theme-value]")) {
+    button.addEventListener("click", () => {
+      state.theme = button.dataset.themeValue;
+      writePreference("skill-central.theme", state.theme);
+      applyPreferences();
+    });
+  }
+  for (const button of document.querySelectorAll("[data-locale-value]")) {
+    button.addEventListener("click", () => {
+      state.locale = button.dataset.localeValue;
+      writePreference("skill-central.locale", state.locale);
+      applyPreferences();
+    });
+  }
+  document.getElementById("btn-github-login").addEventListener("click", startGithubLogin);
+  document.getElementById("btn-github-logout").addEventListener("click", logoutGithub);
+  document.getElementById("btn-update-check").addEventListener("click", checkForUpdates);
+  document.getElementById("btn-update-install").addEventListener("click", installUpdate);
+  applyPreferences();
   loadAll();
 });

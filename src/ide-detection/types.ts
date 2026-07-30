@@ -11,7 +11,17 @@
 //   roadmap返工 trigger.
 // ============================================================================
 
-export type IdeTarget = "claude" | "cursor" | "windsurf" | "cline";
+export type IdeTarget = "codex" | "claude" | "trae" | "cursor" | "windsurf" | "cline";
+
+export type IdeConfigFormat = "json" | "toml";
+
+export interface IdeTargetDefinition {
+  target: IdeTarget;
+  label: string;
+  description: string;
+  configFormat: IdeConfigFormat;
+  docsUrl: string;
+}
 
 export interface McpServerConfig {
   command: string;
@@ -26,6 +36,7 @@ export interface IdeDetectionOptions {
 export interface IdeRegistration {
   target: IdeTarget;
   configPath: string;
+  configFormat: IdeConfigFormat;
   configExists: boolean;
   configReadable: boolean;
   registered: boolean;

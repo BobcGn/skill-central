@@ -182,7 +182,7 @@ program
 program
   .command("doctor")
   .description("Scan layers for missing dirs, parse errors, id collisions, and orphan backups")
-  .option("--ide <target>", "Also run IDE connection health check: cursor, windsurf, claude, cline")
+  .option("--ide <target>", "Also run IDE connection health check: codex, claude, trae, cursor, windsurf, cline")
   .option("--config-path <path>", "Override IDE MCP config path for --ide")
   .option("--verify", "Run MCP initialize/prompts/list/tools/list probe for --ide")
   .option("--json", "Print machine-readable doctor report")
@@ -247,7 +247,7 @@ program
 
 program
   .command("register [ide]")
-  .description("Automatically register skill-central into IDE MCP configurations (claude, cursor, windsurf, cline). Omitting [ide] will auto-detect and register in all found.")
+  .description("Automatically register skill-central into IDE MCP configurations (codex, claude, trae, cursor, windsurf, cline). Omitting [ide] auto-detects existing configs.")
   .option("--remove", "Remove the skill-central registration from the IDE config")
   .action((ide: string | undefined, opts) => {
     cmdRegister(ide, {
@@ -305,7 +305,7 @@ program
 program
   .command("connect")
   .description("Preview, apply, verify, or rollback IDE MCP registration")
-  .requiredOption("--target <ide>", "IDE target: cursor, windsurf, claude, cline")
+  .requiredOption("--target <ide>", "IDE target: codex, claude, trae, cursor, windsurf, cline")
   .option("--config-path <path>", "Override IDE MCP config path")
   .option("--dry-run", "Print connection plan without writing files")
   .option("--verify", "After writing, run MCP initialize/prompts/list/tools/list health probe")

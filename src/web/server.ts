@@ -28,6 +28,7 @@
 
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -45,8 +46,18 @@ import {
   verifyConnectPlan,
 } from "../connect/connect-plan.js";
 import { checkIdeConnectionHealth } from "../health/ide-connection.js";
-import { isIdeTarget } from "../ide-detection/registry.js";
+import { detectIdeRegistration } from "../ide-detection/detect.js";
+import { isIdeTarget, listIdeDefinitions, SUPPORTED_IDES } from "../ide-detection/registry.js";
 import { ensureAppState } from "../local-store/app-state.js";
+import {
+  GitHubDeviceFlowClient,
+  tokenResponseToStoredToken,
+  type GitHubDeviceCode,
+  type GitHubDeviceFlowPending,
+  type GitHubTokenResponse,
+  type GitHubUser,
+} from "../auth/github.js";
+import { DevelopmentFileTokenStore, type TokenStore } from "../auth/token-store.js";
 import { LocalRuntimeManager } from "../runtime/manager.js";
 import { loadConfig } from "../storage/config.js";
 import { readAllLayers } from "../storage/reader.js";
@@ -71,6 +82,10 @@ import type {
 } from "../schema/universal-skill.js";
 import { VERSION } from "../version.js";
 import type { RuntimeSnapshot } from "../runtime/manager.js";
+import {
+  UnsupportedUpdateController,
+  type UpdateController,
+} from "../update/types.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -83,17 +98,27 @@ export interface BoardDeps {
   version: string;
   /** Local MCP process manager used by the desktop-console runtime controls. */
   runtime?: RuntimeController;
+  tokenStore?: TokenStore;
+  githubClientFactory?: (clientId: string) => BoardGitHubClient;
+  updater?: UpdateController;
 }
 
 export interface BoardOptions {
   host?: string;
   port?: number;
+  updater?: UpdateController;
 }
 
 export interface RuntimeController {
   getSnapshot(): RuntimeSnapshot;
   start(): RuntimeSnapshot;
   stop(): Promise<RuntimeSnapshot>;
+}
+
+export interface BoardGitHubClient {
+  requestDeviceCode(): Promise<GitHubDeviceCode>;
+  pollForToken(deviceCode: string): Promise<GitHubTokenResponse | GitHubDeviceFlowPending>;
+  fetchUser(accessToken: string): Promise<GitHubUser>;
 }
 
 const SYNC_APPLY_CONFIRMATION = "APPLY SYNC";
@@ -271,11 +296,170 @@ async function buildSkillDto(
 export function createBoardApp(deps: BoardDeps): Hono {
   const app = new Hono();
   const runtime = deps.runtime ?? new LocalRuntimeManager();
+  const updater = deps.updater ?? new UnsupportedUpdateController(
+    deps.version,
+    "Automatic updates are available in the packaged desktop app.",
+  );
+  let tokenStore = deps.tokenStore;
+  const pendingGitHubFlows = new Map<string, PendingGitHubFlow>();
+  const getTokenStore = (): TokenStore => {
+    tokenStore ??= new DevelopmentFileTokenStore({
+      allowProduction: process.env.NODE_ENV !== "production",
+    });
+    return tokenStore;
+  };
+  const createGitHubClient = deps.githubClientFactory
+    ?? ((clientId: string) => new GitHubDeviceFlowClient({ clientId, scope: "repo" }));
 
   // ── /api/health ────────────────────────────────────────────────────────
   app.get("/api/health", (c) =>
     c.json({ ok: true, version: deps.version, skills: deps.engine.querySkills().skills.length }),
   );
+
+  // ── Desktop updates ──────────────────────────────────────────────────
+  app.get("/api/update/status", (c) => c.json(updater.getSnapshot()));
+  app.post("/api/update/check", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin update request rejected." }, 403);
+    }
+    try {
+      return c.json(await updater.check());
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 503);
+    }
+  });
+  app.post("/api/update/install", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin update request rejected." }, 403);
+    }
+    try {
+      return c.json(await updater.install());
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 503);
+    }
+  });
+
+  // ── /api/ide-targets ────────────────────────────────────────────────
+  app.get("/api/ide-targets", async (c) => {
+    const targets = await Promise.all(listIdeDefinitions().map(async (definition) => {
+      const registration = await detectIdeRegistration(definition.target);
+      return {
+        ...definition,
+        configPath: registration.configPath,
+        configExists: registration.configExists,
+        registered: registration.registered,
+        configReadable: registration.configReadable,
+      };
+    }));
+    return c.json(targets);
+  });
+
+  // ── GitHub auth settings ─────────────────────────────────────────────
+  app.get("/api/auth/github/status", async (c) => {
+    try {
+      const store = getTokenStore();
+      const token = await store.get("github");
+      return c.json({
+        available: true,
+        loggedIn: !!token,
+        clientIdConfigured: !!process.env.SKILL_CENTRAL_GITHUB_CLIENT_ID,
+        github: token ? {
+          tokenType: token.tokenType,
+          scope: token.scope,
+          updatedAt: token.updatedAt,
+        } : undefined,
+        tokenStore: {
+          kind: store.describe().kind,
+          productionReady: store.describe().productionReady,
+          warning: store.describe().warning,
+        },
+      });
+    } catch (err) {
+      return c.json({ available: false, loggedIn: false, error: errorMessage(err) });
+    }
+  });
+
+  app.post("/api/auth/github/device", async (c) => {
+    let body: { clientId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    const clientId = body.clientId?.trim() || process.env.SKILL_CENTRAL_GITHUB_CLIENT_ID;
+    if (!clientId) {
+      return c.json({ error: "GitHub OAuth client id is required" }, 400);
+    }
+    try {
+      getTokenStore();
+      const client = createGitHubClient(clientId);
+      const device = await client.requestDeviceCode();
+      const flowId = randomUUID();
+      pendingGitHubFlows.set(flowId, {
+        client,
+        deviceCode: device.deviceCode,
+        expiresAt: Date.now() + device.expiresIn * 1000,
+        intervalSeconds: device.interval,
+      });
+      return c.json({
+        flowId,
+        userCode: device.userCode,
+        verificationUri: device.verificationUri,
+        expiresIn: device.expiresIn,
+        interval: device.interval,
+      });
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 502);
+    }
+  });
+
+  app.post("/api/auth/github/poll", async (c) => {
+    let body: { flowId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (!body.flowId) return c.json({ error: "flowId is required" }, 400);
+    const flow = pendingGitHubFlows.get(body.flowId);
+    if (!flow) return c.json({ error: "GitHub login flow not found or already completed" }, 404);
+    if (Date.now() >= flow.expiresAt) {
+      pendingGitHubFlows.delete(body.flowId);
+      return c.json({ error: "GitHub login flow expired" }, 410);
+    }
+    try {
+      const result = await flow.client.pollForToken(flow.deviceCode);
+      if ("pending" in result) {
+        flow.intervalSeconds += result.intervalAdjustmentSeconds;
+        return c.json({ pending: true, retryAfter: flow.intervalSeconds });
+      }
+      await getTokenStore().set(tokenResponseToStoredToken(result));
+      let user: GitHubUser | undefined;
+      try {
+        user = await flow.client.fetchUser(result.accessToken);
+      } catch {
+        // Authentication succeeded even if the profile request is temporarily unavailable.
+      }
+      pendingGitHubFlows.delete(body.flowId);
+      return c.json({
+        pending: false,
+        loggedIn: true,
+        user: user ? { id: user.id, login: user.login, name: user.name } : undefined,
+      });
+    } catch (err) {
+      pendingGitHubFlows.delete(body.flowId);
+      return c.json({ error: errorMessage(err) }, 502);
+    }
+  });
+
+  app.post("/api/auth/github/logout", async (c) => {
+    try {
+      await getTokenStore().delete("github");
+      return c.json({ loggedIn: false });
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 503);
+    }
+  });
 
   // ── /api/layers ────────────────────────────────────────────────────────
   app.get("/api/layers", async (c) => {
@@ -389,7 +573,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
     const configPath = c.req.query("configPath");
     const verify = c.req.query("verify") === "true";
     if (!isIdeTarget(target)) {
-      return c.json({ error: "target must be cursor, windsurf, claude, or cline" }, 400);
+      return c.json({ error: ideTargetError() }, 400);
     }
     return c.json(await checkIdeConnectionHealth(target, deps.engine, {
       configPath,
@@ -406,7 +590,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       return c.json({ error: "invalid JSON body" }, 400);
     }
     if (typeof body.target !== "string" || !isIdeTarget(body.target)) {
-      return c.json({ error: "target must be cursor, windsurf, claude, or cline" }, 400);
+      return c.json({ error: ideTargetError() }, 400);
     }
     return c.json(await buildConnectPlan(body.target, {
       configPath: body.configPath,
@@ -426,7 +610,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       return c.json({ error: "invalid JSON body" }, 400);
     }
     if (typeof body.target !== "string" || !isIdeTarget(body.target)) {
-      return c.json({ error: "target must be cursor, windsurf, claude, or cline" }, 400);
+      return c.json({ error: ideTargetError() }, 400);
     }
     let plan = await buildConnectPlan(body.target, {
       configPath: body.configPath,
@@ -447,7 +631,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       return c.json({ error: "invalid JSON body" }, 400);
     }
     if (typeof body.target !== "string" || !isIdeTarget(body.target)) {
-      return c.json({ error: "target must be cursor, windsurf, claude, or cline" }, 400);
+      return c.json({ error: ideTargetError() }, 400);
     }
     const plan = await buildConnectPlan(body.target, {
       configPath: body.configPath,
@@ -1201,6 +1385,30 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 50) : fallback;
 }
 
+interface PendingGitHubFlow {
+  client: BoardGitHubClient;
+  deviceCode: string;
+  expiresAt: number;
+  intervalSeconds: number;
+}
+
+function ideTargetError(): string {
+  return `target must be one of: ${SUPPORTED_IDES.join(", ")}`;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function isSameOriginRequest(requestUrl: string, origin: string | undefined): boolean {
+  if (origin === undefined) return true;
+  try {
+    return new URL(origin).origin === new URL(requestUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
 // ── Server bootstrap ───────────────────────────────────────────────────────
 
 /**
@@ -1217,7 +1425,14 @@ export function startBoardServer(opts: BoardOptions = {}): { port: number; host:
   // (engine.reload is sync-ish at startup; Hono handlers are async so it's fine.)
   void engine.reload(config.layers);
 
-  const app = createBoardApp({ config, engine, rootDir, version, runtime: new LocalRuntimeManager() });
+  const app = createBoardApp({
+    config,
+    engine,
+    rootDir,
+    version,
+    runtime: new LocalRuntimeManager(),
+    updater: opts.updater,
+  });
 
   const host = opts.host ?? "127.0.0.1";
   const port = opts.port ?? 5417;
