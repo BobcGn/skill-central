@@ -2,6 +2,21 @@
 
 本文件记录 `skill-central` 的重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.0.0-alpha.1] - 2026-07-30
+
+### 新增
+
+- **桌面应用内更新**：Windows 使用 GitHub Release + NSIS 自动下载更新；macOS Homebrew Cask 安装会在应用内检查并执行升级。
+- **IDE 连接扩展**：新增 Codex 与 Trae，完善 Claude，并统一 Codex/Claude/Trae/Cursor/Windsurf/Cline 的检测、计划、应用、验证与回退流程。
+- **个人设置**：新增 GitHub Device Flow、system/light/dark 主题和中英文界面切换。
+
+### 变更
+
+- **Web Board 信息架构**：Skills、IDE Connections、Sync、Runtime 移入左侧导航，个人设置固定在左下角，并补齐移动端布局。
+- **macOS 安装**：新增 Homebrew Cask；未签名构建使用 `--no-quarantine` 安装。
+- **发布资产**：Windows Release 增加 NSIS、`latest.yml` 和 blockmap，macOS 增加更新元数据。
+- **仓库边界**：`docs/` 与 `logs/` 改为本地资料，不再进入正式分支。
+
 ## [1.0.0-alpha.0] - 2026-07-29
 
 ### 变更
@@ -73,7 +88,7 @@
 
 ### 新增
 
-- **`.github/workflows/release.yml`**：在 `v*` tag push 时自动发布 npm 包并创建 GitHub Release，使用 npm Trusted Publishing（OIDC）。`npm publish --provenance` 会给每个发布包附加 Sigstore 签名的 attestation。一次性设置见 [`docs/trusted-publishing.md`](./docs/trusted-publishing.md)：需要在 <https://www.npmjs.com/package/@bobcgn/skill-central/settings> 注册该 workflow。
+- **`.github/workflows/release.yml`**：在 `v*` tag push 时自动发布 npm 包并创建 GitHub Release，使用 npm Trusted Publishing（OIDC）。`npm publish --provenance` 会给每个发布包附加 Sigstore 签名的 attestation。一次性设置见本地 `docs/trusted-publishing.md`：需要在 <https://www.npmjs.com/package/@bobcgn/skill-central/settings> 注册该 workflow。
 - **`docs/trusted-publishing.md`**：完整说明 OIDC 信任握手流程，包括探测 tag 流程、四类常见失败模式和回滚方案。
 
 ### 修复
@@ -112,12 +127,12 @@
   - 默认仅绑定 loopback；非 loopback 的 `--host` 必须显式传入 `--i-understand-nonlocal` 确认。
   - `--cli` / `--no-web` 标志保留 v0.1.0 的终端 fallback。
 - **文档**：新增 `docs/` 目录和参考文档：
-  - [`docs/cli-reference.md`](./docs/cli-reference.md)
-  - [`docs/web-board.md`](./docs/web-board.md)
-  - [`docs/remote-sources.md`](./docs/remote-sources.md)
-  - [`docs/skill-schema.md`](./docs/skill-schema.md)
-  - [`docs/layered-override.md`](./docs/layered-override.md)
-  - [`docs/mcp-protocol.md`](./docs/mcp-protocol.md)
+  - `docs/cli-reference.md`
+  - `docs/web-board.md`
+  - `docs/remote-sources.md`
+  - `docs/skill-schema.md`
+  - `docs/layered-override.md`
+  - `docs/mcp-protocol.md`
 
 ### 变更
 
