@@ -188,6 +188,12 @@ The current alpha still uses a development file-backed TokenStore outside a comp
 - Device codes and access tokens are kept out of browser responses and Web Storage.
 - The macOS package is unsigned. The `xattr` command above removes quarantine from the installed app, so verify the repository and release source first.
 
+## Technical Documentation
+
+The public technical documentation starts at [docs/en/README.md](./docs/en/README.md). It covers the system architecture, Skills and Layers, IDE integration, local data and security boundaries, development workflows, and release/update behavior.
+
+Simplified Chinese documentation is available at [docs/ch/README.md](./docs/ch/README.md). The two language trees describe the same public contract and must be updated together.
+
 ## Contributing
 
 External contributions use a fork-and-pull-request workflow. Read [CONTRIBUTING.md](./CONTRIBUTING.md) or the [Chinese guide](./CONTRIBUTING.zh-CN.md) before starting. Use the structured issue forms for bugs, features, and questions.

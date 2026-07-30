@@ -9,6 +9,7 @@
 - 创建 Issue 前先搜索已有内容。
 - 使用 Bug、Feature 或 Question 表单，不使用空白 Issue。
 - 按 [SECURITY.md](./SECURITY.md) 私密报告漏洞。禁止在公开 Issue 中发布利用细节或凭据。
+- 修改跨模块契约前，先阅读公开的[架构文档](./docs/ch/architecture.md)。
 - 大型功能、schema/protocol 变更、新依赖、认证流程、更新器改动或前端框架迁移，应先创建 Issue 并确认范围。
 - 小型错误修复、测试和文档修正通常可以直接提交 PR。
 
@@ -48,6 +49,7 @@ npm run build:desktop
 | GitHub 认证与同步 | `src/auth/`、`src/sync/` |
 | 桌面应用与软件更新 | `src/desktop/`、`src/update/` |
 | 本地 Web Board | `src/web/`、`src/web/static/` |
+| 公开技术文档 | `docs/en/`、`docs/ch/` |
 | 集成测试 | `scripts/test.sh` |
 | CI 与发布自动化 | `.github/workflows/` |
 
@@ -64,7 +66,7 @@ npm run build:desktop
 
 ## 项目边界
 
-- `docs/` 与 `logs/` 是维护者本地资料，已明确从公开分支排除，不得加入 PR。公开说明应放在根目录 README、贡献/安全文档、Issue 模板或必要的代码注释中。
+- `docs/en/` 与 `docs/ch/` 是公开文档，产品行为变化时必须保持两者一致。`docs/dev/` 与 `logs/` 是维护者本地资料，已明确忽略，禁止使用 force-add 加入 PR。
 - 禁止提交 `node_modules/`、`dist/`、`release-artifacts/`、本地 `.skills/`、真实 IDE 配置、token、OAuth secret 或私有仓库路径。
 - IDE 配置写入必须继续经过 plan、preview、backup、apply、verify、rollback 阶段，不得为了方便绕过事务。
 - 浏览器触发的高权限操作必须保持 loopback 边界，适用时校验 Origin，且不得接收任意命令文本。

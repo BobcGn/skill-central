@@ -9,6 +9,7 @@ Thank you for contributing. Skill Central is an alpha-stage local MCP hub that w
 - Search existing issues before opening a new one.
 - Use the Bug, Feature, or Question form instead of a blank issue.
 - Report vulnerabilities privately according to [SECURITY.md](./SECURITY.md). Never publish exploit details or credentials in an issue.
+- Read the public [architecture documentation](./docs/en/architecture.md) before changing a cross-module contract.
 - Open an issue before implementing a large feature, schema/protocol change, new dependency, authentication flow, updater change, or frontend framework migration.
 - Small bug fixes, tests, and documentation corrections can normally proceed directly to a pull request.
 
@@ -48,6 +49,7 @@ npm run build:desktop
 | GitHub authentication and sync | `src/auth/`, `src/sync/` |
 | Desktop and software updates | `src/desktop/`, `src/update/` |
 | Local Web Board | `src/web/`, `src/web/static/` |
+| Public technical documentation | `docs/en/`, `docs/ch/` |
 | Integration tests | `scripts/test.sh` |
 | CI and release automation | `.github/workflows/` |
 
@@ -64,7 +66,7 @@ npm run build:desktop
 
 ## Project Boundaries
 
-- `docs/` and `logs/` are maintainer-local and intentionally excluded from the public branch. Do not add them to a pull request. Public guidance belongs in the root README, contribution/security documents, issue templates, or code comments.
+- `docs/en/` and `docs/ch/` are public and must remain aligned when product behavior changes. `docs/dev/` and `logs/` are maintainer-local, intentionally ignored, and must never be force-added to a pull request.
 - Do not commit `node_modules/`, `dist/`, `release-artifacts/`, local `.skills/`, real IDE configuration, tokens, OAuth secrets, or private repository paths.
 - IDE configuration writes must continue to use plan, preview, backup, apply, verify, and rollback stages. Do not bypass the transaction for convenience.
 - Browser-triggered privileged actions must remain loopback-scoped, validate their origin where applicable, and never accept arbitrary command text.
