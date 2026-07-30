@@ -1,0 +1,57 @@
+name: Question or support / 问题与使用帮助
+description: Ask a focused usage or integration question. / 提交明确的使用或集成问题。
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight / 提交前检查
+      options:
+        - label: I checked the README and existing issues. / 我已检查 README 和现有 Issue。
+          required: true
+        - label: This question does not contain credentials or describe a security vulnerability. / 本问题不含凭据，也不是安全漏洞报告。
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit / 版本或提交
+      placeholder: 1.0.0-alpha.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / 平台
+      options:
+        - macOS Apple Silicon
+        - macOS Intel
+        - Windows x64
+        - Linux
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question / 问题
+      description: Describe the outcome you are trying to achieve. / 描述你希望完成的目标。
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempts
+    attributes:
+      label: What have you tried? / 已尝试什么？
+      description: Include commands and sanitized output when relevant. / 必要时提供命令和脱敏输出。
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context / 补充信息

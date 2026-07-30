@@ -1,0 +1,75 @@
+name: Feature request / 功能建议
+description: Propose a scoped improvement and explain the user problem. / 提出边界清晰的改进并说明用户问题。
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the problem, not only the preferred implementation. Large changes should be discussed before code is written.
+        请先描述问题，而不只是期望的实现。大型改动应在编码前完成讨论。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight / 提交前检查
+      options:
+        - label: I searched existing issues and did not find the same request. / 我已搜索现有 Issue，未发现相同建议。
+          required: true
+        - label: I read the contribution boundaries. / 我已阅读贡献边界。
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / 模块
+      options:
+        - Desktop application / 桌面应用
+        - Web Board or UI / Web Board 或界面
+        - IDE connection / IDE 连接
+        - Skill registry or compiler / Skill Registry 或编译器
+        - GitHub sync or authentication / GitHub 同步或认证
+        - MCP protocol, resources, or workflow / MCP 协议、资源或工作流
+        - Installation, packaging, or update / 安装、打包或更新
+        - CLI
+        - Documentation / 文档
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem / 用户问题
+      description: Who is affected, what are they trying to do, and what blocks them? / 谁受到影响、目标是什么、当前阻碍是什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome / 期望结果
+      description: Describe behavior and acceptance criteria. / 描述期望行为和验收条件。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered / 已考虑的替代方案
+      description: Include current workarounds and tradeoffs. / 说明当前绕过方式与权衡。
+    validations:
+      required: true
+
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Scope boundaries / 范围边界
+      description: State what should remain unchanged. / 明确哪些行为不应改变。
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context / 补充信息
+      description: Mockups and public references are welcome. / 欢迎提供原型和公开参考资料。

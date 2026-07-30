@@ -1,0 +1,114 @@
+name: Bug report / 错误报告
+description: Report a reproducible defect without sensitive data. / 报告可复现且不含敏感信息的问题。
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Skill Central. Please redact tokens, private repository paths, and IDE configuration secrets.
+        感谢你帮助改进 Skill Central。请移除 token、私有仓库路径和 IDE 配置中的敏感信息。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight / 提交前检查
+      options:
+        - label: I searched existing issues and did not find a duplicate. / 我已搜索现有 Issue，未发现重复问题。
+          required: true
+        - label: This report does not describe a security vulnerability. / 这不是安全漏洞报告。
+          required: true
+        - label: I removed credentials, tokens, and private configuration values. / 我已移除凭据、token 和私有配置值。
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit / 版本或提交
+      description: Use the app version or a full commit SHA. / 请填写应用版本或完整 commit SHA。
+      placeholder: 1.0.0-alpha.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / 平台
+      options:
+        - macOS Apple Silicon
+        - macOS Intel
+        - Windows x64
+        - Linux
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation / 安装方式
+      options:
+        - macOS DMG
+        - Windows NSIS EXE
+        - Windows MSI or ZIP
+        - npm or npx
+        - Source checkout / 源码运行
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / 模块
+      options:
+        - Desktop application / 桌面应用
+        - Web Board or UI / Web Board 或界面
+        - IDE connection / IDE 连接
+        - Skill registry or compiler / Skill Registry 或编译器
+        - GitHub sync or authentication / GitHub 同步或认证
+        - MCP protocol or runtime / MCP 协议或运行时
+        - Installation or update / 安装或更新
+        - CLI
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened? / 发生了什么？
+      description: Describe the observed behavior and its impact. / 描述实际行为及影响。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps / 复现步骤
+      placeholder: |
+        1. Start ... / 启动……
+        2. Open ... / 打开……
+        3. Observe ... / 观察到……
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or screenshots / 已脱敏日志或截图
+      description: Drag files here if useful. Never include access tokens or private config values. / 可在此上传文件，禁止包含 token 或私有配置值。
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context / 补充信息
+      description: Include IDE version, architecture, and related settings when relevant. / 必要时补充 IDE 版本、架构和相关设置。

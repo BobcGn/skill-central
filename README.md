@@ -188,6 +188,12 @@ The current alpha still uses a development file-backed TokenStore outside a comp
 - Device codes and access tokens are kept out of browser responses and Web Storage.
 - The macOS package is unsigned. The `xattr` command above removes quarantine from the installed app, so verify the repository and release source first.
 
+## Contributing
+
+External contributions use a fork-and-pull-request workflow. Read [CONTRIBUTING.md](./CONTRIBUTING.md) or the [Chinese guide](./CONTRIBUTING.zh-CN.md) before starting. Use the structured issue forms for bugs, features, and questions.
+
+Report vulnerabilities privately according to [SECURITY.md](./SECURITY.md), never in a public issue.
+
 ## Development
 
 ```bash

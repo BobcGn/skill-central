@@ -188,6 +188,12 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 - Device code 和 access token 不进入浏览器响应或 Web Storage。
 - macOS 包未签名；上述 `xattr` 命令会移除已安装应用的 quarantine 属性，执行前必须确认仓库和 Release 来源。
 
+## 参与贡献
+
+外部贡献使用 fork + Pull Request 流程。开始前请阅读[中文贡献指南](./CONTRIBUTING.zh-CN.md)或 [English guide](./CONTRIBUTING.md)，并使用结构化 Issue 表单提交错误、功能建议和问题。
+
+安全漏洞必须按 [SECURITY.md](./SECURITY.md) 私密报告，禁止发布到公开 Issue。
+
 ## 开发
 
 ```bash

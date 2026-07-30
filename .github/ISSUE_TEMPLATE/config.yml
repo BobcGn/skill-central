@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability / 安全漏洞
+    url: https://github.com/BobcGn/skill-central/security/advisories/new
+    about: Report vulnerabilities privately. Do not open a public issue. / 请私密报告漏洞，不要创建公开 Issue。
+  - name: Contribution guide / 贡献指南
+    url: https://github.com/BobcGn/skill-central/blob/main/CONTRIBUTING.md
+    about: Read the workflow and project boundaries before contributing. / 贡献前请阅读流程与项目边界。
