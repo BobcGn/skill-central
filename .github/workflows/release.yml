@@ -168,15 +168,19 @@ jobs:
             artifact_paths: |
               release-artifacts/*.dmg
               release-artifacts/*.zip
-            artifact_extensions: dmg zip
+              release-artifacts/latest-mac.yml
+            artifact_extensions: dmg zip yml
           - name: Windows
             os: windows-latest
             package_script: package:win
             artifact_name: skill-central-windows
             artifact_paths: |
+              release-artifacts/*.exe
+              release-artifacts/*.blockmap
               release-artifacts/*.msi
+              release-artifacts/latest.yml
               release-artifacts/*.zip
-            artifact_extensions: msi zip
+            artifact_extensions: exe blockmap msi zip yml
 
     steps:
       - name: Checkout repository
@@ -213,6 +217,9 @@ jobs:
           for ext in $ARTIFACT_EXTENSIONS; do
             for file in release-artifacts/*."$ext"; do
               if [ -e "$file" ]; then
+                case "$(basename "$file")" in
+                  builder-*) continue ;;
+                esac
                 ARTIFACTS+=( "$file" )
               fi
             done
