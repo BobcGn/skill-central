@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -39,6 +40,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Client ID is public package metadata; a client secret must never be
+      # configured for a desktop Device Flow build.
+      - name: Validate GitHub OAuth configuration
+        shell: bash
+        env:
+          SKILL_CENTRAL_GITHUB_CLIENT_ID: ${{ vars.SKILL_CENTRAL_GITHUB_CLIENT_ID }}
+        run: |
+          if [[ ! "$SKILL_CENTRAL_GITHUB_CLIENT_ID" =~ ^[A-Za-z0-9._-]{8,128}$ ]]; then
+            echo "::error::Set repository variable SKILL_CENTRAL_GITHUB_CLIENT_ID to the public client ID of the project OAuth App with Device Flow enabled."
+            exit 1
+          fi
+
       - name: Lint
         run: npm run lint
 
@@ -58,6 +71,12 @@ jobs:
 
           if [ "$GITHUB_REF_TYPE" != "tag" ]; then
             echo "::error::Release workflow must run from a v* tag."
+            exit 1
+          fi
+
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Release tag must point to a commit contained in origin/main."
             exit 1
           fi
 
@@ -87,33 +106,12 @@ jobs:
           END="${END:-$(($(wc -l < CHANGELOG.md) + 1))}"
           sed -n "${START},$((END-1))p" CHANGELOG.md > release-notes.md
 
-      - name: Create or update GitHub Release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
-          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
-        run: |
-          RELEASE_FLAGS=()
-          if [ "$IS_PRERELEASE" = "true" ]; then
-            RELEASE_FLAGS+=( "--prerelease" "--latest=false" )
-          fi
-
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --draft=false \
-              --title "$RELEASE_TAG" \
-              --notes-file release-notes.md \
-              "${RELEASE_FLAGS[@]}"
-          else
-            gh release create "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "$RELEASE_TAG" \
-              --notes-file release-notes.md \
-              --verify-tag \
-              "${RELEASE_FLAGS[@]}"
-          fi
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
 
   source-archive:
     name: Source Archive
@@ -144,13 +142,6 @@ jobs:
           path: release-artifacts/*.zip
           if-no-files-found: error
 
-      - name: Upload to GitHub Release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
-        run: gh release upload "$RELEASE_TAG" release-artifacts/*.zip --repo "$GITHUB_REPOSITORY" --clobber
-
   desktop:
     name: Desktop Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -169,7 +160,6 @@ jobs:
               release-artifacts/*.dmg
               release-artifacts/*.zip
               release-artifacts/latest-mac.yml
-            artifact_extensions: dmg zip yml
           - name: Windows
             os: windows-latest
             package_script: package:win
@@ -180,7 +170,6 @@ jobs:
               release-artifacts/*.msi
               release-artifacts/latest.yml
               release-artifacts/*.zip
-            artifact_extensions: exe blockmap msi zip yml
 
     steps:
       - name: Checkout repository
@@ -197,7 +186,28 @@ jobs:
         run: npm ci
 
       - name: Build desktop package
+        env:
+          SKILL_CENTRAL_GITHUB_CLIENT_ID: ${{ vars.SKILL_CENTRAL_GITHUB_CLIENT_ID }}
         run: npm run ${{ matrix.package_script }}
+
+      - name: Validate generated Homebrew Cask
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          TAP_DIR="$RUNNER_TEMP/skill-central-homebrew-validation"
+          TAP_NAME="skillcentral/candidate"
+          node scripts/prepare-homebrew-candidate.mjs \
+            --version "$VERSION" \
+            --arm64 "release-artifacts/Skill-Central-$VERSION-mac-arm64.dmg" \
+            --x64 "release-artifacts/Skill-Central-$VERSION-mac-x64.dmg" \
+            --url "https://github.com/BobcGn/skill-central/releases/download/v#{version}/Skill-Central-#{version}-mac-#{arch}.dmg" \
+            --tap-dir "$TAP_DIR"
+          trap 'brew untap "$TAP_NAME" >/dev/null 2>&1 || true' EXIT
+          brew tap --custom-remote "$TAP_NAME" "file://$TAP_DIR"
+          brew trust "$TAP_NAME"
+          brew style --cask "$TAP_NAME/skill-central"
+          brew audit --cask --strict "$TAP_NAME/skill-central"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -206,26 +216,158 @@ jobs:
           path: ${{ matrix.artifact_paths }}
           if-no-files-found: error
 
-      - name: Upload to GitHub Release
+  # Stage the checksum-pinned Cask as a PR, but leave it unmerged until the
+  # corresponding draft Release has been manually validated and published.
+  homebrew-cask:
+    name: Prepare Homebrew Cask Update
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [prepare, desktop]
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          path: release-source
+          fetch-depth: 0
+
+      - name: Checkout main for Cask pull request
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+          fetch-depth: 0
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: skill-central-macos
+          path: release-source/release-artifacts
+
+      - name: Generate pinned Cask
+        shell: bash
+        run: |
+          node release-source/scripts/generate-homebrew-cask.mjs \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --arm64 "release-source/release-artifacts/Skill-Central-${{ needs.prepare.outputs.version }}-mac-arm64.dmg" \
+            --x64 "release-source/release-artifacts/Skill-Central-${{ needs.prepare.outputs.version }}-mac-x64.dmg" \
+            --output "main/Casks/skill-central.rb"
+          ruby -c main/Casks/skill-central.rb
+
+      - name: Upload generated Cask
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-central-homebrew
+          path: main/Casks/skill-central.rb
+          if-no-files-found: error
+
+      - name: Create Cask update pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        working-directory: main
+        run: |
+          BRANCH="automation/homebrew-$VERSION"
+          if git diff --quiet -- Casks/skill-central.rb; then
+            echo "Cask is already current for $VERSION."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add Casks/skill-central.rb
+          git commit -m "chore(homebrew): update cask to $VERSION"
+          git push --force-with-lease origin "HEAD:refs/heads/$BRANCH"
+
+          if gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh pr edit "$BRANCH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "chore(homebrew): update cask to $VERSION" \
+              --body "Pins the Homebrew Cask to the staged $VERSION macOS DMGs and their SHA-256 digests. Do not merge until the validated draft Release is public."
+          else
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore(homebrew): update cask to $VERSION" \
+              --body "Pins the Homebrew Cask to the staged $VERSION macOS DMGs and their SHA-256 digests. Do not merge until the validated draft Release is public."
+          fi
+
+  # Tag builds only stage a Draft. Publishing remains an explicit maintainer
+  # decision after artifact, install, authentication, and update verification.
+  draft-release:
+    name: Stage Draft Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [prepare, source-archive, desktop, homebrew-cask]
+
+    steps:
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: skill-central-*
+          path: staged-artifacts
+          merge-multiple: true
+
+      - name: Validate staged artifacts
+        shell: bash
+        run: |
+          test -f release-notes.md
+          test -f staged-artifacts/skill-central.rb
+          test -n "$(find staged-artifacts -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$(find staged-artifacts -maxdepth 1 -type f -name '*.exe' -print -quit)"
+          test -n "$(find staged-artifacts -maxdepth 1 -type f -name '*-source.zip' -print -quit)"
+
+      - name: Create or update draft Release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
-          ARTIFACT_EXTENSIONS: ${{ matrix.artifact_extensions }}
+          IS_PRERELEASE: ${{ needs.prepare.outputs.is_prerelease }}
         run: |
-          ARTIFACTS=()
-          for ext in $ARTIFACT_EXTENSIONS; do
-            for file in release-artifacts/*."$ext"; do
-              if [ -e "$file" ]; then
-                case "$(basename "$file")" in
-                  builder-*) continue ;;
-                esac
-                ARTIFACTS+=( "$file" )
-              fi
-            done
-          done
+          RELEASE_FLAGS=( "--draft" )
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            RELEASE_FLAGS+=( "--prerelease" "--latest=false" )
+          fi
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            IS_DRAFT="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+            if [ "$IS_DRAFT" != "true" ]; then
+              echo "::error::$RELEASE_TAG is already public; refusing to overwrite it."
+              exit 1
+            fi
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --title "$RELEASE_TAG" \
+              --notes-file release-notes.md \
+              "${RELEASE_FLAGS[@]:1}"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes-file release-notes.md \
+              --verify-tag \
+              "${RELEASE_FLAGS[@]}"
+          fi
+
+          mapfile -d '' ARTIFACTS < <(find staged-artifacts -maxdepth 1 -type f -print0)
           if [ "${#ARTIFACTS[@]}" -eq 0 ]; then
-            echo "::error::No release artifacts matched extensions: $ARTIFACT_EXTENSIONS"
+            echo "::error::No staged artifacts found."
             exit 1
           fi
           gh release upload "$RELEASE_TAG" "${ARTIFACTS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+
+          echo "Draft staged. Complete the release checklist before publishing; merge the Cask PR immediately after the Release is public."
