@@ -4,9 +4,9 @@
 
 Release creation, tags, package publication, signing, and repository permission changes are maintainer-only operations. Contributors may improve implementation and tests, but must not create a project Release without explicit authorization.
 
-## Alpha.2 Hold
+## Current Alpha Release
 
-`1.0.0-alpha.2` is not released. Do not change the package version, create or push its tag, publish a Release, or publish candidate assets while any item in the candidate checklist below remains incomplete. The current public version stays `1.0.0-alpha.1` until the maintainer has tested the real macOS Homebrew route.
+`1.0.0-alpha.2` is the current public prerelease. It was published on 2026-08-01 after the Release workflow completed and the generated Homebrew Cask was merged. It remains an alpha: macOS packages are unsigned and not notarized, and Windows packaged behavior still requires real machine verification before it is described as verified.
 
 The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Moving an existing `alpha.1` installation under Homebrew management and upgrading it to `alpha.2` therefore requires one Terminal operation. Later Cask-managed releases can use the repaired in-app updater.
 
@@ -90,7 +90,7 @@ This moves only the App Bundle. Skill sources under `~/.skill-central/` and appl
 
 ## One-Time Alpha.1 Upgrade
 
-After the `alpha.2` Release is public and its generated Cask has been merged, an `alpha.1` user must first adopt or install the Cask as above, then run:
+Because the `alpha.2` Release is public and its generated Cask has been merged, an `alpha.1` user must first adopt or install the Cask as above, then run:
 
 ```bash
 brew update
@@ -98,7 +98,7 @@ brew upgrade --cask --require-sha bobcgn/skill-central/skill-central
 open -a "Skill Central"
 ```
 
-This one-time Terminal step is required because the public `alpha.1` binary does not contain the repaired updater. Do not run it before the `alpha.2` Release and Cask are both public.
+This one-time Terminal step is required because the public `alpha.1` binary does not contain the repaired updater.
 
 ## Desktop Background Contract
 
@@ -165,12 +165,12 @@ Record only the public Client ID shown on the page. Do not generate, copy, or co
 - Name: `SKILL_CENTRAL_GITHUB_CLIENT_ID`
 - Value: the Client ID shown on the OAuth App page
 
-The Release workflow validates this variable and writes it into desktop package metadata; a missing or malformed value blocks packaging. After configuration, a real candidate package must still pass login, user-profile lookup, and logout testing.
+The Release workflow validates this variable and writes it into desktop package metadata; a missing or malformed value blocks packaging. After configuration, a real release-candidate package must still pass login, user-profile lookup, and logout testing.
 
-## Alpha.2 Candidate Checklist
+## Alpha Release Gate Checklist
 
 1. Land all English and Chinese installation, migration, update, security, and lifecycle documentation.
-2. Keep package metadata at `alpha.1` until implementation and documentation are ready for candidate packaging.
+2. Keep package metadata at the current released version until implementation and documentation are ready for candidate packaging.
 3. Run `npm ci`, `npm run lint`, `npm test`, and `npm run build:desktop` from a clean checkout.
 4. Build both macOS architectures; generate the candidate Cask and run `ruby -c`, `brew style`, and offline strict Cask audit checks. Run the online `brew audit --new` only after the Release URL is public.
 5. Test a fresh Homebrew install on Apple Silicon and Intel where available.

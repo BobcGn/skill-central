@@ -4,7 +4,7 @@
 
 [English](./README.md)
 
-> 当前版本：`1.0.0-alpha.1`。这是 Alpha 版本。请为重要的 Skill Registry 保留备份，并在执行同步或 IDE 连接前检查计划内容。
+> 当前版本：`1.0.0-alpha.2`。这是 Alpha 版本。请为重要的 Skill Registry 保留备份，并在执行同步或 IDE 连接前检查计划内容。
 
 Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共享 Skill 库，包含桌面应用、本地 Web Board、CLI、MCP Server、事务化 IDE 配置、GitHub Registry 同步以及 Workflow/Session 能力。
 
@@ -17,7 +17,7 @@ Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共�
 - IDE 配置写入支持预览、备份、应用、验证与回退。
 - GitHub Registry 同步支持冲突选择、审计记录和备份。
 - 提供 MCP prompts、tools、resources、sessions、blackboard topics 和 workflow scheduler。
-- Windows 通过 GitHub Release/NSIS 支持应用内更新；修复后的 macOS Homebrew 路线仍待 `1.0.0-alpha.2` 验收。
+- macOS Homebrew Cask 安装与固定 SHA-256 更新；Windows 通过 GitHub Release/NSIS 支持应用内更新。
 
 ## 安装
 
@@ -35,11 +35,11 @@ xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 
 执行完成后，从 **Applications（应用程序）** 再次启动 Skill Central。该命令只会移除上述准确路径中应用的 quarantine 属性，会降低该 App Bundle 的 Gatekeeper 保护；不要对其他路径或未经核验的产物执行。真正的修复仍是 Developer ID 签名和 Apple 公证。
 
-当前 `1.0.0-alpha.1` 用户测试中，Homebrew 下载和应用内更新路径未能正常工作。修复后的路线已经位于 `main`，但还不是已发布能力。除非正在按[发布与更新](./docs/ch/release-and-updates.md)执行候选测试，否则请继续使用 DMG 手动路线。
+`1.0.0-alpha.2` 已发布修复后的 Homebrew 路线。现有 `1.0.0-alpha.1` 安装包含旧更新器，无法被追溯修复，因此需要按[发布与更新](./docs/ch/release-and-updates.md)中的一次性 Homebrew 接管或升级步骤迁移。
 
-### macOS：待验收的 Homebrew 路线
+### macOS：Homebrew
 
-计划支持的公开路线通过 Cask 将桌面程序安装到 `/Applications/Skill Central.app`：
+公开 Homebrew 路线通过 Cask 将桌面程序安装到 `/Applications/Skill Central.app`：
 
 ```bash
 brew tap bobcgn/skill-central https://github.com/BobcGn/skill-central
@@ -52,7 +52,7 @@ Homebrew 6 在加载第三方 Tap 前要求显式信任。执行 `brew trust` �
 
 当前 Alpha 没有 Developer ID 签名，也没有公证。如果 macOS 阻止首次启动，请先核验仓库、Release 产物和固定校验值，再优先使用系统提供的**仍要打开**；仅在系统没有提供放行选项时，使用 DMG 小节中限定准确路径的 `xattr` 命令。完成签名和公证后才能移除这个临时处理。
 
-修复版本安装后，点击左上角红色按钮会保留一个本地进程和 Board Server。可以通过 Dock、应用菜单或菜单栏图标重新显示窗口；使用 **Quit Skill Central** 或 `Command-Q` 才会完全退出。该生命周期必须通过真实 macOS 候选测试，才允许发布 `1.0.0-alpha.2`。
+安装 `1.0.0-alpha.2` 后，点击左上角红色按钮会保留一个本地进程和 Board Server。可以通过 Dock、应用菜单或菜单栏图标重新显示窗口；使用 **Quit Skill Central** 或 `Command-Q` 才会完全退出。
 
 ### Windows
 
@@ -189,15 +189,15 @@ SKILL_CENTRAL_GITHUB_CLIENT_ID=<oauth-client-id> skill-central sync login --poll
 skill-central sync plan --registry-dir ./skill-central-registry --direction both
 ```
 
-当前公开的 `1.0.0-alpha.1` 没有内置项目 Client ID，因此 GitHub 连接会失败。修复位于尚未发布的 `alpha.2` 候选中；发布前必须用项目 OAuth App 完成一次真实 Device Flow 登录与登出测试。
+`1.0.0-alpha.2` 桌面包已包含项目 Client ID，可在个人设置中使用 GitHub Device Flow。公开的 `1.0.0-alpha.1` 没有内置该 Client ID，因此 GitHub 连接会失败；测试 GitHub 同步前请升级到 `1.0.0-alpha.2`。
 
 远程写入必须先生成计划并显式确认。同步操作会保留审计和备份证据；token 不会通过 Web API 返回，也不会写入浏览器存储。
 
-正式桌面程序通过 macOS Keychain 或 Windows DPAPI 加密 GitHub Token；系统安全存储不可用时不会回退明文。旧开发型明文 Token 会被删除且不迁移，需要重新登录。CLI 登录仍仅供源码开发使用，Windows DPAPI 路线必须通过真实候选包验证后才能声明已验证。
+正式桌面程序通过 macOS Keychain 或 Windows DPAPI 加密 GitHub Token；系统安全存储不可用时不会回退明文。旧开发型明文 Token 会被删除且不迁移，需要重新登录。CLI 登录仍仅供源码开发使用，Windows DPAPI 路线必须通过真实打包应用验证后才能声明已验证。
 
 ## 自动更新
 
-- **macOS：** 已发布的 `1.0.0-alpha.1` 请使用 DMG 手动更新。`main` 上修复后的 Homebrew 托管更新路线仍未发布，必须完成文档规定的安装、迁移、后台行为与升级测试后，才能发布 `1.0.0-alpha.2`。
+- **macOS：** Homebrew 管理的 `1.0.0-alpha.2` 安装会通过 Homebrew 检查并安装 Cask 更新，重启前核验已安装版本。现有 `1.0.0-alpha.1` 用户需要执行文档中的一次性终端迁移，因为旧 Binary 无法被追溯修复。
 - **Windows：** NSIS 安装版本检查 GitHub Releases，自动下载更新包和 blockmap，准备完成后显示 **安装并重启**。
 - **仅 CLI/Web 模式：** 明确显示更新器不可用，不会尝试修改安装目录。
 - 当前安装版本为 Alpha 时允许接收预发布更新。

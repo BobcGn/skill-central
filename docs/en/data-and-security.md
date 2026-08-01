@@ -44,7 +44,7 @@ The Client ID is a public application identifier, not a client secret. The proje
 
 The official desktop application encrypts the complete token record with Electron `safeStorage`: macOS relies on Keychain and Windows relies on DPAPI for the current OS user. The ciphertext uses restricted permissions and same-directory atomic replacement. Login is blocked when system encryption is unavailable; there is no plaintext fallback. When the desktop finds a legacy plaintext `github.token.json`, it deletes the file without migrating the token and requires login again. Corrupt or undecryptable ciphertext is also deleted and treated as logged out.
 
-The renderer, Board API, and authentication diagnostics never receive access tokens, device codes, authorization headers, ciphertext, or raw native exceptions. Logs contain only predefined operation stages, error codes, and non-sensitive cleanup events. The CLI still uses `DevelopmentFileTokenStore` for source development and is outside the Alpha.2 desktop security commitment. Linux desktop authentication is outside the Alpha.2 support scope; Windows DPAPI remains unverified until a real candidate-package test passes.
+The renderer, Board API, and authentication diagnostics never receive access tokens, device codes, authorization headers, ciphertext, or raw native exceptions. Logs contain only predefined operation stages, error codes, and non-sensitive cleanup events. The CLI still uses `DevelopmentFileTokenStore` for source development and is outside the Alpha.2 desktop security commitment. Linux desktop authentication is outside the Alpha.2 support scope; Windows DPAPI remains unverified until a real Windows packaged-app test passes.
 
 Logout removes the local token record but does not revoke the grant on GitHub. Revoke it separately in GitHub settings when compromise is suspected. Ciphertext is tied to OS-user credentials and is not guaranteed to survive migration to another device or system account.
 
@@ -92,8 +92,8 @@ The Board itself is served locally. No telemetry pipeline is documented or imple
 
 - macOS artifacts are unsigned and not notarized. The documented `xattr` workaround removes quarantine and should only be used for artifacts verified to come from the official release.
 - Windows NSIS update metadata and binaries are downloaded from GitHub Releases. Code-signing guarantees are not currently documented.
-- Homebrew Cask uses `sha256 :no_check` in the current Alpha, so it does not provide a pinned artifact checksum.
-- The macOS Homebrew updater exists but has not passed the current end-to-end user test.
+- Homebrew Cask pins per-architecture SHA-256 values for macOS release artifacts.
+- The macOS Homebrew updater is released for Cask-managed alpha installations, but package behavior must still be rechecked for each release.
 
 These are release risks, not installation conveniences. Changes that claim to improve them require real packaged-platform verification.
 

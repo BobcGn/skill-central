@@ -4,7 +4,7 @@ Local-first MCP hub for distributing reusable AI skills across IDEs.
 
 [简体中文](./README.zh-CN.md)
 
-> Current release: `1.0.0-alpha.1`. This is an alpha build. Keep backups of important skill registries and review every sync or IDE connection plan before applying it.
+> Current release: `1.0.0-alpha.2`. This is an alpha build. Keep backups of important skill registries and review every sync or IDE connection plan before applying it.
 
 Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared skill library. It includes a desktop application, a browser-based local board, a CLI, an MCP server, transactional IDE configuration, GitHub registry sync, and workflow/session primitives.
 
@@ -17,7 +17,7 @@ Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared sk
 - Preview, backup, apply, verify, and rollback for IDE configuration writes.
 - GitHub registry sync plans with conflict choices, audit records, and backups.
 - MCP prompts, tools, resources, sessions, blackboard topics, and workflow scheduling.
-- In-app updates through GitHub Release/NSIS on Windows; the repaired macOS Homebrew route is pending `1.0.0-alpha.2` validation.
+- macOS Homebrew Cask installation and updates with pinned SHA-256; Windows in-app updates through GitHub Release/NSIS.
 
 ## Install
 
@@ -35,11 +35,11 @@ xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 
 Then launch Skill Central again from **Applications**. This command removes the quarantine attribute only from the app at the exact path shown above and weakens Gatekeeper protection for that App Bundle. Do not run it against another path or an unverified artifact. Developer ID signing and Apple notarization remain the proper fix.
 
-The Homebrew download and in-app update path did not work in current `1.0.0-alpha.1` user testing. The repaired route is present on `main` but is not a released feature yet. Keep using the manual DMG route unless you are following the candidate test procedure in [Release and Updates](./docs/en/release-and-updates.md).
+`1.0.0-alpha.2` publishes the repaired Homebrew route. Existing `1.0.0-alpha.1` installations contain the old updater, so they need the one-time Homebrew adoption or upgrade step documented in [Release and Updates](./docs/en/release-and-updates.md).
 
-### macOS: Homebrew route under validation
+### macOS: Homebrew
 
-The intended public route is a Cask that installs the desktop application at `/Applications/Skill Central.app`:
+The public Homebrew route installs the desktop application at `/Applications/Skill Central.app`:
 
 ```bash
 brew tap bobcgn/skill-central https://github.com/BobcGn/skill-central
@@ -52,7 +52,7 @@ Homebrew 6 requires explicit trust before it loads this third-party Tap. Review 
 
 This alpha has no Developer ID signature and is not notarized. If macOS blocks first launch, verify the repository, Release asset, and pinned checksum, then prefer **Open Anyway** in System Settings. Use the exact-path `xattr` command in the DMG section only when macOS offers no exception. Signing and notarization are required before this workaround can be removed.
 
-After the repaired version is installed, closing the red window button leaves one local process and Board server running. Reopen it from the Dock, the application menu, or the menu bar icon. Use **Quit Skill Central** or `Command-Q` to stop the process fully. This lifecycle must pass the real macOS candidate test before `1.0.0-alpha.2` is released.
+After `1.0.0-alpha.2` is installed, closing the red window button leaves one local process and Board server running. Reopen it from the Dock, the application menu, or the menu bar icon. Use **Quit Skill Central** or `Command-Q` to stop the process fully.
 
 ### Windows
 
@@ -189,15 +189,15 @@ SKILL_CENTRAL_GITHUB_CLIENT_ID=<oauth-client-id> skill-central sync login --poll
 skill-central sync plan --registry-dir ./skill-central-registry --direction both
 ```
 
-The public `1.0.0-alpha.1` package does not contain the project Client ID, so GitHub connection fails there. The fix is part of the unreleased `alpha.2` candidate and must pass a real Device Flow login/logout test with the project OAuth App before release.
+`1.0.0-alpha.2` desktop packages contain the project Client ID and support GitHub Device Flow from the Personal settings view. The public `1.0.0-alpha.1` package does not contain that Client ID, so GitHub connection fails there; upgrade to `1.0.0-alpha.2` before testing GitHub sync.
 
 Remote writes require an explicit plan and confirmation. Sync operations preserve audit and backup evidence. Tokens are never returned by the Web API or written to browser storage.
 
-Official desktop packages encrypt GitHub tokens through macOS Keychain or Windows DPAPI and never fall back to plaintext when system secure storage is unavailable. Legacy plaintext development tokens are deleted rather than migrated, so login is required again. CLI login remains for source development only, and the Windows DPAPI route must pass a real candidate-package test before it is marked verified.
+Official desktop packages encrypt GitHub tokens through macOS Keychain or Windows DPAPI and never fall back to plaintext when system secure storage is unavailable. Legacy plaintext development tokens are deleted rather than migrated, so login is required again. CLI login remains for source development only, and the Windows DPAPI route must pass a real packaged-app test before it is marked verified.
 
 ## Automatic Updates
 
-- **macOS:** use manual DMG updates for the released `1.0.0-alpha.1`. The repaired Homebrew-owned update flow on `main` remains unreleased until the `1.0.0-alpha.2` candidate passes the documented install, migration, background, and upgrade tests.
+- **macOS:** Homebrew-managed `1.0.0-alpha.2` installations check and install Cask upgrades through Homebrew, then verify the installed version before restart. Existing `1.0.0-alpha.1` users need the documented one-time terminal migration because the old binary cannot be fixed retroactively.
 - **Windows:** packaged NSIS builds check GitHub Releases, download the update and blockmap automatically, then expose **Install and restart** when ready.
 - **CLI/Web-only mode:** reports the updater as unavailable and never tries to mutate an installation.
 - Prereleases are enabled while the installed app version is an alpha.

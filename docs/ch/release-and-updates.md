@@ -4,9 +4,9 @@
 
 Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护者执行。贡献者可以改进实现与测试，但未经明确授权不得创建项目 Release。
 
-## Alpha.2 暂停发布
+## 当前 Alpha Release
 
-`1.0.0-alpha.2` 尚未发布。只要下方候选检查表还有未完成项，就不得修改 Package Version、创建或推送 Tag、公开 Release 或发布候选产物。在维护者完成真实 macOS Homebrew 路线测试前，公开版本保持为 `1.0.0-alpha.1`。
+`1.0.0-alpha.2` 是当前公开预发布版本，已在 2026-08-01 于 Release Workflow 完成且生成的 Homebrew Cask 合并后公开。它仍是 Alpha：macOS 包未签名、未公证；Windows 打包行为仍需要真实机器验证后才能声明已验证。
 
 已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装迁移到 Homebrew 并升级至 `alpha.2` 时，需要执行一次终端命令；后续由 Cask 管理的版本才能使用修复后的应用内更新。
 
@@ -90,7 +90,7 @@ brew install --cask --require-sha bobcgn/skill-central/skill-central
 
 ## Alpha.1 一次性升级
 
-只有在 `alpha.2` Release 已公开且生成的 Cask 已合并后，`alpha.1` 用户才能先按上文接管或安装 Cask，再执行：
+由于 `alpha.2` Release 已公开且生成的 Cask 已合并，`alpha.1` 用户应先按上文接管或安装 Cask，再执行：
 
 ```bash
 brew update
@@ -98,7 +98,7 @@ brew upgrade --cask --require-sha bobcgn/skill-central/skill-central
 open -a "Skill Central"
 ```
 
-公开的 `alpha.1` Binary 不包含修复后的 Updater，因此这次终端操作无法省略。在 `alpha.2` Release 和 Cask 均公开前不得执行。
+公开的 `alpha.1` Binary 不包含修复后的 Updater，因此这次终端操作无法省略。
 
 ## 桌面后台契约
 
@@ -165,12 +165,12 @@ Windows 打包的 NSIS 版本通过 `electron-updater` 使用 GitHub。MSI 与 Z
 - Name：`SKILL_CENTRAL_GITHUB_CLIENT_ID`
 - Value：OAuth App 页面显示的 Client ID
 
-Release Workflow 会校验该变量并写入桌面包的 Package Metadata；变量缺失或格式无效时拒绝构建。配置完成后仍必须用候选安装包执行一次真实登录、用户信息读取和登出测试。
+Release Workflow 会校验该变量并写入桌面包的 Package Metadata；变量缺失或格式无效时拒绝构建。配置完成后仍必须用真实 release candidate 安装包执行一次登录、用户信息读取和登出测试。
 
-## Alpha.2 候选检查表
+## Alpha Release Gate 检查表
 
 1. 落地全部中英文安装、迁移、更新、安全和生命周期文档。
-2. 在实现与文档准备好生成候选包之前，Package Metadata 保持 `alpha.1`。
+2. 在实现与文档准备好生成候选包之前，Package Metadata 保持为当前已发布版本。
 3. 在干净 Checkout 运行 `npm ci`、`npm run lint`、`npm test` 和 `npm run build:desktop`。
 4. 构建两个 macOS 架构，生成候选 Cask，并运行 `ruby -c`、`brew style` 和离线 Strict Cask Audit；需要联网的 `brew audit --new` 只能在 Release URL 公开后运行。
 5. 在 Apple Silicon 与可用的 Intel Mac 上测试全新 Homebrew 安装。

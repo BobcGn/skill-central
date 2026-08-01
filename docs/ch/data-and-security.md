@@ -44,7 +44,7 @@ Client ID 是公开应用标识，不是 Client Secret。项目 OAuth App 必须
 
 正式桌面程序使用 Electron `safeStorage` 加密完整的 Token 记录：macOS 依赖 Keychain，Windows 依赖当前系统用户的 DPAPI。密文使用受限权限和同目录原子替换；系统加密不可用时阻断登录，绝不回退明文。桌面程序发现旧版 `github.token.json` 明文凭据时会直接删除而不迁移，并要求重新登录；密文损坏或无法解密时也会删除记录并恢复为未登录状态。
 
-Renderer、Board API 与认证诊断日志不得接收 Access Token、Device Code、Authorization Header、密文或原始原生异常。日志只记录预定义的操作阶段、错误码和非敏感清理事件。CLI 当前仍使用仅供源码开发的 `DevelopmentFileTokenStore`，不属于 Alpha.2 正式桌面安全承诺。Linux 桌面认证不在 Alpha.2 支持范围内；Windows DPAPI 在真实候选包验证前仍标记为未验证。
+Renderer、Board API 与认证诊断日志不得接收 Access Token、Device Code、Authorization Header、密文或原始原生异常。日志只记录预定义的操作阶段、错误码和非敏感清理事件。CLI 当前仍使用仅供源码开发的 `DevelopmentFileTokenStore`，不属于 Alpha.2 正式桌面安全承诺。Linux 桌面认证不在 Alpha.2 支持范围内；Windows DPAPI 在真实 Windows 打包应用验证前仍标记为未验证。
 
 Logout 会删除本地 Token 记录，但不会撤销 GitHub 侧的授权；怀疑泄露时还应在 GitHub 设置中单独撤销。密文与系统用户凭据绑定，不能保证跨设备或跨系统账户恢复。
 
@@ -92,8 +92,8 @@ Board 本身在本地提供服务。当前代码库没有记录或实现 Telemet
 
 - macOS 产物未签名、未公证。文档中的 `xattr` 方案会移除 Quarantine，只应对确认来自官方 Release 的产物使用。
 - Windows NSIS 的更新元数据与 Binary 来自 GitHub Releases，目前没有文档化代码签名保证。
-- 当前 Homebrew Cask 使用 `sha256 :no_check`，不能提供固定 Artifact Checksum。
-- macOS Homebrew Updater 已有实现，但尚未通过当前端到端用户测试。
+- Homebrew Cask 已为 macOS Release 产物固定不同架构的 SHA-256。
+- macOS Homebrew Updater 已面向 Cask 管理的 Alpha 安装发布，但每次 Release 仍必须重新检查打包行为。
 
 这些是 Release 风险，不是安装便利性问题。任何宣称改善这些问题的变更都需要真实打包平台验证。
 
