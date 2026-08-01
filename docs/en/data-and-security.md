@@ -25,7 +25,7 @@ Report vulnerabilities through the private process in [SECURITY.md](../../SECURI
 
 ## Browser-Local Preferences
 
-The Board stores theme, locale, current preferences, and the GitHub OAuth App Client ID in browser `localStorage`. The Client ID identifies an OAuth application and is not an access token, but it should still be treated as configuration rather than a credential.
+The Board stores theme, locale, and current preferences in browser `localStorage`. Users no longer enter the GitHub OAuth App Client ID and it is not stored in the browser. Official desktop packages put the project-owned public Client ID in package metadata; the local server exposes only whether login is configured to the renderer.
 
 GitHub access tokens and device codes are not returned in normal browser status responses and are not stored in browser storage.
 
@@ -33,14 +33,20 @@ GitHub access tokens and device codes are not returned in normal browser status 
 
 Authentication uses GitHub OAuth Device Flow:
 
-1. The Board or CLI supplies an OAuth App Client ID.
+1. An official desktop package reads the project OAuth App Client ID from package metadata; a source CLI can read it from `SKILL_CENTRAL_GITHUB_CLIENT_ID` or an explicit option.
 2. Skill Central requests a device code and returns only the user-facing code, verification URL, timing, and an opaque local flow ID.
 3. The local server polls GitHub after user authorization.
 4. The returned access token is written through the `TokenStore` interface.
 
 The requested scope is currently `repo`, which can grant access to private repositories authorized for the account. Use a dedicated, revocable OAuth grant and avoid high-value credentials during the Alpha.
 
-The current implementation uses `DevelopmentFileTokenStore`. It writes a JSON token file with mode `0600` under the app-state token directory. It is explicitly marked as not production-ready; OS keychain integration is still required. Logout removes the local token file but does not revoke the grant on GitHub. Revoke it separately in GitHub settings when compromise is suspected.
+The Client ID is a public application identifier, not a client secret. The project OAuth App must have Device Flow enabled. The Release workflow injects the ID from the `SKILL_CENTRAL_GITHUB_CLIENT_ID` repository variable and refuses to package when it is missing or malformed. Never add a client secret to a desktop package, source file, log, or Actions configuration.
+
+The official desktop application encrypts the complete token record with Electron `safeStorage`: macOS relies on Keychain and Windows relies on DPAPI for the current OS user. The ciphertext uses restricted permissions and same-directory atomic replacement. Login is blocked when system encryption is unavailable; there is no plaintext fallback. When the desktop finds a legacy plaintext `github.token.json`, it deletes the file without migrating the token and requires login again. Corrupt or undecryptable ciphertext is also deleted and treated as logged out.
+
+The renderer, Board API, and authentication diagnostics never receive access tokens, device codes, authorization headers, ciphertext, or raw native exceptions. Logs contain only predefined operation stages, error codes, and non-sensitive cleanup events. The CLI still uses `DevelopmentFileTokenStore` for source development and is outside the Alpha.2 desktop security commitment. Linux desktop authentication is outside the Alpha.2 support scope; Windows DPAPI remains unverified until a real candidate-package test passes.
+
+Logout removes the local token record but does not revoke the grant on GitHub. Revoke it separately in GitHub settings when compromise is suspected. Ciphertext is tied to OS-user credentials and is not guaranteed to survive migration to another device or system account.
 
 ## Web Board Boundary
 

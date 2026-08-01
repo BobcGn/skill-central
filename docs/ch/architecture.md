@@ -140,7 +140,7 @@ flowchart LR
 
 ## 当前 Alpha 限制
 
-- GitHub 凭据仍使用开发型文件 `TokenStore`，OS Keychain 尚未完成。
+- 正式桌面 GitHub 凭据已接入 macOS Keychain/Windows DPAPI；CLI 仍使用开发型文件 `TokenStore`，Windows 实机行为尚未验证。
 - macOS 安装包未签名、未公证。
 - macOS Homebrew 更新路径已有代码，但未通过 `1.0.0-alpha.1` 用户测试，仍为实验能力。
 - Compiler Adapter 当前只有 generic MCP、Cursor 和 Windsurf，少于六个 IDE 连接目标。

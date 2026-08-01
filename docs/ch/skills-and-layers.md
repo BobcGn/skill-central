@@ -95,6 +95,47 @@ Schema 还可以表达：
 
 不带 `schemaVersion` 的旧 Prompt/Tool 文件仍会标准化为当前内部视图。新的公开示例和功能应使用 Universal Skill v1。
 
+## 资产作用域
+
+Skill 与 Rule 共用 `appliesTo` 字段。它与 Layer 的 `scope` 不同：Layer `scope` 用于候选项优先级，资产 `appliesTo` 决定当前项目是否能加载该资产。未声明时默认为全局：
+
+```yaml
+appliesTo: global
+```
+
+绑定一个或多个项目：
+
+```yaml
+appliesTo:
+  projects:
+    - git:github.com/acme/service-a
+    - git:github.com/acme/service-b
+```
+
+项目身份优先由 Git `origin` 生成稳定的 `git:<host>/<owner>/<repo>` ID。没有受支持的 Remote 时，退化为规范化真实路径 `path:<absolute-path>`。GitHub 项目 ID 不区分大小写；无效、空或重复 ID 会产生字段级校验错误。
+
+Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不会参与冲突解析，也不会进入 MCP、Compiler 或普通 CLI 查询。Rule 使用同一个匹配函数。Rules CLI 和 Web Board 提供独立规则视图；Rule MCP Resource 尚未实现，因为规则的 Agent 消费模型仍待确定。
+
+查看当前项目身份或资产作用域：
+
+```bash
+skill-central scope current
+skill-central scope show .rules/no-secrets.yaml
+```
+
+原子修改 Skill 或 Rule 源文件：
+
+```bash
+skill-central scope set .rules/no-secrets.yaml --global
+skill-central scope set .skills/02-workflows/review.yaml --current-project
+skill-central scope set .rules/no-secrets.yaml \
+  --projects git:github.com/acme/service-a,git:github.com/acme/service-b
+```
+
+`scope set` 在写入前复用对应 Schema 校验，同目录临时文件写完后再原子替换。自动化调用可以传 `--expected-sha256 <hash>`，文件已变化时会拒绝覆盖。`list`、`show` 和 `rules` 支持 `--project-id`/`--project-root` 作为显式上下文覆盖。
+
+Web Board 将 Skills 与 Rules 作为两类独立资产展示，并允许把任一资产设为全局或绑定到一个/多个项目。管理清单会保留当前项目不匹配的资产，因此用户可直接将其作用域改回当前项目。浏览器写入受 Same-Origin、Schema 校验和 expected SHA 并发检查保护，最终复用与 CLI 相同的原子文件编辑器。
+
 ## Prompt 与 Tool 组合
 
 Prompt 占位符使用 `{{name}}`，由请求参数替换。当 `prompt` 和 `prompt_zh` 同时存在时，Skill Central 会生成一条带明确语言分区的双语消息。

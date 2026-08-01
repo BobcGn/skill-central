@@ -49,7 +49,7 @@ npm run lint          # TypeScript no-emit validation
 npm test              # build and run the integration suite
 ```
 
-`npm run package:mac` and `npm run package:win` create installable artifacts under `release-artifacts/`. Do not claim packaging coverage based only on `build:desktop`.
+`npm run package:mac` and `npm run package:win` create installable artifacts under `release-artifacts/`. Set `SKILL_CENTRAL_GITHUB_CLIENT_ID` to the project OAuth App's public Client ID first; the app must have Device Flow enabled, and no client secret belongs in a desktop build. Do not claim packaging coverage based only on `build:desktop`.
 
 ## Local State During Development
 

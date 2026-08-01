@@ -49,7 +49,7 @@ npm run lint          # TypeScript no-emit 校验
 npm test              # 构建并运行集成测试
 ```
 
-`npm run package:mac` 与 `npm run package:win` 在 `release-artifacts/` 生成可安装产物。只运行 `build:desktop` 不代表完成打包验证。
+`npm run package:mac` 与 `npm run package:win` 在 `release-artifacts/` 生成可安装产物。打包前必须将项目 OAuth App 的公共 Client ID 设置为 `SKILL_CENTRAL_GITHUB_CLIENT_ID`；该 App 必须启用 Device Flow，且不得在客户端配置 Client Secret。只运行 `build:desktop` 不代表完成打包验证。
 
 ## 开发期本地状态
 

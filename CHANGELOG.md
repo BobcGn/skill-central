@@ -2,6 +2,28 @@
 
 本文件记录 `skill-central` 的重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/)。
 
+## [Unreleased]
+
+## [1.0.0-alpha.2] - 2026-08-01
+
+### 新增
+
+- **独立 Rules 规则库**：新增 `skillcentral.dev/rule/v1` 契约、`.rules/` 独立存储与查询边界，以及 `rules`、`validate-rule` CLI；坏规则会被隔离，不影响其余规则或 Skill 加载。
+- **Rule/Skill 项目作用域**：两类资产共用 `appliesTo` 契约，支持 global、单项目和多项目过滤；`scope` CLI 与 Web Board 可检测稳定项目身份，并以 Schema、Same-Origin 和 hash 并发保护原子修改源文件。Rule MCP 仍待消费模型确定。
+
+### 修复
+
+- **GitHub 连接**：桌面用户不再需要自行提供 OAuth App Client ID；正式安装包从项目级公开配置读取固定 Client ID，缺失配置会阻断打包并在开发界面显示明确状态。
+- **GitHub 凭据安全**：正式桌面程序通过 macOS Keychain/Windows DPAPI 加密 Token，系统安全存储不可用时阻断登录；旧明文与损坏密文会清除并要求重新登录，认证 API 与日志只暴露脱敏错误码。
+- **macOS 桌面生命周期**：关闭最后一个窗口后复用同一后台 Board 服务，通过 Dock、应用菜单或菜单栏图标恢复窗口，并以单实例运行。
+- **macOS Homebrew 更新**：识别 Homebrew 6 Tap 信任状态，正确处理 `brew outdated` 的更新退出码，以固定 SHA 升级并在重启前核验安装版本。
+- **亮暗色主题**：补齐侧栏与输出区域的主题变量，使手动主题和系统主题保持一致。
+
+### 变更
+
+- **Homebrew 供应链**：Cask 固定 macOS 双架构 SHA-256；发布流水线从真实 DMG 生成 Cask 更新 PR。
+- **预发布验证**：新增本地候选 Tap、只读 macOS/Homebrew 诊断和真实 GitHub Device Flow 安全验收工具。
+
 ## [1.0.0-alpha.1] - 2026-07-30
 
 ### 新增

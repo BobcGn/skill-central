@@ -11,13 +11,13 @@ Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共�
 ## 主要能力
 
 - 使用明确层级优先级和冲突证据管理本地 Skill。
-- 桌面/Web Board 提供 Skills、IDE Connections、Sync、Runtime 主导航。
+- 桌面/Web Board 提供 Skills、Rules、IDE Connections、Sync、Runtime 主导航。
 - 个人设置支持 GitHub Device Flow、system/light/dark 主题和中英文切换。
 - 检测并注册 Codex、Claude、Trae、Cursor、Windsurf 和 Cline。
 - IDE 配置写入支持预览、备份、应用、验证与回退。
 - GitHub Registry 同步支持冲突选择、审计记录和备份。
 - 提供 MCP prompts、tools、resources、sessions、blackboard topics 和 workflow scheduler。
-- Windows 通过 GitHub Release/NSIS 支持应用内更新；当前版本的 macOS 更新需要手动完成。
+- Windows 通过 GitHub Release/NSIS 支持应用内更新；修复后的 macOS Homebrew 路线仍待 `1.0.0-alpha.2` 验收。
 
 ## 安装
 
@@ -25,15 +25,34 @@ Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共�
 
 请从 [GitHub Releases](https://github.com/BobcGn/skill-central/releases) 下载适合当前 Mac 架构的 `.dmg`，打开后将 **Skill Central** 拖入 **Applications（应用程序）**。
 
-项目当前没有使用 Apple Developer Program 证书，因此 macOS Alpha 包未签名、未公证。首次启动时，macOS 可能提示应用“已损坏”。请先在弹窗中点击**取消**，然后打开终端执行：
+项目当前没有使用 Apple Developer Program 证书，因此 macOS Alpha 包没有 Developer ID 签名，也没有公证。首次启动被 Gatekeeper 阻止时，请先确认 DMG 来自官方 `BobcGn/skill-central` Release，然后在**系统设置 → 隐私与安全性**中选择**仍要打开**。也可以在 Finder 中按住 Control 点击应用、选择**打开**并确认。
+
+如果系统仍提示应用“已损坏”且没有提供放行选项，才使用以下最后手段：
 
 ```bash
-sudo xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
+xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 ```
 
-执行完成后，从 **Applications（应用程序）** 再次启动 Skill Central。该命令只会移除上述准确路径中应用的 quarantine 属性。执行带 `sudo` 的命令前，请确认 DMG 来自官方 `BobcGn/skill-central` Release。
+执行完成后，从 **Applications（应用程序）** 再次启动 Skill Central。该命令只会移除上述准确路径中应用的 quarantine 属性，会降低该 App Bundle 的 Gatekeeper 保护；不要对其他路径或未经核验的产物执行。真正的修复仍是 Developer ID 签名和 Apple 公证。
 
-当前用户测试中，Homebrew 下载和应用内更新路径未能正常工作，因此 `1.0.0-alpha.1` 暂不推荐使用 Homebrew。macOS 用户目前应从 GitHub Releases 手动更新；Homebrew 全流程将在 `1.0.0-alpha.2` 发布时重新进行端到端测试。
+当前 `1.0.0-alpha.1` 用户测试中，Homebrew 下载和应用内更新路径未能正常工作。修复后的路线已经位于 `main`，但还不是已发布能力。除非正在按[发布与更新](./docs/ch/release-and-updates.md)执行候选测试，否则请继续使用 DMG 手动路线。
+
+### macOS：待验收的 Homebrew 路线
+
+计划支持的公开路线通过 Cask 将桌面程序安装到 `/Applications/Skill Central.app`：
+
+```bash
+brew tap bobcgn/skill-central https://github.com/BobcGn/skill-central
+brew trust bobcgn/skill-central
+brew install --cask --require-sha bobcgn/skill-central/skill-central
+open -a "Skill Central"
+```
+
+Homebrew 6 在加载第三方 Tap 前要求显式信任。执行 `brew trust` 前应先检查仓库和 `Casks/skill-central.rb`。安装不会自动启动应用；`open -a` 启动的是打包后的 Electron 桌面程序。维护者可以在源码 Checkout 中运行 `npm run homebrew:diagnose`，核验 Tap 归属、版本、进程数量和 Loopback Listener。
+
+当前 Alpha 没有 Developer ID 签名，也没有公证。如果 macOS 阻止首次启动，请先核验仓库、Release 产物和固定校验值，再优先使用系统提供的**仍要打开**；仅在系统没有提供放行选项时，使用 DMG 小节中限定准确路径的 `xattr` 命令。完成签名和公证后才能移除这个临时处理。
+
+修复版本安装后，点击左上角红色按钮会保留一个本地进程和 Board Server。可以通过 Dock、应用菜单或菜单栏图标重新显示窗口；使用 **Quit Skill Central** 或 `Command-Q` 才会完全退出。该生命周期必须通过真实 macOS 候选测试，才允许发布 `1.0.0-alpha.2`。
 
 ### Windows
 
@@ -91,6 +110,7 @@ skill-central mcp
 | 区域 | 用途 |
 | --- | --- |
 | Skills | 搜索、查看、编辑、编译、恢复以及检查解析来源 |
+| Rules | 独立搜索和查看规则，并管理 Rule 与 Skill 的项目作用域 |
 | IDE Connections | 检测 IDE，预览/应用/验证/回退 MCP 配置 |
 | Sync | 检查本地状态、生成 GitHub Registry 计划、解决冲突并查看证据 |
 | Runtime | 检查、启动和停止本地 MCP Runtime |
@@ -161,21 +181,23 @@ prompt: |
 
 ## GitHub 同步
 
-GitHub 认证使用 OAuth Device Flow。当前需要在个人设置中提供 GitHub OAuth App Client ID，或设置 `SKILL_CENTRAL_GITHUB_CLIENT_ID`。
+GitHub 认证使用 OAuth Device Flow。正式桌面安装包内置项目 OAuth App 的公开 Client ID，用户只需在个人设置中点击**连接 GitHub**并在 GitHub 完成授权，不需要创建 OAuth App 或填写 Client ID。源码 Checkout 和 CLI 开发可通过 `SKILL_CENTRAL_GITHUB_CLIENT_ID` 配置同一公共标识符。
 
 ```bash
 skill-central sync status --json
-skill-central sync login --client-id <oauth-client-id> --poll
+SKILL_CENTRAL_GITHUB_CLIENT_ID=<oauth-client-id> skill-central sync login --poll
 skill-central sync plan --registry-dir ./skill-central-registry --direction both
 ```
 
+当前公开的 `1.0.0-alpha.1` 没有内置项目 Client ID，因此 GitHub 连接会失败。修复位于尚未发布的 `alpha.2` 候选中；发布前必须用项目 OAuth App 完成一次真实 Device Flow 登录与登出测试。
+
 远程写入必须先生成计划并显式确认。同步操作会保留审计和备份证据；token 不会通过 Web API 返回，也不会写入浏览器存储。
 
-当前 Alpha 在 OS keychain 集成完成前仍使用开发文件型 TokenStore。请将 GitHub 登录视为实验功能，不要复用高价值凭据。
+正式桌面程序通过 macOS Keychain 或 Windows DPAPI 加密 GitHub Token；系统安全存储不可用时不会回退明文。旧开发型明文 Token 会被删除且不迁移，需要重新登录。CLI 登录仍仅供源码开发使用，Windows DPAPI 路线必须通过真实候选包验证后才能声明已验证。
 
 ## 自动更新
 
-- **macOS：** `1.0.0-alpha.1` 请使用 DMG 手动更新。Homebrew 下载与应用内更新仍是实验能力，将在 `1.0.0-alpha.2` 重新测试。
+- **macOS：** 已发布的 `1.0.0-alpha.1` 请使用 DMG 手动更新。`main` 上修复后的 Homebrew 托管更新路线仍未发布，必须完成文档规定的安装、迁移、后台行为与升级测试后，才能发布 `1.0.0-alpha.2`。
 - **Windows：** NSIS 安装版本检查 GitHub Releases，自动下载更新包和 blockmap，准备完成后显示 **安装并重启**。
 - **仅 CLI/Web 模式：** 明确显示更新器不可用，不会尝试修改安装目录。
 - 当前安装版本为 Alpha 时允许接收预发布更新。
@@ -213,6 +235,7 @@ npm run dev:desktop
 构建发布包：
 
 ```bash
+export SKILL_CENTRAL_GITHUB_CLIENT_ID="<项目 OAuth App 的公共 Client ID>"
 npm run package:mac
 npm run package:win
 ```

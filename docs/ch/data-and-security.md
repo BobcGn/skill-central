@@ -25,7 +25,7 @@ Skill Central 采用本地优先设计，但它不是安全沙箱。它会读写
 
 ## 浏览器本地偏好
 
-Board 使用浏览器 `localStorage` 保存主题、语言、当前偏好以及 GitHub OAuth App Client ID。Client ID 用于标识 OAuth App，不是 Access Token，但仍应将其视为配置数据。
+Board 使用浏览器 `localStorage` 保存主题、语言和当前偏好。GitHub OAuth App Client ID 不再由用户输入或保存在浏览器中；正式桌面包将项目拥有的公共 Client ID 写入 Package Metadata，本地 Server 只向 Renderer 暴露“是否已配置”的状态。
 
 GitHub Access Token 和 Device Code 不会出现在正常浏览器状态响应中，也不会写入浏览器存储。
 
@@ -33,14 +33,20 @@ GitHub Access Token 和 Device Code 不会出现在正常浏览器状态响应�
 
 认证使用 GitHub OAuth Device Flow：
 
-1. Board 或 CLI 提供 OAuth App Client ID。
+1. 正式桌面包从 Package Metadata 读取项目 OAuth App Client ID；源码 CLI 可从 `SKILL_CENTRAL_GITHUB_CLIENT_ID` 或显式参数读取。
 2. Skill Central 请求 Device Code，只返回面向用户的 Code、Verification URL、时间参数和不透明的本地 Flow ID。
 3. 用户授权后，本地 Server 向 GitHub Poll。
 4. 返回的 Access Token 通过 `TokenStore` 接口写入。
 
 当前请求的 Scope 是 `repo`，可能获得账户所授权私有仓库的访问能力。Alpha 阶段应使用专用、可撤销的 OAuth Grant，避免使用高价值凭据。
 
-当前实现使用 `DevelopmentFileTokenStore`，以 `0600` 模式将 JSON Token 文件写入 App State 的 Token 目录。它被明确标记为非生产就绪，仍需完成 OS Keychain 集成。Logout 会删除本地 Token 文件，但不会撤销 GitHub 侧的授权；怀疑泄露时还应在 GitHub 设置中单独撤销。
+Client ID 是公开应用标识，不是 Client Secret。项目 OAuth App 必须启用 Device Flow；Release Workflow 从 Repository Variable `SKILL_CENTRAL_GITHUB_CLIENT_ID` 注入该 ID，变量缺失或格式无效时拒绝打包。不得在桌面包、源码、日志或 Actions 配置中加入 Client Secret。
+
+正式桌面程序使用 Electron `safeStorage` 加密完整的 Token 记录：macOS 依赖 Keychain，Windows 依赖当前系统用户的 DPAPI。密文使用受限权限和同目录原子替换；系统加密不可用时阻断登录，绝不回退明文。桌面程序发现旧版 `github.token.json` 明文凭据时会直接删除而不迁移，并要求重新登录；密文损坏或无法解密时也会删除记录并恢复为未登录状态。
+
+Renderer、Board API 与认证诊断日志不得接收 Access Token、Device Code、Authorization Header、密文或原始原生异常。日志只记录预定义的操作阶段、错误码和非敏感清理事件。CLI 当前仍使用仅供源码开发的 `DevelopmentFileTokenStore`，不属于 Alpha.2 正式桌面安全承诺。Linux 桌面认证不在 Alpha.2 支持范围内；Windows DPAPI 在真实候选包验证前仍标记为未验证。
+
+Logout 会删除本地 Token 记录，但不会撤销 GitHub 侧的授权；怀疑泄露时还应在 GitHub 设置中单独撤销。密文与系统用户凭据绑定，不能保证跨设备或跨系统账户恢复。
 
 ## Web Board 边界
 

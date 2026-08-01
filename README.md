@@ -11,13 +11,13 @@ Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared sk
 ## Highlights
 
 - One local skill library with layered precedence and conflict visibility.
-- Desktop/Web Board navigation for Skills, IDE Connections, Sync, and Runtime.
+- Desktop/Web Board navigation for Skills, Rules, IDE Connections, Sync, and Runtime.
 - Personal settings for GitHub Device Flow, system/light/dark themes, and English/Chinese.
 - IDE detection and MCP registration for Codex, Claude, Trae, Cursor, Windsurf, and Cline.
 - Preview, backup, apply, verify, and rollback for IDE configuration writes.
 - GitHub registry sync plans with conflict choices, audit records, and backups.
 - MCP prompts, tools, resources, sessions, blackboard topics, and workflow scheduling.
-- In-app updates through GitHub Release/NSIS on Windows; macOS updates are manual in this release.
+- In-app updates through GitHub Release/NSIS on Windows; the repaired macOS Homebrew route is pending `1.0.0-alpha.2` validation.
 
 ## Install
 
@@ -25,15 +25,34 @@ Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared sk
 
 Download the `.dmg` for your Mac from [GitHub Releases](https://github.com/BobcGn/skill-central/releases), open it, and drag **Skill Central** into **Applications**.
 
-The macOS alpha is not signed or notarized because the project does not currently use an Apple Developer Program certificate. On first launch, macOS may report that the app is damaged. Click **Cancel** in that dialog, open Terminal, and run:
+The macOS alpha has no Developer ID signature and is not notarized because the project does not currently use an Apple Developer Program certificate. If Gatekeeper blocks the first launch, first verify that the DMG came from the official `BobcGn/skill-central` Release, then use **System Settings > Privacy & Security > Open Anyway**. You can also Control-click the application in Finder, choose **Open**, and confirm.
+
+Only if macOS still reports that the app is damaged and offers no exception, use this last resort:
 
 ```bash
-sudo xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
+xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 ```
 
-Then launch Skill Central again from **Applications**. This command removes the quarantine attribute only from the app at the exact path shown above. Verify that the DMG came from the official `BobcGn/skill-central` release before running a command with `sudo`.
+Then launch Skill Central again from **Applications**. This command removes the quarantine attribute only from the app at the exact path shown above and weakens Gatekeeper protection for that App Bundle. Do not run it against another path or an unverified artifact. Developer ID signing and Apple notarization remain the proper fix.
 
-The Homebrew download and in-app update path did not work in current user testing and is not recommended for `1.0.0-alpha.1`. macOS users should update manually from GitHub Releases for now. The Homebrew flow is scheduled for another end-to-end test with `1.0.0-alpha.2`.
+The Homebrew download and in-app update path did not work in current `1.0.0-alpha.1` user testing. The repaired route is present on `main` but is not a released feature yet. Keep using the manual DMG route unless you are following the candidate test procedure in [Release and Updates](./docs/en/release-and-updates.md).
+
+### macOS: Homebrew route under validation
+
+The intended public route is a Cask that installs the desktop application at `/Applications/Skill Central.app`:
+
+```bash
+brew tap bobcgn/skill-central https://github.com/BobcGn/skill-central
+brew trust bobcgn/skill-central
+brew install --cask --require-sha bobcgn/skill-central/skill-central
+open -a "Skill Central"
+```
+
+Homebrew 6 requires explicit trust before it loads this third-party Tap. Review the repository and `Casks/skill-central.rb` before running `brew trust`. Installation does not launch the app; `open -a` starts the packaged Electron desktop program. Maintainers can run `npm run homebrew:diagnose` from a source checkout to audit Tap ownership, versions, process count, and the loopback listener.
+
+This alpha has no Developer ID signature and is not notarized. If macOS blocks first launch, verify the repository, Release asset, and pinned checksum, then prefer **Open Anyway** in System Settings. Use the exact-path `xattr` command in the DMG section only when macOS offers no exception. Signing and notarization are required before this workaround can be removed.
+
+After the repaired version is installed, closing the red window button leaves one local process and Board server running. Reopen it from the Dock, the application menu, or the menu bar icon. Use **Quit Skill Central** or `Command-Q` to stop the process fully. This lifecycle must pass the real macOS candidate test before `1.0.0-alpha.2` is released.
 
 ### Windows
 
@@ -91,6 +110,7 @@ The main navigation is organized around repeatable work:
 | Area | Purpose |
 | --- | --- |
 | Skills | Search, inspect, edit, compile, restore, and review resolution provenance |
+| Rules | Search and inspect rules independently, and manage project scope for Rules and Skills |
 | IDE Connections | Detect IDEs and preview/apply/verify/rollback MCP configuration |
 | Sync | Inspect local state, build GitHub registry plans, resolve conflicts, and review evidence |
 | Runtime | Inspect, start, and stop the local MCP runtime |
@@ -161,21 +181,23 @@ Layers have explicit priorities. When IDs collide, the higher-priority valid ski
 
 ## GitHub Sync
 
-GitHub authentication uses OAuth Device Flow. A GitHub OAuth App Client ID must currently be supplied in Personal settings or through `SKILL_CENTRAL_GITHUB_CLIENT_ID`.
+GitHub authentication uses OAuth Device Flow. Official desktop packages embed the project OAuth App's public Client ID, so users only click **Connect GitHub** and authorize on GitHub; they do not create an OAuth App or enter a Client ID. Source checkouts and CLI development can configure the same public identifier through `SKILL_CENTRAL_GITHUB_CLIENT_ID`.
 
 ```bash
 skill-central sync status --json
-skill-central sync login --client-id <oauth-client-id> --poll
+SKILL_CENTRAL_GITHUB_CLIENT_ID=<oauth-client-id> skill-central sync login --poll
 skill-central sync plan --registry-dir ./skill-central-registry --direction both
 ```
 
+The public `1.0.0-alpha.1` package does not contain the project Client ID, so GitHub connection fails there. The fix is part of the unreleased `alpha.2` candidate and must pass a real Device Flow login/logout test with the project OAuth App before release.
+
 Remote writes require an explicit plan and confirmation. Sync operations preserve audit and backup evidence. Tokens are never returned by the Web API or written to browser storage.
 
-The current alpha still uses a development file-backed TokenStore outside a completed OS-keychain integration. Treat GitHub login as experimental and do not reuse a high-value credential.
+Official desktop packages encrypt GitHub tokens through macOS Keychain or Windows DPAPI and never fall back to plaintext when system secure storage is unavailable. Legacy plaintext development tokens are deleted rather than migrated, so login is required again. CLI login remains for source development only, and the Windows DPAPI route must pass a real candidate-package test before it is marked verified.
 
 ## Automatic Updates
 
-- **macOS:** use manual DMG updates for `1.0.0-alpha.1`. The Homebrew download and in-app update flow remains experimental and will be retested with `1.0.0-alpha.2`.
+- **macOS:** use manual DMG updates for the released `1.0.0-alpha.1`. The repaired Homebrew-owned update flow on `main` remains unreleased until the `1.0.0-alpha.2` candidate passes the documented install, migration, background, and upgrade tests.
 - **Windows:** packaged NSIS builds check GitHub Releases, download the update and blockmap automatically, then expose **Install and restart** when ready.
 - **CLI/Web-only mode:** reports the updater as unavailable and never tries to mutate an installation.
 - Prereleases are enabled while the installed app version is an alpha.
@@ -213,6 +235,7 @@ npm run dev:desktop
 Build release packages:
 
 ```bash
+export SKILL_CENTRAL_GITHUB_CLIENT_ID="<project OAuth App public Client ID>"
 npm run package:mac
 npm run package:win
 ```

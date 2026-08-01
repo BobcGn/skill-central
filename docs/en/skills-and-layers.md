@@ -95,6 +95,47 @@ The schema can also express:
 
 Legacy prompt/tool files without `schemaVersion` continue to normalize into the current internal view. New public examples and features should use Universal Skill v1.
 
+## Asset Scope
+
+Skills and rules share the `appliesTo` field. It is separate from layer `scope`: layer `scope` participates in candidate precedence, while asset `appliesTo` decides whether the current project may load that asset. The default is global:
+
+```yaml
+appliesTo: global
+```
+
+Bind an asset to one or more projects:
+
+```yaml
+appliesTo:
+  projects:
+    - git:github.com/acme/service-a
+    - git:github.com/acme/service-b
+```
+
+Project identity prefers a stable `git:<host>/<owner>/<repo>` ID derived from Git `origin`. Without a supported remote it falls back to a canonical real path, `path:<absolute-path>`. GitHub project IDs are case-insensitive. Invalid, empty, or duplicate IDs produce field-level validation errors.
+
+Skills are filtered before entering the override tree, so non-matching candidates cannot affect conflict resolution and do not reach MCP, compiler, or ordinary CLI queries. Rules use the same matcher. The Rules CLI and Web Board expose an independent rule view; rule MCP resources are not implemented because the agent consumption model is still undecided.
+
+Inspect the current project identity or an asset scope:
+
+```bash
+skill-central scope current
+skill-central scope show .rules/no-secrets.yaml
+```
+
+Atomically edit a Skill or Rule source file:
+
+```bash
+skill-central scope set .rules/no-secrets.yaml --global
+skill-central scope set .skills/02-workflows/review.yaml --current-project
+skill-central scope set .rules/no-secrets.yaml \
+  --projects git:github.com/acme/service-a,git:github.com/acme/service-b
+```
+
+`scope set` reuses the matching schema validator before writing, then replaces the file atomically from a sibling temporary file. Automation can pass `--expected-sha256 <hash>` to reject an update after concurrent file changes. `list`, `show`, and `rules` accept `--project-id`/`--project-root` as explicit context overrides.
+
+The Web Board displays Skills and Rules as independent asset types and can set either one to global scope or one/more projects. Its management index retains assets that do not match the current project, so users can restore their scope without using the CLI. Browser writes enforce Same-Origin, schema validation, and expected-SHA concurrency checks before reusing the same atomic file editor as the CLI.
+
 ## Prompt and Tool Composition
 
 Prompt placeholders use `{{name}}` and are replaced from request arguments. If both `prompt` and `prompt_zh` exist, Skill Central emits one bilingual message with explicit language sections.

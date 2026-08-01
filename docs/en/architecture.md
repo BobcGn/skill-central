@@ -140,7 +140,7 @@ Cross-boundary changes require an issue and design agreement before implementati
 
 ## Current Alpha Limitations
 
-- GitHub credentials still use a development file-backed `TokenStore`; an OS-keychain implementation is not complete.
+- Official desktop GitHub credentials use macOS Keychain/Windows DPAPI; the CLI still uses the development file TokenStore, and real Windows behavior remains unverified.
 - macOS packages are unsigned and not notarized.
 - The Homebrew-managed macOS update path exists in code but did not pass the `1.0.0-alpha.1` user test and remains experimental.
 - Compiler adapters currently exist for generic MCP, Cursor, and Windsurf; this is narrower than the six IDE connection targets.
