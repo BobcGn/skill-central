@@ -11,6 +11,9 @@
 //   skill-central show    →  Print full skill details + prompt body
 //   skill-central remove  →  Delete a skill file
 //   skill-central validate→  Validate one or more skill files
+//   skill-central rules   →  List all loaded rules (with filters)
+//   skill-central validate-rule → Validate one or more rule files
+//   skill-central scope   →  Inspect or atomically edit Skill/Rule scope
 //   skill-central compile →  Preview target artifacts without writing files
 //   skill-central export  →  Write compiled artifacts with conflict protection
 //   skill-central connect →  Preview/apply/verify IDE MCP registration
@@ -29,6 +32,9 @@ import { cmdList } from "./commands/list.js";
 import { cmdShow } from "./commands/show.js";
 import { cmdRemove } from "./commands/remove.js";
 import { cmdValidate } from "./commands/validate.js";
+import { cmdRules } from "./commands/rules.js";
+import { cmdValidateRule } from "./commands/validate-rule.js";
+import { cmdScope } from "./commands/scope.js";
 import { cmdDoctor } from "./commands/doctor.js";
 import { cmdInstall } from "./commands/install.js";
 import { cmdUpdate } from "./commands/update.js";
@@ -131,6 +137,8 @@ program
   .option("--layer <name>", "Only show skills from this layer")
   .option("--type <type>", 'Only show skills of this type ("prompt" or "tool")')
   .option("--tag <tag>", "Only show skills with this tag")
+  .option("--project-root <path>", "Override the current project root for scope filtering")
+  .option("--project-id <id>", "Override the current git:/path: project id")
   .option("--source", "Also print source file paths")
   .action((opts) => {
     cmdList({
@@ -138,6 +146,8 @@ program
       type: opts.type,
       tag: opts.tag,
       source: opts.source,
+      projectRoot: opts.projectRoot,
+      projectId: opts.projectId,
     }).catch((err) => {
       console.error("[skill-central] List error:", err.message ?? err);
       process.exit(1);
@@ -147,8 +157,10 @@ program
 program
   .command("show <id>")
   .description("Print full details + prompt body of a single skill")
-  .action((id: string) => {
-    cmdShow(id).catch((err) => {
+  .option("--project-root <path>", "Override the current project root for scope filtering")
+  .option("--project-id <id>", "Override the current git:/path: project id")
+  .action((id: string, opts) => {
+    cmdShow(id, { projectRoot: opts.projectRoot, projectId: opts.projectId }).catch((err) => {
       console.error("[skill-central] Show error:", err.message ?? err);
       process.exit(1);
     });
@@ -175,6 +187,62 @@ program
   .action((files: string[]) => {
     cmdValidate(files).catch((err) => {
       console.error("[skill-central] Validate error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("rules")
+  .description("List all loaded rules from .rules/ (filters: --tag, --severity)")
+  .option("--tag <tag>", "Only show rules with this tag")
+  .option("--severity <severity>", 'Only show rules of this severity ("info", "warn", or "error")')
+  .option("--dir <path>", "Override the rules directory (default .rules/)")
+  .option("--project-root <path>", "Override the current project root for scope filtering")
+  .option("--project-id <id>", "Override the current git:/path: project id")
+  .action((opts) => {
+    cmdRules({
+      tag: opts.tag,
+      severity: opts.severity,
+      dir: opts.dir,
+      projectRoot: opts.projectRoot,
+      projectId: opts.projectId,
+    }).catch((err) => {
+      console.error("[skill-central] Rules error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("validate-rule <files...>")
+  .description("Parse and validate one or more rule definition files")
+  .action((files: string[]) => {
+    cmdValidateRule(files).catch((err) => {
+      console.error("[skill-central] Validate-rule error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("scope [action] [file]")
+  .description("Inspect project identity or show/set a Skill/Rule appliesTo scope")
+  .option("--global", "Set the asset scope to global")
+  .option("--current-project", "Bind the asset to the detected current project")
+  .option("--projects <ids>", "Bind to comma-separated git:/path: project ids")
+  .option("--project-root <path>", "Override the project root used for identity detection")
+  .option("--expected-sha256 <hash>", "Reject the write when file content has changed")
+  .option("--json", "Print machine-readable output")
+  .action((action: string | undefined, file: string | undefined, opts) => {
+    cmdScope({
+      action,
+      file,
+      global: opts.global,
+      currentProject: opts.currentProject,
+      projects: opts.projects,
+      projectRoot: opts.projectRoot,
+      expectedSha256: opts.expectedSha256,
+      json: opts.json,
+    }).catch((err) => {
+      console.error("[skill-central] Scope error:", err.message ?? err);
       process.exit(1);
     });
   });

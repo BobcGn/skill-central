@@ -1,16 +1,25 @@
 // ============================================================================
 // skill-central · web board frontend
 // ----------------------------------------------------------------------------
-// Vanilla JS — no build step. Fetches /api/skills, renders the list, shows
-// the prompt body when a skill is clicked, and supports in-browser editing
-// with sha256-conflict detection + .bak restore.
+// Vanilla JS — no build step. Presents Skills and Rules as independent asset
+// libraries while sharing project-scope editing, localization, and conflict
+// handling across both surfaces.
 // ============================================================================
 
 const state = {
   skills: [],
+  rules: [],
+  scopeAssets: [],
   activeId: null,
+  activeSkillKey: null,
+  activeRuleId: null,
   skillFilter: "",
+  ruleFilter: "",
   detail: null,        // last fetched /api/skills/:id
+  ruleDetail: null,
+  projectIdentity: null,
+  scopeAsset: null,
+  scopeMode: "global",
   ideTargets: [],
   activeIde: readPreference("skill-central.ide", "codex"),
   activeView: readPreference("skill-central.view", "skills"),
@@ -37,6 +46,7 @@ const state = {
 const messages = {
   en: {
     "nav.skills": "Skills",
+    "nav.rules": "Rules",
     "nav.ide": "IDE Connections",
     "nav.sync": "Sync",
     "nav.runtime": "Runtime",
@@ -54,6 +64,27 @@ const messages = {
     "skills.emptyBody": "Choose an entry from the index.",
     "skills.noResults": "No matching skills",
     "skills.noSkills": "No skills loaded",
+    "rules.search": "Filter rules",
+    "rules.library": "Rule library",
+    "rules.emptyTitle": "Select a rule",
+    "rules.emptyBody": "Choose an entry from the rule index.",
+    "rules.noResults": "No matching rules",
+    "rules.noRules": "No rules loaded",
+    "scope.kicker": "ASSET / PROJECTS",
+    "scope.title": "Asset scope",
+    "scope.global": "Global",
+    "scope.projects": "Selected projects",
+    "scope.currentProject": "Current project",
+    "scope.useCurrent": "Use current",
+    "scope.projectIds": "Project IDs",
+    "scope.projectPlaceholder": "git:github.com/owner/repository",
+    "scope.edit": "Scope",
+    "scope.saved": "Scope saved",
+    "scope.scopedOut": "Scope saved; the asset is hidden in this project",
+    "scope.current": "current",
+    "scope.other": "other scope",
+    "scope.inactive": "Not active in the current project.",
+    "scope.required": "At least one project ID is required.",
     "action.preview": "Preview",
     "action.edit": "Edit",
     "action.resolution": "Resolution",
@@ -94,10 +125,12 @@ const messages = {
     "runtime.ready": "runtime console ready",
     "github.notConnected": "GitHub not connected",
     "github.connected": "GitHub connected",
-    "github.clientId": "OAuth App Client ID",
     "github.connect": "Connect GitHub",
     "github.disconnect": "Disconnect",
     "github.unavailable": "GitHub authentication unavailable",
+    "github.notConfigured": "GitHub login is not configured in this build",
+    "github.configurationHelp": "This source build requires SKILL_CENTRAL_GITHUB_CLIENT_ID. Official desktop packages include the project configuration.",
+    "github.requesting": "Requesting GitHub device code...",
     "github.open": "Open GitHub",
     "github.waiting": "Waiting for authorization...",
     "github.success": "GitHub authentication complete",
@@ -105,6 +138,7 @@ const messages = {
     "update.check": "Check for updates",
     "update.install": "Install and restart",
     "update.unsupported": "Desktop updater unavailable",
+    "update.setup-required": "Update setup required",
     "update.idle": "Ready to check",
     "update.checking": "Checking for updates...",
     "update.up-to-date": "Skill Central is up to date",
@@ -116,6 +150,7 @@ const messages = {
   },
   "zh-CN": {
     "nav.skills": "Skills",
+    "nav.rules": "Rules",
     "nav.ide": "IDE 连接",
     "nav.sync": "同步",
     "nav.runtime": "运行时",
@@ -133,6 +168,27 @@ const messages = {
     "skills.emptyBody": "从左侧索引中选择条目。",
     "skills.noResults": "没有匹配的 Skill",
     "skills.noSkills": "尚未加载 Skill",
+    "rules.search": "筛选 Rules",
+    "rules.library": "规则库",
+    "rules.emptyTitle": "选择一个 Rule",
+    "rules.emptyBody": "从规则索引中选择条目。",
+    "rules.noResults": "没有匹配的 Rule",
+    "rules.noRules": "尚未加载 Rule",
+    "scope.kicker": "资产 / 项目",
+    "scope.title": "资产作用域",
+    "scope.global": "全局",
+    "scope.projects": "指定项目",
+    "scope.currentProject": "当前项目",
+    "scope.useCurrent": "使用当前项目",
+    "scope.projectIds": "项目 ID",
+    "scope.projectPlaceholder": "git:github.com/owner/repository",
+    "scope.edit": "作用域",
+    "scope.saved": "作用域已保存",
+    "scope.scopedOut": "作用域已保存；该资产在当前项目中已隐藏",
+    "scope.current": "当前项目",
+    "scope.other": "其他作用域",
+    "scope.inactive": "该资产在当前项目中未生效。",
+    "scope.required": "至少需要一个项目 ID。",
     "action.preview": "预览",
     "action.edit": "编辑",
     "action.resolution": "解析链",
@@ -173,10 +229,12 @@ const messages = {
     "runtime.ready": "运行时控制台已就绪",
     "github.notConnected": "GitHub 未连接",
     "github.connected": "GitHub 已连接",
-    "github.clientId": "OAuth App Client ID",
     "github.connect": "连接 GitHub",
     "github.disconnect": "断开连接",
     "github.unavailable": "GitHub 认证不可用",
+    "github.notConfigured": "此构建尚未配置 GitHub 登录",
+    "github.configurationHelp": "源码构建需要设置 SKILL_CENTRAL_GITHUB_CLIENT_ID；正式桌面安装包会包含项目配置。",
+    "github.requesting": "正在请求 GitHub 设备代码...",
     "github.open": "打开 GitHub",
     "github.waiting": "等待授权...",
     "github.success": "GitHub 认证完成",
@@ -184,6 +242,7 @@ const messages = {
     "update.check": "检查更新",
     "update.install": "安装并重启",
     "update.unsupported": "桌面更新器不可用",
+    "update.setup-required": "需要配置更新路线",
     "update.idle": "可以检查更新",
     "update.checking": "正在检查更新...",
     "update.up-to-date": "Skill Central 已是最新版本",
@@ -201,6 +260,10 @@ function readPreference(key, fallback) {
 
 function writePreference(key, value) {
   try { localStorage.setItem(key, value); } catch {}
+}
+
+function removePreference(key) {
+  try { localStorage.removeItem(key); } catch {}
 }
 
 function t(key, replacements = {}) {
@@ -233,14 +296,16 @@ function applyPreferences() {
   }
   navigate(state.activeView, false);
   renderList();
+  renderRuleList();
   renderIdeTargets();
   if (state.detail && !state.editing) renderDetail(state.detail);
+  if (state.ruleDetail) renderRuleDetail(state.ruleDetail);
   if (state.githubStatus) renderGithubStatus(state.githubStatus);
   if (state.updateStatus) renderUpdateStatus(state.updateStatus);
 }
 
 function navigate(view, persist = true) {
-  const known = ["skills", "ide", "sync", "runtime"];
+  const known = ["skills", "rules", "ide", "sync", "runtime"];
   state.activeView = known.includes(view) ? view : "skills";
   if (persist) writePreference("skill-central.view", state.activeView);
   for (const button of document.querySelectorAll("[data-view]")) {
@@ -277,14 +342,17 @@ async function api(path, opts = {}) {
 
 function renderHealth(health) {
   const el = document.getElementById("health");
+  const skillCount = state.scopeAssets.filter((asset) => asset.assetType === "skill").length;
+  const ruleCount = state.scopeAssets.filter((asset) => asset.assetType === "rule").length;
   if (health.ok) {
-    el.innerHTML = `<span class="status-dot"></span><span>v${escapeHtml(health.version)} · ${state.skills.length} skills</span>`;
+    el.innerHTML = `<span class="status-dot"></span><span>v${escapeHtml(health.version)} · ${skillCount} skills · ${ruleCount} rules</span>`;
     el.classList.remove("error");
   } else {
     el.innerHTML = `<span class="status-dot"></span><span>offline</span>`;
     el.classList.add("error");
   }
-  document.getElementById("skill-count").textContent = state.skills.length;
+  document.getElementById("skill-count").textContent = skillCount;
+  document.getElementById("rule-count").textContent = ruleCount;
   const brandVersion = document.getElementById("brand-version");
   if (brandVersion) brandVersion.textContent = health.version;
 }
@@ -293,17 +361,18 @@ function renderList() {
   const ul = document.getElementById("skill-list");
   if (!ul) return;
   ul.innerHTML = "";
+  const skillAssets = state.scopeAssets.filter((asset) => asset.assetType === "skill");
   const filter = state.skillFilter.trim().toLowerCase();
   const visibleSkills = filter
-    ? state.skills.filter((skill) =>
+    ? skillAssets.filter((skill) =>
         [skill.id, skill.name, skill.description, ...(skill.tags || [])]
           .some((value) => String(value || "").toLowerCase().includes(filter)),
       )
-    : state.skills;
+    : skillAssets;
   if (visibleSkills.length === 0) {
     const li = document.createElement("li");
     li.className = "list-empty";
-    li.textContent = state.skills.length === 0 ? t("skills.noSkills") : t("skills.noResults");
+    li.textContent = skillAssets.length === 0 ? t("skills.noSkills") : t("skills.noResults");
     ul.appendChild(li);
     return;
   }
@@ -320,16 +389,51 @@ function renderList() {
     ul.appendChild(title);
     for (const s of skills) {
       const li = document.createElement("li");
-      li.className = "skill-item";
-      if (s.id === state.activeId) li.classList.add("active");
+      const loaded = state.skills.find((candidate) => candidate.source === s.source);
+      li.className = `skill-item ${s.appliesHere ? "" : "inactive"}`;
+      if (scopeAssetKey(s) === state.activeSkillKey) li.classList.add("active");
       li.dataset.id = s.id;
       li.innerHTML = `
         <span class="skill-name">${escapeHtml(s.name)}</span>
-        <span class="skill-id">${escapeHtml(s.id)} · ${escapeHtml(s.type)} · ${escapeHtml(s.status || "effective")}</span>
+        <span class="skill-id">${escapeHtml(s.id)} · ${escapeHtml(s.type)} · ${escapeHtml(loaded?.status || (s.appliesHere ? "shadowed" : "other scope"))}</span>
       `;
-      li.addEventListener("click", () => selectSkill(s.id));
+      li.addEventListener("click", () => selectSkillAsset(scopeAssetKey(s)));
       ul.appendChild(li);
     }
+  }
+}
+
+function renderRuleList() {
+  const ul = document.getElementById("rule-list");
+  if (!ul) return;
+  ul.innerHTML = "";
+  const filter = state.ruleFilter.trim().toLowerCase();
+  const visibleRules = filter
+    ? state.scopeAssets.filter((asset) => asset.assetType === "rule").filter((rule) =>
+        [rule.id, rule.name, rule.description, rule.severity, ...(rule.tags || [])]
+          .some((value) => String(value || "").toLowerCase().includes(filter)),
+      )
+    : state.scopeAssets.filter((asset) => asset.assetType === "rule");
+  if (visibleRules.length === 0) {
+    const li = document.createElement("li");
+    li.className = "list-empty";
+    li.textContent = state.scopeAssets.every((asset) => asset.assetType !== "rule")
+      ? t("rules.noRules")
+      : t("rules.noResults");
+    ul.appendChild(li);
+    return;
+  }
+  for (const rule of visibleRules) {
+    const li = document.createElement("li");
+    li.className = `skill-item ${rule.appliesHere ? "" : "inactive"}`;
+    if (scopeAssetKey(rule) === state.activeRuleId) li.classList.add("active");
+    li.dataset.id = rule.id;
+    li.innerHTML = `
+      <span class="skill-name">${escapeHtml(rule.name)}</span>
+      <span class="skill-id">${escapeHtml(rule.id)} · ${escapeHtml(rule.severity)} · ${escapeHtml(t(rule.appliesHere ? "scope.current" : "scope.other"))}</span>
+    `;
+    li.addEventListener("click", () => selectRule(scopeAssetKey(rule)));
+    ul.appendChild(li);
   }
 }
 
@@ -345,7 +449,8 @@ function renderDetail(skill) {
     return;
   }
   const tags = (skill.tags || []).join(", ");
-  // Bilingual prompt: render English if present, plus a  中文 sub-section
+  const scopeOnly = skill.scopeOnly === true;
+  // Bilingual prompt: render English if present, plus a Chinese sub-section
   // when prompt_zh is also present. If neither, fall back to the original
   // "(no prompt)" placeholder.
   const hasEn = !!(skill.prompt && skill.prompt.trim());
@@ -371,9 +476,14 @@ function renderDetail(skill) {
   } else {
     promptHtml = `
       <h3>Prompt</h3>
-      <pre id="prompt-body"><span class="muted">(no prompt)</span></pre>
+      <pre id="prompt-body"><span class="muted">${escapeHtml(scopeOnly ? "Not active in the current resolved set." : "(no prompt)")}</span></pre>
     `;
   }
+  const fullActions = scopeOnly ? "" : `
+    <button id="btn-edit" class="button secondary">${escapeHtml(t("action.edit"))}</button>
+    <button id="btn-resolution" class="button secondary">${escapeHtml(t("action.resolution"))}</button>
+    <button id="btn-backups" class="button secondary">${escapeHtml(t("action.backups"))}</button>
+  `;
   el.innerHTML = `
     <div class="detail-header">
       <div>
@@ -384,13 +494,13 @@ function renderDetail(skill) {
           <span>layer: ${escapeHtml(skill.layer || "?")}</span>
           <span>status: ${escapeHtml(skill.status || "?")}</span>
           <span>priority: ${skill.priority ?? "?"}</span>
+          <span>scope: ${escapeHtml(formatScope(skill.appliesTo))}</span>
           <span>sha: ${(skill.sha256 || "").slice(0, 12)}…</span>
         </div>
       </div>
       <div class="actions">
-        <button id="btn-edit" class="button secondary">${escapeHtml(t("action.edit"))}</button>
-        <button id="btn-resolution" class="button secondary">${escapeHtml(t("action.resolution"))}</button>
-        <button id="btn-backups" class="button secondary">${escapeHtml(t("action.backups"))}</button>
+        ${fullActions}
+        <button id="btn-skill-scope" class="button secondary">${escapeHtml(t("scope.edit"))}</button>
       </div>
     </div>
     <p>${escapeHtml(skill.description || "")}</p>
@@ -398,9 +508,53 @@ function renderDetail(skill) {
     ${promptHtml}
     <div id="backups-pane"></div>
   `;
-  document.getElementById("btn-edit").addEventListener("click", () => enterEditMode(skill));
-  document.getElementById("btn-resolution").addEventListener("click", () => showResolution(skill));
-  document.getElementById("btn-backups").addEventListener("click", () => showBackups(skill));
+  if (!scopeOnly) {
+    document.getElementById("btn-edit").addEventListener("click", () => enterEditMode(skill));
+    document.getElementById("btn-resolution").addEventListener("click", () => showResolution(skill));
+    document.getElementById("btn-backups").addEventListener("click", () => showBackups(skill));
+  }
+  document.getElementById("btn-skill-scope").addEventListener("click", () => openScopeDialog("skill", skill));
+}
+
+function renderRuleDetail(rule) {
+  const el = document.getElementById("rule-detail");
+  if (!el) return;
+  if (!rule) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-glyph" aria-hidden="true">{ }</span>
+        <strong>${escapeHtml(t("rules.emptyTitle"))}</strong>
+        <span>${escapeHtml(t("rules.emptyBody"))}</span>
+      </div>`;
+    return;
+  }
+  const loadedRule = state.rules.find((candidate) => candidate.source === rule.source);
+  el.innerHTML = `
+    <div class="detail-header">
+      <div>
+        <h2>${escapeHtml(rule.name)}</h2>
+        <div class="meta">
+          <span>id: ${escapeHtml(rule.id)}</span>
+          <span>severity: ${escapeHtml(rule.severity)}</span>
+          <span>scope: ${escapeHtml(formatScope(rule.appliesTo))}</span>
+          <span>sha: ${(rule.sha256 || "").slice(0, 12)}…</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btn-rule-scope" class="button secondary">${escapeHtml(t("scope.edit"))}</button>
+      </div>
+    </div>
+    <p>${escapeHtml(rule.description || "")}</p>
+    <p class="muted">tags: ${escapeHtml((rule.tags || []).join(", ") || "(none)")}</p>
+    <h3>Rule</h3>
+    <pre>${escapeHtml(loadedRule?.body || (rule.appliesHere ? "" : t("scope.inactive")))}</pre>
+    <p class="muted"><code>${escapeHtml(rule.source)}</code></p>
+  `;
+  document.getElementById("btn-rule-scope").addEventListener("click", () => openScopeDialog("rule", rule));
+}
+
+function formatScope(scope) {
+  return scope === "global" || !scope ? "global" : (scope.projects || []).join(", ");
 }
 
 function renderEditForm(skill, draftYaml, conflictMsg) {
@@ -556,15 +710,157 @@ async function showResolution(skill) {
 
 async function selectSkill(id) {
   state.activeId = id;
-  renderList();
   try {
     const detail = await api(`/api/skills/${encodeURIComponent(id)}`);
+    state.activeSkillKey = scopeAssetKey({ assetType: "skill", source: detail.source });
     state.detail = detail;
+    renderList();
     if (!state.editing) renderDetail(detail);
   } catch (err) {
     document.getElementById("skill-detail").innerHTML =
       `<div class="error">Failed to load: ${escapeHtml(String(err))}</div>`;
   }
+}
+
+async function selectSkillAsset(key) {
+  const asset = state.scopeAssets.find((candidate) =>
+    candidate.assetType === "skill" && scopeAssetKey(candidate) === key
+  );
+  if (!asset) return;
+  state.activeSkillKey = key;
+  const loaded = state.skills.find((candidate) => candidate.source === asset.source);
+  if (loaded) {
+    await selectSkill(loaded.id);
+    return;
+  }
+  state.activeId = null;
+  state.detail = { ...asset, scopeOnly: true, status: asset.appliesHere ? "shadowed" : "out-of-scope" };
+  renderList();
+  renderDetail(state.detail);
+}
+
+function selectRule(key) {
+  state.activeRuleId = key;
+  state.ruleDetail = state.scopeAssets.find((asset) =>
+    asset.assetType === "rule" && scopeAssetKey(asset) === key
+  ) || null;
+  renderRuleList();
+  renderRuleDetail(state.ruleDetail);
+}
+
+function scopeAssetKey(asset) {
+  return `${asset.assetType}:${asset.source}`;
+}
+
+function openScopeDialog(assetType, asset) {
+  state.scopeAsset = { assetType, ...asset };
+  state.scopeMode = asset.appliesTo === "global" ? "global" : "projects";
+  document.getElementById("scope-asset-name").textContent = asset.name;
+  document.getElementById("scope-asset-id").textContent = asset.id;
+  document.getElementById("scope-current-project-id").textContent = state.projectIdentity?.id || "unknown";
+  document.getElementById("scope-project-ids").value = asset.appliesTo === "global"
+    ? ""
+    : (asset.appliesTo?.projects || []).join("\n");
+  document.getElementById("scope-error").textContent = "";
+  renderScopeMode();
+  const dialog = document.getElementById("scope-dialog");
+  if (!dialog.open) dialog.showModal();
+}
+
+function setScopeMode(mode) {
+  state.scopeMode = mode === "projects" ? "projects" : "global";
+  renderScopeMode();
+}
+
+function renderScopeMode() {
+  for (const button of document.querySelectorAll("[data-scope-mode]")) {
+    button.classList.toggle("active", button.dataset.scopeMode === state.scopeMode);
+  }
+  document.getElementById("scope-project-fields").hidden = state.scopeMode !== "projects";
+}
+
+function useCurrentProjectScope() {
+  const input = document.getElementById("scope-project-ids");
+  const current = state.projectIdentity?.id;
+  if (!current) return;
+  const values = parseProjectIds(input.value);
+  if (!values.includes(current)) values.push(current);
+  input.value = values.join("\n");
+}
+
+async function saveScope() {
+  const asset = state.scopeAsset;
+  if (!asset) return;
+  const error = document.getElementById("scope-error");
+  error.textContent = "";
+  const projects = parseProjectIds(document.getElementById("scope-project-ids").value);
+  if (state.scopeMode === "projects" && projects.length === 0) {
+    error.textContent = t("scope.required");
+    return;
+  }
+  const appliesTo = state.scopeMode === "global" ? "global" : { projects };
+  try {
+    const result = await api(
+      `/api/assets/${asset.assetType}/${encodeURIComponent(asset.id)}/scope`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          source: asset.source,
+          appliesTo,
+          expectedSha256: asset.sha256,
+        }),
+      },
+    );
+    document.getElementById("scope-dialog").close();
+    state.scopeAsset = null;
+    await loadAll();
+    if (asset.assetType === "skill") {
+      const remainsVisible = state.scopeAssets.some((candidate) =>
+        candidate.assetType === "skill" && candidate.source === asset.source
+      );
+      if (remainsVisible) await selectSkillAsset(scopeAssetKey(asset));
+      else {
+        state.activeId = null;
+        state.activeSkillKey = null;
+        state.detail = null;
+        renderDetail(null);
+      }
+      flash(t(result.appliesHere ? "scope.saved" : "scope.scopedOut"));
+    } else {
+      const remainsVisible = state.scopeAssets.some((candidate) =>
+        candidate.assetType === "rule" && candidate.source === asset.source
+      );
+      if (remainsVisible) selectRule(scopeAssetKey(asset));
+      else {
+        state.activeRuleId = null;
+        state.ruleDetail = null;
+        renderRuleDetail(null);
+      }
+      flash(t(result.appliesHere ? "scope.saved" : "scope.scopedOut"));
+    }
+  } catch (err) {
+    if (err.status === 409 && err.detail?.current) {
+      const current = err.detail.current;
+      state.scopeAsset = {
+        ...asset,
+        appliesTo: current.appliesTo,
+        sha256: current.sha256,
+      };
+      state.scopeMode = current.appliesTo === "global" ? "global" : "projects";
+      document.getElementById("scope-project-ids").value = current.appliesTo === "global"
+        ? ""
+        : current.appliesTo.projects.join("\n");
+      renderScopeMode();
+    }
+    error.textContent = err.message;
+  }
+}
+
+function parseProjectIds(input) {
+  return [...new Set(String(input || "")
+    .split(/[\n,]/)
+    .map((value) => value.trim())
+    .filter(Boolean))];
 }
 
 async function loadIdeTargets() {
@@ -1207,37 +1503,42 @@ async function loadGithubStatus() {
 function renderGithubStatus(status) {
   const connected = !!status?.loggedIn;
   const available = status?.available !== false;
+  const loginAvailable = status?.loginAvailable !== false;
   const label = connected
     ? t("github.connected")
-    : available
+    : available && loginAvailable
       ? t("github.notConnected")
-      : t("github.unavailable");
+      : available
+        ? t("github.notConfigured")
+        : t("github.unavailable");
   const sidebar = document.getElementById("github-sidebar-status");
   const detail = document.getElementById("github-status-text");
   if (sidebar) sidebar.textContent = label;
   if (detail) detail.textContent = label;
   const login = document.getElementById("btn-github-login");
   const logout = document.getElementById("btn-github-logout");
-  if (login) login.disabled = connected || !available;
+  if (login) login.disabled = connected || !available || !loginAvailable;
   if (logout) logout.disabled = !connected || !available;
-  if (!available && status?.error) {
+  const statusError = !available
+    ? status?.error
+    : !loginAvailable
+      ? t("github.configurationHelp")
+      : undefined;
+  if (statusError) {
     const output = document.getElementById("github-auth-output");
     output.classList.add("error");
-    output.textContent = status.error;
+    output.textContent = statusError;
   }
 }
 
 async function startGithubLogin() {
   const output = document.getElementById("github-auth-output");
-  const clientId = document.getElementById("github-client-id").value.trim();
-  if (clientId) writePreference("skill-central.githubClientId", clientId);
   output.classList.remove("error");
-  output.textContent = "Requesting GitHub device code...";
+  output.textContent = t("github.requesting");
   clearGithubPollTimer();
   try {
     const device = await api("/api/auth/github/device", {
       method: "POST",
-      body: JSON.stringify({ clientId: clientId || undefined }),
     });
     output.innerHTML = `
       <a href="${escapeHtml(device.verificationUri)}" target="_blank" rel="noreferrer">${escapeHtml(t("github.open"))}</a><br>
@@ -1324,7 +1625,9 @@ function renderUpdateStatus(status) {
 
   const version = status.availableVersion || status.currentVersion || "";
   const percent = Number.isFinite(status.progressPercent) ? status.progressPercent : 0;
-  const key = status.supported === false ? "unsupported" : (status.status || "idle");
+  const key = status.status === "unsupported" && status.supported !== false
+    ? "setup-required"
+    : status.supported === false ? "unsupported" : (status.status || "idle");
   statusText.textContent = t(`update.${key}`, { version, percent: String(percent) });
   output.textContent = status.message || (status.provider ? `${status.provider} · v${status.currentVersion}` : "");
   output.classList.toggle("error", status.status === "error");
@@ -1369,7 +1672,6 @@ function clearUpdatePollTimer() {
 
 function openSettings() {
   const dialog = document.getElementById("settings-dialog");
-  document.getElementById("github-client-id").value = readPreference("skill-central.githubClientId", "");
   if (!dialog.open) dialog.showModal();
   loadGithubStatus();
   loadUpdateStatus();
@@ -1377,10 +1679,21 @@ function openSettings() {
 
 async function loadAll() {
   try {
-    const [health, skills] = await Promise.all([api("/api/health"), api("/api/skills")]);
+    const [health, skills, rules, scopes] = await Promise.all([
+      api("/api/health"),
+      api("/api/skills"),
+      api("/api/rules"),
+      api("/api/assets/scopes"),
+    ]);
     state.skills = skills;
+    state.rules = rules;
+    state.scopeAssets = scopes.assets;
+    state.projectIdentity = scopes.project;
     renderHealth(health);
     renderList();
+    renderRuleList();
+    const projectLabel = document.getElementById("project-identity-label");
+    if (projectLabel) projectLabel.textContent = scopes.project.id;
   } catch (err) {
     document.getElementById("health").innerHTML = `<span class="status-dot"></span><span>offline</span>`;
     document.getElementById("health").classList.add("error");
@@ -1408,6 +1721,9 @@ function escapeHtml(s) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Remove Client IDs saved by alpha.1. OAuth application identity is now
+  // fixed by the local server and must not remain user-controlled browser state.
+  removePreference("skill-central.githubClientId");
   for (const button of document.querySelectorAll("[data-view]")) {
     button.addEventListener("click", () => navigate(button.dataset.view));
   }
@@ -1418,6 +1734,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("skill-search").addEventListener("input", (event) => {
     state.skillFilter = event.target.value;
     renderList();
+  });
+  document.getElementById("rule-search").addEventListener("input", (event) => {
+    state.ruleFilter = event.target.value;
+    renderRuleList();
   });
   document.getElementById("btn-ide-health").addEventListener("click", showIdeHealth);
   document.getElementById("btn-connect-plan").addEventListener("click", showConnectPlan);
@@ -1482,6 +1802,33 @@ document.addEventListener("DOMContentLoaded", () => {
       flash("↻ Refreshed");
     } catch (err) {
       flash(`✗ ${err.message}`, true);
+    }
+  });
+  document.getElementById("btn-refresh-rules").addEventListener("click", async () => {
+    try {
+      await api("/api/reload", { method: "POST" });
+      await loadAll();
+      if (state.activeRuleId) selectRule(state.activeRuleId);
+      flash("↻ Refreshed");
+    } catch (err) {
+      flash(`✗ ${err.message}`, true);
+    }
+  });
+  for (const button of document.querySelectorAll("[data-scope-mode]")) {
+    button.addEventListener("click", () => setScopeMode(button.dataset.scopeMode));
+  }
+  document.getElementById("btn-use-current-project").addEventListener("click", useCurrentProjectScope);
+  document.getElementById("btn-save-scope").addEventListener("click", saveScope);
+  for (const id of ["btn-close-scope", "btn-cancel-scope"]) {
+    document.getElementById(id).addEventListener("click", () => {
+      document.getElementById("scope-dialog").close();
+      state.scopeAsset = null;
+    });
+  }
+  document.getElementById("scope-dialog").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) {
+      event.currentTarget.close();
+      state.scopeAsset = null;
     }
   });
   document.getElementById("btn-settings").addEventListener("click", openSettings);

@@ -27,7 +27,7 @@ export async function cmdRemove(id: string, opts: RemoveOptions): Promise<void> 
       if (entry.schema.id === id) {
         matches.push({
           layerName: layer.name,
-          filePath: `${layer.path}/${id}.yaml`,
+          filePath: entry.filePath,
           layerPath: layer.path,
         });
       }
@@ -65,7 +65,7 @@ export async function cmdRemove(id: string, opts: RemoveOptions): Promise<void> 
   }
 
   await unlink(target.filePath);
-  console.log(`  ✓ Removed ${target.layerName}/${id}.yaml`);
+  console.log(`  ✓ Removed ${target.filePath}`);
   console.log("");
 }
 

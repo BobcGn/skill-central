@@ -25,6 +25,7 @@ publish:
   repo: skill-central
 
 mac:
+  icon: build/icon.icns
   category: public.app-category.developer-tools
   identity: null
   target:

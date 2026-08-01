@@ -13,12 +13,14 @@ export interface ListOptions {
   type?: "prompt" | "tool";
   tag?: string;
   source?: boolean; // also print the source file path
+  projectRoot?: string;
+  projectId?: string;
 }
 
 export async function cmdList(opts: ListOptions): Promise<void> {
   const config = loadConfig();
   const engine = new SkillEngine();
-  await engine.reload(config.layers);
+  await engine.reload(config.layers, { projectRoot: opts.projectRoot, projectId: opts.projectId });
 
   // Phase 1C: all user-facing filtering flows through Registry Query so CLI,
   // MCP, Web Board, and compiler dry-runs share one interpretation of type,
@@ -47,6 +49,7 @@ export async function cmdList(opts: ListOptions): Promise<void> {
         ID: s.id,
         Name: s.name.length > 28 ? s.name.slice(0, 27) + "…" : s.name,
         Type: s.type,
+        Scope: s.appliesTo === "global" ? "global" : `${s.appliesTo.projects.length} project(s)`,
         Tags: (s.tags ?? []).slice(0, 6).join(","),
       };
       return row;

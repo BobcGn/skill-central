@@ -12,6 +12,12 @@
 //   can change the internal representation without changing client behavior.
 // ============================================================================
 
+import {
+  normaliseAssetScope,
+  validateAssetScope,
+  type AssetScope,
+} from "./asset-scope.js";
+
 export const UNIVERSAL_SKILL_SCHEMA_VERSION = "skillcentral.dev/v1" as const;
 
 export type UniversalSkillSchemaVersion = typeof UNIVERSAL_SKILL_SCHEMA_VERSION;
@@ -94,6 +100,7 @@ export interface UniversalSkill {
   version?: string;
   type: UniversalSkillType;
   tags?: string[];
+  appliesTo: AssetScope;
   metadata?: Record<string, unknown>;
   activation?: SkillActivation;
   capabilities?: SkillCapabilities;
@@ -209,6 +216,9 @@ export function validateUniversalSkillObject(
   }
 
   validateStringArray(obj.tags, "tags", issue, { optional: true });
+  for (const scopeIssue of validateAssetScope(obj.appliesTo)) {
+    issue(scopeIssue.fieldPath, scopeIssue.reason);
+  }
   validateActivation(obj.activation, issue);
   validateCapabilities(obj.capabilities, issue);
   validatePrompt(obj.prompt, "prompt", issue);
@@ -256,6 +266,7 @@ export function normaliseUniversalSkill(
     version: typeof obj.version === "string" ? obj.version : undefined,
     type: obj.type as UniversalSkillType,
     tags: normaliseTags(obj.tags),
+    appliesTo: normaliseAssetScope(obj.appliesTo),
     metadata: asRecord(obj.metadata),
     activation: asActivation(obj.activation),
     capabilities: normaliseCapabilities(obj.capabilities),

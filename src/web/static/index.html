@@ -33,6 +33,11 @@
           <span data-i18n="nav.skills">Skills</span>
           <span id="skill-count" class="nav-count">0</span>
         </button>
+        <button class="nav-item" type="button" data-view="rules">
+          <span class="nav-icon" aria-hidden="true">§</span>
+          <span data-i18n="nav.rules">Rules</span>
+          <span id="rule-count" class="nav-count">0</span>
+        </button>
         <button class="nav-item" type="button" data-view="ide">
           <span class="nav-icon" aria-hidden="true">⌁</span>
           <span data-i18n="nav.ide">IDE Connections</span>
@@ -79,7 +84,7 @@
                 </label>
                 <button id="btn-refresh" class="icon-button" type="button" title="Refresh" aria-label="Refresh">↻</button>
               </div>
-              <ul id="skill-list"></ul>
+              <ul id="skill-list" class="asset-list"></ul>
             </aside>
             <div class="skill-stage">
               <div class="compact-command-bar">
@@ -99,6 +104,36 @@
                   <span class="empty-glyph" aria-hidden="true">{ }</span>
                   <strong data-i18n="skills.emptyTitle">Select a skill</strong>
                   <span data-i18n="skills.emptyBody">Choose an entry from the index.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view-panel" data-view-panel="rules" hidden>
+          <div class="skills-workspace rules-workspace">
+            <aside class="skill-browser">
+              <div class="panel-toolbar">
+                <label class="search-field">
+                  <span aria-hidden="true">/</span>
+                  <input id="rule-search" type="search" data-i18n-placeholder="rules.search" placeholder="Filter rules" autocomplete="off" />
+                </label>
+                <button id="btn-refresh-rules" class="icon-button" type="button" title="Refresh" aria-label="Refresh">↻</button>
+              </div>
+              <ul id="rule-list" class="asset-list"></ul>
+            </aside>
+            <div class="skill-stage">
+              <div class="compact-command-bar">
+                <div>
+                  <span class="command-label" data-i18n="rules.library">Rule library</span>
+                  <strong id="project-identity-label">project</strong>
+                </div>
+              </div>
+              <div id="rule-detail">
+                <div class="empty-state">
+                  <span class="empty-glyph" aria-hidden="true">{ }</span>
+                  <strong data-i18n="rules.emptyTitle">Select a rule</strong>
+                  <span data-i18n="rules.emptyBody">Choose an entry from the rule index.</span>
                 </div>
               </div>
             </div>
@@ -221,10 +256,6 @@
         <span class="profile-avatar">GH</span>
         <div><strong>GitHub</strong><span id="github-status-text" data-i18n="github.notConnected">Not connected</span></div>
       </div>
-      <label class="field">
-        <span data-i18n="github.clientId">OAuth App Client ID</span>
-        <input id="github-client-id" type="text" autocomplete="off" placeholder="Iv1..." />
-      </label>
       <div class="button-row">
         <button id="btn-github-login" class="button primary" type="button" data-i18n="github.connect">Connect GitHub</button>
         <button id="btn-github-logout" class="button danger" type="button" data-i18n="github.disconnect">Disconnect</button>
@@ -265,6 +296,44 @@
         <button id="btn-update-install" class="button primary" type="button" data-i18n="update.install" disabled>Install and restart</button>
       </div>
       <div id="update-output" class="auth-output" aria-live="polite"></div>
+    </section>
+  </dialog>
+
+  <dialog id="scope-dialog" class="settings-dialog scope-dialog">
+    <div class="dialog-header">
+      <div>
+        <span class="section-index" data-i18n="scope.kicker">ASSET / PROJECTS</span>
+        <h2 data-i18n="scope.title">Asset scope</h2>
+      </div>
+      <button id="btn-close-scope" class="icon-button" type="button" aria-label="Close" title="Close">×</button>
+    </div>
+    <section class="settings-section">
+      <div class="scope-asset-heading">
+        <strong id="scope-asset-name">Asset</strong>
+        <code id="scope-asset-id">id</code>
+      </div>
+      <div class="segmented-control scope-mode" aria-label="Asset scope mode">
+        <button type="button" data-scope-mode="global" data-i18n="scope.global">Global</button>
+        <button type="button" data-scope-mode="projects" data-i18n="scope.projects">Selected projects</button>
+      </div>
+      <div id="scope-project-fields" class="scope-project-fields">
+        <div class="scope-current-project">
+          <div>
+            <span class="command-label" data-i18n="scope.currentProject">Current project</span>
+            <code id="scope-current-project-id">unknown</code>
+          </div>
+          <button id="btn-use-current-project" class="button secondary" type="button" data-i18n="scope.useCurrent">Use current</button>
+        </div>
+        <label class="field">
+          <span data-i18n="scope.projectIds">Project IDs</span>
+          <textarea id="scope-project-ids" rows="5" spellcheck="false" data-i18n-placeholder="scope.projectPlaceholder" placeholder="git:github.com/owner/repository"></textarea>
+        </label>
+      </div>
+      <div id="scope-error" class="error" aria-live="polite"></div>
+      <div class="button-row">
+        <button id="btn-save-scope" class="button primary" type="button" data-i18n="action.save">Save</button>
+        <button id="btn-cancel-scope" class="button secondary" type="button" data-i18n="action.cancel">Cancel</button>
+      </div>
     </section>
   </dialog>
 

@@ -39,8 +39,9 @@ export class OverrideTree {
   insert(
     schema: SkillSchema,
     layer: SkillLayer,
+    filePath: string,
   ): void {
-    const candidate = toResolvedSkill(schema, layer);
+    const candidate = toResolvedSkill(schema, layer, filePath);
     const existingRecord = this.records.get(schema.id);
     const candidates = existingRecord ? [...existingRecord.candidates, candidate] : [candidate];
     this.resolve(schema.id, candidates);
@@ -96,12 +97,12 @@ export class OverrideTree {
 
   /** Load a batch of tagged schemas into the tree (one pass). */
   loadAll(
-    entries: Array<{ schema: SkillSchema; layer: SkillLayer }>,
+    entries: Array<{ schema: SkillSchema; layer: SkillLayer; filePath: string }>,
   ): void {
     // Sort ascending so higher-priority layers naturally overwrite lower ones.
     const sorted = [...entries].sort((a, b) => a.layer.priority - b.layer.priority);
-    for (const { schema, layer } of sorted) {
-      this.insert(schema, layer);
+    for (const { schema, layer, filePath } of sorted) {
+      this.insert(schema, layer, filePath);
     }
   }
 
@@ -127,7 +128,7 @@ export class OverrideTree {
   }
 
   /** Replace the entire tree contents. */
-  reset(entries: Array<{ schema: SkillSchema; layer: SkillLayer }>): void {
+  reset(entries: Array<{ schema: SkillSchema; layer: SkillLayer; filePath: string }>): void {
     this.tree.clear();
     this.records.clear();
     this.loadAll(entries);
@@ -141,11 +142,11 @@ export interface ResolutionRecord {
   candidates: ResolvedSkill[];
 }
 
-function toResolvedSkill(schema: SkillSchema, layer: SkillLayer): ResolvedSkill {
+function toResolvedSkill(schema: SkillSchema, layer: SkillLayer, filePath: string): ResolvedSkill {
   return {
     ...schema,
     version: schema.version ?? "0.1.0",
-    source: layer.path,
+    source: filePath,
     priority: layer.priority,
     layer: layerProvenance(layer),
     status: "effective",

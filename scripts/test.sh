@@ -6,13 +6,13 @@
 #
 # 测试范围:
 #   1. CLI 基本可用性 (--version, --help)
-#   2. 添加技能 (add)
-#   3. 列表验证 (list)
-#   4. Universal Skill v1 / legacy compatibility
-#   5. 可配置 Layer System / conflict handling
-#   6. Registry Query API
-#   7. Registry performance fixture
-#   8. Lockfile source metadata / migration
+#   2. 准备测试环境
+#   3. 添加技能 (add)
+#   4. 列表验证 (list)
+#   5. Universal Skill v1 / legacy compatibility
+#   6. 可配置 Layer System / conflict handling
+#   7. Registry Query API
+#   8. Registry performance fixture
 #   9. Lockfile source metadata / migration
 #   10. Target adapters / capabilities
 #   11. Compiler dry-run
@@ -28,6 +28,7 @@
 #   21. 医生诊断 (doctor)
 #   22. Phase 4A/B local app state / GitHub auth boundary
 #   23. Phase 4D/E sync engine dry-run plan / apply transaction
+#   24. Rules 规则库、Asset Scope 与 Web Board 作用域管理
 #
 # 此脚本假设 dist/ 已构建完毕。如果通过 npm test 调用，
 # pretest 钩子会自动执行 npm run build && npm run build:web。
@@ -42,6 +43,32 @@ NC='\033[0m' # No Color
 
 TEST_BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/skill-central-bin.XXXXXX")"
 export PATH="$TEST_BIN_DIR:$PWD/node_modules/.bin:$PATH"
+unset SKILL_CENTRAL_GITHUB_CLIENT_ID
+
+# Homebrew documents exit 1 as a valid "outdated items found" result in some
+# versions. This executable proves the updater still consumes the JSON report.
+cat > "$TEST_BIN_DIR/brew-outdated-fixture" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  tap-info)
+    echo '[{"name":"bobcgn/skill-central","installed":true,"trusted":true}]'
+    ;;
+  list)
+    echo 'skill-central 1.0.0-alpha.0'
+    ;;
+  update)
+    ;;
+  outdated)
+    echo '{"casks":[{"name":"skill-central","current_version":"1.0.0-alpha.1"}]}'
+    exit 1
+    ;;
+  *)
+    echo "unexpected fixture command: $*" >&2
+    exit 2
+    ;;
+esac
+EOF
+chmod +x "$TEST_BIN_DIR/brew-outdated-fixture"
 
 cat > "$TEST_BIN_DIR/skill-central" <<EOF
 #!/usr/bin/env bash
@@ -52,17 +79,11 @@ chmod +x "$TEST_BIN_DIR/skill-central"
 pass() { echo -e "  ${GREEN}✓${NC} $1"; }
 fail() { echo -e "  ${RED}✗${NC} $1"; exit 1; }
 
-# Several checks temporarily replace project or user state. Keep cleanup in one
-# trap so failures preserve the user's working lockfile/config instead of
-# leaving CI fixtures behind.
+# Several checks temporarily replace project state. User-home fixtures are kept
+# under TEST_BIN_DIR, so the suite never reads or overwrites a real lockfile.
 cleanup() {
   if [ -f skill-central.yaml.bak.ci ]; then
     mv skill-central.yaml.bak.ci skill-central.yaml
-  fi
-  if [ -n "${SC_LOCK_BACKUP_CI:-}" ] && [ -f "$SC_LOCK_BACKUP_CI" ]; then
-    mv "$SC_LOCK_BACKUP_CI" "$HOME/.skill-central/lock.json"
-  elif [ "${SC_LOCK_CREATED_CI:-}" = "1" ]; then
-    rm -f "$HOME/.skill-central/lock.json"
   fi
   rm -rf .skills/ci-conflict-a .skills/ci-conflict-b
   rm -rf .skill-central-export-ci
@@ -102,6 +123,7 @@ cleanup() {
     .skills/web-sync-ci/web-apply-conflict.yaml
   rm -f .skills/01-global/test-sync-conflict.yaml.bak.* .skills/01-global/test-sync-delete-local.yaml.bak.*
   rm -f .skills/web-sync-ci/web-apply-conflict.yaml.bak.*
+  rm -rf .rules-ci .rules-empty-ci
   rm -rf "$TEST_BIN_DIR"
 }
 trap cleanup EXIT
@@ -113,7 +135,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── 1. CLI 基本可用性 ────────────────────────────────────────────────────────
-echo "→ 1/23 CLI 基本检查..."
+echo "→ 1/24 CLI 基本检查..."
 
 node dist/index.js --version > /dev/null \
   && pass "--version 正常" \
@@ -125,7 +147,7 @@ node dist/index.js --help > /dev/null \
 
 # ── 2. 准备测试环境 ──────────────────────────────────────────────────────────
 echo ""
-echo "→ 2/23 准备测试环境..."
+echo "→ 2/24 准备测试环境..."
 
 # 模拟真实的四层 skill 目录结构（参考 CI 流程）
 mkdir -p .skills/01-global .skills/02-workflows .skills/03-domains .skills/04-tech-stack
@@ -133,7 +155,7 @@ pass ".skills/ 目录已就绪"
 
 # ── 3. 添加测试技能 ──────────────────────────────────────────────────────────
 echo ""
-echo "→ 3/23 添加测试技能..."
+echo "→ 3/24 添加测试技能..."
 
 node dist/index.js add \
   --id test-skill \
@@ -147,7 +169,7 @@ node dist/index.js add \
 
 # ── 4. 验证技能列表 ──────────────────────────────────────────────────────────
 echo ""
-echo "→ 4/23 验证技能列表..."
+echo "→ 4/24 验证技能列表..."
 
 node dist/index.js list | grep -q "test-skill" \
   && pass "list 包含 legacy test-skill" \
@@ -155,7 +177,7 @@ node dist/index.js list | grep -q "test-skill" \
 
 # ── 5. Universal Skill v1 / legacy compatibility ───────────────────────────
 echo ""
-echo "→ 5/23 Universal Skill v1 / legacy compatibility..."
+echo "→ 5/24 Universal Skill v1 / legacy compatibility..."
 
 cat > .skills/02-workflows/test-v1-prompt.yaml <<'YAML'
 schemaVersion: skillcentral.dev/v1
@@ -351,7 +373,7 @@ rm -f \
 
 # ── 6. 可配置 Layer System / conflict handling ─────────────────────────────
 echo ""
-echo "→ 6/23 可配置 Layer System / conflict handling..."
+echo "→ 6/24 可配置 Layer System / conflict handling..."
 
 cat > .skills/01-global/test-layer-shadow.yaml <<'YAML'
 id: test-layer-shadow
@@ -451,7 +473,7 @@ rm -rf .skills/ci-conflict-a .skills/ci-conflict-b
 
 # ── 7. Registry Query API ───────────────────────────────────────────────────
 echo ""
-echo "→ 7/23 Registry Query API..."
+echo "→ 7/24 Registry Query API..."
 
 node dist/index.js list --type workflow | grep -q "test-v1-workflow" \
   && pass "CLI type 查询复用 Registry Query API" \
@@ -494,7 +516,7 @@ pass "Registry intent/capability/provenance 查询通过"
 
 # ── 8. Registry performance fixture ────────────────────────────────────────
 echo ""
-echo "→ 8/23 Registry performance fixture..."
+echo "→ 8/24 Registry performance fixture..."
 
 npm run test:registry-perf \
   && pass "1000 skill Registry 查询低于 200ms" \
@@ -502,18 +524,11 @@ npm run test:registry-perf \
 
 # ── 9. Lockfile source metadata / migration ────────────────────────────────
 echo ""
-echo "→ 9/23 Lockfile source metadata / migration..."
+echo "→ 9/24 Lockfile source metadata / migration..."
 
-mkdir -p "$HOME/.skill-central"
-lock_path="$HOME/.skill-central/lock.json"
-SC_LOCK_BACKUP_CI=""
-SC_LOCK_CREATED_CI=""
-if [ -f "$lock_path" ]; then
-  SC_LOCK_BACKUP_CI="$HOME/.skill-central/lock.json.bak.ci"
-  cp "$lock_path" "$SC_LOCK_BACKUP_CI"
-else
-  SC_LOCK_CREATED_CI="1"
-fi
+SC_TEST_HOME="$TEST_BIN_DIR/home"
+mkdir -p "$SC_TEST_HOME/.skill-central"
+lock_path="$SC_TEST_HOME/.skill-central/lock.json"
 
 cat > "$lock_path" <<'JSON'
 {
@@ -532,7 +547,7 @@ cat > "$lock_path" <<'JSON'
 }
 JSON
 
-node --input-type=module <<'NODE'
+HOME="$SC_TEST_HOME" node --input-type=module <<'NODE'
 import { readFile } from "node:fs/promises";
 import { readLock, writeLock, findById } from "./dist/commands/lockfile.js";
 
@@ -553,17 +568,11 @@ if (raw.entries["legacy-lock-skill"].sourceKind !== "github") {
 NODE
 pass "旧 lock v1 可读取并写回 v2 来源元数据"
 
-if [ -n "$SC_LOCK_BACKUP_CI" ]; then
-  mv "$SC_LOCK_BACKUP_CI" "$lock_path"
-  SC_LOCK_BACKUP_CI=""
-else
-  rm -f "$lock_path"
-  SC_LOCK_CREATED_CI=""
-fi
+rm -f "$lock_path"
 
 # ── 10. Target adapters / capabilities ─────────────────────────────────────
 echo ""
-echo "→ 10/23 Target adapters / capabilities..."
+echo "→ 10/24 Target adapters / capabilities..."
 
 cursor_caps=$(node dist/index.js capabilities --target cursor)
 windsurf_caps=$(node dist/index.js capabilities --target windsurf)
@@ -641,7 +650,7 @@ pass "三类 adapter snapshot 输出稳定且包含 provenance"
 
 # ── 11. Compiler dry-run ────────────────────────────────────────────────────
 echo ""
-echo "→ 11/23 Compiler dry-run..."
+echo "→ 11/24 Compiler dry-run..."
 
 rm -f .cursor/rules/test-v1-workflow.mdc .windsurf/rules/test-v1-workflow.md
 cursor_compile=$(node dist/index.js compile --target cursor --intent ci-workflow --dry-run)
@@ -682,7 +691,7 @@ pass "compile --json 输出机器可读报告"
 
 # ── 12. Phase 5I MCP resource router ────────────────────────────────────────
 echo ""
-echo "→ 12/23 Phase 5I MCP resource router..."
+echo "→ 12/24 Phase 5I MCP resource router..."
 
 node --input-type=module <<'NODE'
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -767,7 +776,7 @@ pass "MCP resources/list 与 resources/read 返回 registry、skill、bundle、w
 
 # ── 13. Phase 5J durable session store ─────────────────────────────────────
 echo ""
-echo "→ 13/23 Phase 5J durable session store..."
+echo "→ 13/24 Phase 5J durable session store..."
 
 session_app_state_dir=".skill-central-session-ci"
 session_create=$(node dist/index.js session create --app-state-dir "$session_app_state_dir" --workflow-id pr-review.workflow --reason "CI create" --trigger workflow.start --json)
@@ -861,7 +870,7 @@ rm -rf "$session_app_state_dir"
 
 # ── 14. Phase 5K topic blackboard ──────────────────────────────────────────
 echo ""
-echo "→ 14/23 Phase 5K topic blackboard..."
+echo "→ 14/24 Phase 5K topic blackboard..."
 
 blackboard_app_state_dir=".skill-central-session-ci"
 blackboard_session=$(node dist/index.js session create --app-state-dir "$blackboard_app_state_dir" --workflow-id pr-review.workflow --reason "CI blackboard create" --trigger workflow.start --json)
@@ -932,7 +941,7 @@ rm -rf "$blackboard_app_state_dir"
 
 # ── 15. Phase 5L workflow scheduler ────────────────────────────────────────
 echo ""
-echo "→ 15/23 Phase 5L workflow scheduler..."
+echo "→ 15/24 Phase 5L workflow scheduler..."
 
 workflow_app_state_dir=".skill-central-session-ci"
 workflow_blocked=$(node dist/index.js workflow start --app-state-dir "$workflow_app_state_dir" --workflow-id test-v1-blocked-workflow --json)
@@ -1010,7 +1019,7 @@ rm -rf "$workflow_app_state_dir"
 
 # ── 16. Phase 5M MCP workflow tools ────────────────────────────────────────
 echo ""
-echo "→ 16/23 Phase 5M MCP workflow tools..."
+echo "→ 16/24 Phase 5M MCP workflow tools..."
 
 rm -rf "$workflow_app_state_dir"
 node --input-type=module <<'NODE'
@@ -1107,7 +1116,7 @@ rm -rf "$workflow_app_state_dir"
 
 # ── 17. Export transaction ─────────────────────────────────────────────────
 echo ""
-echo "→ 17/23 Export transaction..."
+echo "→ 17/24 Export transaction..."
 
 export_dir=".skill-central-export-ci"
 rm -rf "$export_dir"
@@ -1158,7 +1167,7 @@ rm -rf "$export_dir"
 
 # ── 18. IDE connection health ──────────────────────────────────────────────
 echo ""
-echo "→ 18/23 IDE connection health..."
+echo "→ 18/24 IDE connection health..."
 
 ide_health_dir=".skill-central-ide-health-ci"
 mkdir -p "$ide_health_dir"
@@ -1234,7 +1243,7 @@ rm -rf "$ide_health_dir"
 
 # ── 19. One-click connect plan ─────────────────────────────────────────────
 echo ""
-echo "→ 19/23 One-click connect plan..."
+echo "→ 19/24 One-click connect plan..."
 
 connect_dir=".skill-central-connect-ci"
 mkdir -p "$connect_dir"
@@ -1379,7 +1388,7 @@ rm -rf "$connect_dir"
 
 # ── 20. Web local console APIs ─────────────────────────────────────────────
 echo ""
-echo "→ 20/23 Web local console APIs..."
+echo "→ 20/24 Web local console APIs..."
 
 web_dir=".skill-central-web-ci"
 mkdir -p "$web_dir"
@@ -1530,6 +1539,7 @@ const runtime = {
 };
 let storedToken;
 const tokenStore = {
+  async checkAvailability() {},
   async get() { return storedToken; },
   async set(token) {
     const now = "2026-07-30T00:00:00.000Z";
@@ -1539,7 +1549,10 @@ const tokenStore = {
   async delete() { storedToken = undefined; },
   describe() { return { kind: "development-file", productionReady: false }; },
 };
-const githubClientFactory = () => ({
+let githubFactoryClientId;
+const githubClientFactory = (clientId) => {
+  githubFactoryClientId = clientId;
+  return ({
   async requestDeviceCode() {
     return {
       deviceCode: "private-device-code",
@@ -1553,7 +1566,8 @@ const githubClientFactory = () => ({
     return { accessToken: "private-access-token", tokenType: "bearer", scope: "repo" };
   },
   async fetchUser() { return { id: 1, login: "octocat", name: "Octo Cat" }; },
-});
+  });
+};
 let updateChecks = 0;
 let updateInstalls = 0;
 let updateSnapshot = {
@@ -1582,6 +1596,7 @@ const app = createBoardApp({
   version: "test",
   runtime,
   tokenStore,
+  githubOAuthClientId: "project-client-fixture",
   githubClientFactory,
   updater,
 });
@@ -1633,14 +1648,24 @@ const githubStatusBefore = await (await app.request("/api/auth/github/status")).
 if (githubStatusBefore.loggedIn || JSON.stringify(githubStatusBefore).includes("private-access-token")) {
   throw new Error("GitHub status leaked token or started logged in");
 }
+const crossOriginGithubDevice = await app.request("http://localhost/api/auth/github/device", {
+  method: "POST",
+  headers: { origin: "https://attacker.example" },
+});
+if (crossOriginGithubDevice.status !== 403) {
+  throw new Error("GitHub device flow did not reject a cross-origin request");
+}
 const githubDeviceRes = await app.request("/api/auth/github/device", {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ clientId: "client-fixture" }),
+  body: JSON.stringify({ clientId: "attacker-client-fixture" }),
 });
 const githubDevice = await githubDeviceRes.json();
 if (!githubDevice.flowId || githubDevice.userCode !== "ABCD-1234") {
   throw new Error("GitHub device flow did not return public authorization data");
+}
+if (githubFactoryClientId !== "project-client-fixture") {
+  throw new Error(`GitHub device flow accepted an untrusted client id: ${githubFactoryClientId}`);
 }
 if (JSON.stringify(githubDevice).includes("private-device-code")) {
   throw new Error("GitHub device endpoint leaked device code");
@@ -1663,6 +1688,82 @@ if (!githubStatusAfter.loggedIn || JSON.stringify(githubStatusAfter).includes("p
 }
 await app.request("/api/auth/github/logout", { method: "POST" });
 if (storedToken) throw new Error("GitHub logout did not clear TokenStore");
+const crossOriginGithubLogout = await app.request("http://localhost/api/auth/github/logout", {
+  method: "POST",
+  headers: { origin: "null" },
+});
+if (crossOriginGithubLogout.status !== 403) {
+  throw new Error("GitHub logout did not reject an opaque origin");
+}
+
+const unconfiguredApp = createBoardApp({
+  config,
+  engine,
+  rootDir: process.cwd(),
+  version: "test",
+  runtime,
+  tokenStore,
+  githubClientFactory,
+});
+const unconfiguredStatus = await (await unconfiguredApp.request("/api/auth/github/status")).json();
+if (unconfiguredStatus.loginAvailable !== false || !unconfiguredStatus.configurationError?.includes("SKILL_CENTRAL_GITHUB_CLIENT_ID")) {
+  throw new Error(`GitHub status did not explain missing packaged configuration: ${JSON.stringify(unconfiguredStatus)}`);
+}
+const unconfiguredDevice = await unconfiguredApp.request("/api/auth/github/device", { method: "POST" });
+const unconfiguredError = await unconfiguredDevice.json();
+if (unconfiguredDevice.status !== 503 || unconfiguredError.code !== "GITHUB_OAUTH_NOT_CONFIGURED") {
+  throw new Error(`GitHub device endpoint did not expose a stable configuration error: ${JSON.stringify(unconfiguredError)}`);
+}
+
+const authDiagnostics = [];
+const leakingTokenStore = {
+  async checkAvailability() { throw new Error("private-device-code private-access-token"); },
+  async get() { throw new Error("private-device-code private-access-token"); },
+  async set() { throw new Error("private-device-code private-access-token"); },
+  async delete() { throw new Error("private-device-code private-access-token"); },
+  describe() { return { kind: "os-keychain", productionReady: true }; },
+};
+const redactedAuthApp = createBoardApp({
+  config,
+  engine,
+  rootDir: process.cwd(),
+  version: "test",
+  runtime,
+  tokenStore: leakingTokenStore,
+  githubOAuthClientId: "project-client-fixture",
+  githubClientFactory,
+  authLogger: (event) => authDiagnostics.push(event),
+});
+for (const [url, method] of [
+  ["/api/auth/github/status", "GET"],
+  ["/api/auth/github/device", "POST"],
+  ["/api/auth/github/logout", "POST"],
+]) {
+  const response = await redactedAuthApp.request(url, { method });
+  const body = await response.text();
+  if (body.includes("private-device-code") || body.includes("private-access-token")) {
+    throw new Error(`GitHub ${url} response leaked a credential-bearing error`);
+  }
+}
+const diagnosticText = JSON.stringify(authDiagnostics);
+if (diagnosticText.includes("private-device-code") || diagnosticText.includes("private-access-token")) {
+  throw new Error("GitHub auth diagnostic logger received a credential-bearing error");
+}
+const brokenLoggerApp = createBoardApp({
+  config,
+  engine,
+  rootDir: process.cwd(),
+  version: "test",
+  runtime,
+  tokenStore: leakingTokenStore,
+  githubOAuthClientId: "project-client-fixture",
+  githubClientFactory,
+  authLogger: () => { throw new Error("diagnostic sink failed"); },
+});
+const brokenLoggerStatus = await brokenLoggerApp.request("/api/auth/github/status");
+if (brokenLoggerStatus.status !== 503) {
+  throw new Error("broken auth diagnostic logger changed the API failure contract");
+}
 
 const skillsRes = await app.request("/api/skills");
 const skills = await skillsRes.json();
@@ -2051,7 +2152,7 @@ rm -rf .skills/web-sync-ci
 
 # ── 21. 医生诊断 ─────────────────────────────────────────────────────────────
 echo ""
-echo "→ 21/23 医生诊断..."
+echo "→ 21/24 医生诊断..."
 
 node dist/index.js doctor \
   && pass "doctor 诊断通过" \
@@ -2059,7 +2160,7 @@ node dist/index.js doctor \
 
 # ── 22. Phase 4A local app state / token boundary ─────────────────────────
 echo ""
-echo "→ 22/23 Phase 4A/B/C local app state / GitHub auth / registry scanner..."
+echo "→ 22/24 Phase 4A/B/C local app state / GitHub auth / registry scanner..."
 
 app_state_dir=".skill-central-app-state-ci"
 sync_status=$(node dist/index.js sync status --app-state-dir "$app_state_dir" --json)
@@ -2122,11 +2223,16 @@ try {
 NODE
 pass "DevelopmentFileTokenStore 可测试且拒绝生产默认使用"
 
+node scripts/test-secure-token-store.mjs \
+  && pass "SafeStorageTokenStore 加密、原子写入、清理和错误脱敏通过" \
+  || fail "SafeStorageTokenStore 安全边界失败"
+
 node --input-type=module <<'NODE'
 import { BrewCaskUpdater } from "./dist/update/brew-cask.js";
 
 const calls = [];
 let restarted = false;
+let installedVersion = "1.0.0-alpha.0";
 const updater = new BrewCaskUpdater({
   currentVersion: "1.0.0-alpha.0",
   restart: () => { restarted = true; },
@@ -2134,11 +2240,25 @@ const updater = new BrewCaskUpdater({
   canExecute: async (candidate) => candidate === "/mock/bin/brew",
   runCommand: async (command, args) => {
     calls.push([command, ...args]);
+    if (args[0] === "tap-info") {
+      return {
+        stdout: JSON.stringify([{
+          name: "bobcgn/skill-central",
+          installed: true,
+          trusted: true,
+        }]),
+        stderr: "",
+      };
+    }
     if (args[0] === "outdated") {
       return {
         stdout: JSON.stringify({ casks: [{ name: "skill-central", current_version: "1.0.0-alpha.1" }] }),
         stderr: "",
       };
+    }
+    if (args[0] === "upgrade") installedVersion = "1.0.0-alpha.1";
+    if (args[0] === "list") {
+      return { stdout: `skill-central ${installedVersion}\n`, stderr: "" };
     }
     return { stdout: "", stderr: "" };
   },
@@ -2160,14 +2280,123 @@ if (JSON.stringify(upgrade) !== JSON.stringify([
   "/mock/bin/brew",
   "upgrade",
   "--cask",
-  "skill-central",
+  "bobcgn/skill-central/skill-central",
   "--no-ask",
   "--no-quit",
+  "--require-sha",
 ])) {
   throw new Error(`unexpected Homebrew upgrade command: ${JSON.stringify(upgrade)}`);
 }
+
+const untrustedUpdater = new BrewCaskUpdater({
+  currentVersion: "1.0.0-alpha.0",
+  restart: () => {},
+  brewCandidates: ["/mock/bin/brew"],
+  canExecute: async () => true,
+  runCommand: async (_command, args) => {
+    if (args[0] === "tap-info") {
+      return {
+        stdout: JSON.stringify([{
+          name: "bobcgn/skill-central",
+          installed: true,
+          trusted: false,
+        }]),
+        stderr: "",
+      };
+    }
+    throw new Error(`unexpected command after untrusted tap: ${args.join(" ")}`);
+  },
+});
+const untrusted = await untrustedUpdater.check();
+if (untrusted.status !== "unsupported" || untrusted.supported !== true) {
+  throw new Error("untrusted Homebrew tap should remain retryable");
+}
+if (!untrusted.message?.includes("brew trust bobcgn/skill-central")) {
+  throw new Error(`untrusted Homebrew tap guidance is incomplete: ${untrusted.message}`);
+}
+
+const tapFailureUpdater = new BrewCaskUpdater({
+  currentVersion: "1.0.0-alpha.0",
+  restart: () => {},
+  brewCandidates: ["/mock/bin/brew"],
+  canExecute: async () => true,
+  runCommand: async () => { throw new Error("tap-info failed"); },
+});
+const tapFailure = await tapFailureUpdater.check();
+if (tapFailure.status !== "error" || !tapFailure.message?.includes("tap-info failed")) {
+  throw new Error(`tap-info failure should remain an error: ${JSON.stringify(tapFailure)}`);
+}
+
+const staleInstallUpdater = new BrewCaskUpdater({
+  currentVersion: "1.0.0-alpha.0",
+  restart: () => {},
+  brewCandidates: ["/mock/bin/brew"],
+  canExecute: async () => true,
+  runCommand: async (_command, args) => {
+    if (args[0] === "tap-info") {
+      return { stdout: JSON.stringify([{ name: "bobcgn/skill-central", installed: true, trusted: true }]), stderr: "" };
+    }
+    if (args[0] === "outdated") {
+      return { stdout: JSON.stringify({ casks: [{ name: "skill-central", current_version: "1.0.0-alpha.1" }] }), stderr: "" };
+    }
+    if (args[0] === "list") return { stdout: "skill-central 1.0.0-alpha.0\n", stderr: "" };
+    return { stdout: "", stderr: "" };
+  },
+});
+await staleInstallUpdater.check();
+const staleInstall = await staleInstallUpdater.install();
+if (staleInstall.status !== "error" || !staleInstall.message?.includes("without installing 1.0.0-alpha.1")) {
+  throw new Error(`stale Homebrew install should fail verification: ${JSON.stringify(staleInstall)}`);
+}
+
+const fakeBrew = `${process.env.PATH.split(":")[0]}/brew-outdated-fixture`;
+const outdatedFixture = new BrewCaskUpdater({
+  currentVersion: "1.0.0-alpha.0",
+  restart: () => {},
+  brewCandidates: [fakeBrew],
+});
+const exitOneOutdated = await outdatedFixture.check();
+if (exitOneOutdated.status !== "available" || exitOneOutdated.availableVersion !== "1.0.0-alpha.1") {
+  throw new Error(`brew outdated exit 1 should mean update available: ${JSON.stringify(exitOneOutdated)}`);
+}
 NODE
-pass "Homebrew Cask 更新器使用固定参数并完成更新状态流"
+pass "Homebrew Cask 更新器校验 Tap 信任、固定 SHA 与安装版本"
+
+candidate_fixture="$TEST_BIN_DIR/homebrew-candidate-artifacts"
+candidate_tap="$TEST_BIN_DIR/homebrew-candidate-tap"
+mkdir -p "$candidate_fixture"
+printf 'arm candidate fixture\n' > "$candidate_fixture/Skill-Central-9.8.7-test.1-mac-arm64.dmg"
+printf 'intel candidate fixture\n' > "$candidate_fixture/Skill-Central-9.8.7-test.1-mac-x64.dmg"
+
+node scripts/prepare-homebrew-candidate.mjs \
+  --version 9.8.7-test.1 \
+  --arm64 "$candidate_fixture/Skill-Central-9.8.7-test.1-mac-arm64.dmg" \
+  --x64 "$candidate_fixture/Skill-Central-9.8.7-test.1-mac-x64.dmg" \
+  --tap-dir "$candidate_tap" > /dev/null
+
+CANDIDATE_CASK="$candidate_tap/Casks/skill-central.rb" node --input-type=module <<'NODE'
+import { readFile } from "node:fs/promises";
+const cask = await readFile(process.env.CANDIDATE_CASK, "utf8");
+if (!cask.includes('version "9.8.7-test.1"')) throw new Error("candidate Cask version missing");
+if (!cask.includes("file://") || !cask.includes("#{version}") || !cask.includes("#{arch}")) {
+  throw new Error("candidate file URL is not versioned by Homebrew architecture");
+}
+if (
+  cask.includes("%23%7Bversion%7D")
+  || cask.includes("%23%7Barch%7D")
+  || cask.includes("sha256 :no_check")
+) {
+  throw new Error("candidate Cask did not preserve version/arch interpolation and fixed checksums");
+}
+if (!cask.includes('uninstall quit: "dev.skillcentral.app"')) {
+  throw new Error("candidate Cask cannot quit the background application");
+}
+NODE
+
+[ "$(git -C "$candidate_tap" rev-list --count HEAD)" = "1" ] \
+  && ruby -c "$candidate_tap/Casks/skill-central.rb" > /dev/null \
+  && pass "Homebrew 候选工具生成带固定 SHA 的本地 Git Tap" \
+  || fail "Homebrew 候选 Tap 结构或提交无效"
 
 node --input-type=module <<'NODE'
 import { GitHubDeviceFlowClient, tokenResponseToStoredToken } from "./dist/auth/github.js";
@@ -2221,6 +2450,24 @@ if (!plan.manifestPreview.includes("visibility: private")) throw new Error("mani
 NODE
 pass "GitHub Device Flow client 和 repo dry-run plan 可离线测试"
 
+set +e
+package_missing=$(env -u SKILL_CENTRAL_GITHUB_CLIENT_ID node scripts/package-desktop.mjs mac 2>&1)
+package_missing_status=$?
+set -e
+if [ "$package_missing_status" -eq 0 ] || ! printf '%s' "$package_missing" | grep -q "SKILL_CENTRAL_GITHUB_CLIENT_ID is required"; then
+  fail "桌面打包缺少官方 GitHub OAuth client id 时必须阻断"
+fi
+
+package_args=$(SKILL_CENTRAL_GITHUB_CLIENT_ID="project-client-fixture" \
+  node scripts/package-desktop.mjs mac --print-args)
+if ! printf '%s' "$package_args" | grep -q -- "-c.extraMetadata.skillCentral.githubOAuthClientId=project-client-fixture"; then
+  fail "桌面打包未将 GitHub OAuth client id 写入 package metadata"
+fi
+if grep -q "project-client-fixture" package.json; then
+  fail "桌面打包不应将 GitHub OAuth client id 写入源码 package.json"
+fi
+pass "桌面打包强制注入项目 GitHub OAuth 配置且不修改源码 Metadata"
+
 repo_plan=$(node dist/index.js sync repo --app-state-dir "$app_state_dir" --owner octocat --dry-run --json)
 SYNC_REPO_PLAN_JSON="$repo_plan" node --input-type=module <<'NODE'
 const report = JSON.parse(process.env.SYNC_REPO_PLAN_JSON);
@@ -2238,7 +2485,7 @@ set -e
 if [ "$login_missing_status" -eq 0 ]; then
   fail "sync login 缺少 GitHub client id 时不应继续"
 fi
-printf '%s' "$login_missing" | grep -q "Missing GitHub OAuth client id" \
+printf '%s' "$login_missing" | grep -q "SKILL_CENTRAL_GITHUB_CLIENT_ID" \
   && pass "sync login 缺少 client id 时明确失败且不写 token" \
   || fail "sync login 缺少 client id 的错误不明确"
 
@@ -2335,7 +2582,7 @@ rm -f "$registry_dir/workspaces/bad.profile.yaml"
 
 # ── 23. Phase 4D/E sync engine dry-run plan / apply transaction ───────────
 echo ""
-echo "→ 23/23 Phase 4D/E sync engine dry-run plan / apply transaction..."
+echo "→ 23/24 Phase 4D/E sync engine dry-run plan / apply transaction..."
 
 cp skill-central.yaml skill-central.yaml.bak.ci
 mkdir -p .skills/sync-ci-global .skills/sync-ci-workflows
@@ -2625,6 +2872,162 @@ if (!audit.operations.some((op) => op.backupPath === updateLocal.backupPath)) {
 }
 NODE
 pass "sync apply --force 会备份后执行 update/delete 并记录 audit"
+
+# ── 24. Rules 规则库、Asset Scope 与 Web Board 作用域管理 ──────────────────
+echo ""
+echo "→ 24/24 Rules 规则库与作用域管理..."
+
+# Isolated rules dir so these checks never touch the user's real .rules/.
+RULES_CI_DIR=".rules-ci"
+rm -rf "$RULES_CI_DIR"
+mkdir -p "$RULES_CI_DIR"
+
+# A legal rule.
+cat > "$RULES_CI_DIR/rule-legal.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id: ci-legal-rule
+name: CI Legal Rule
+description: A well-formed rule used by CI to check the happy path.
+severity: error
+tags:
+  - ci
+  - security
+body: |
+  This rule is well-formed and must load, validate, and list cleanly.
+EOF
+
+# A second legal rule at a different severity, for filter checks.
+cat > "$RULES_CI_DIR/rule-info.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id: ci-info-rule
+name: CI Info Rule
+description: A second well-formed rule at info severity.
+tags:
+  - ci
+body: |
+  Severity omitted on purpose; it must default to info.
+EOF
+
+# Malformed rules — each violates exactly one contract requirement.
+cat > "$RULES_CI_DIR/rule-missing-id.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+name: Missing Id Rule
+description: This rule has no id and must fail validation.
+body: Body present but id absent.
+EOF
+
+cat > "$RULES_CI_DIR/rule-missing-body.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id: ci-missing-body
+name: Missing Body Rule
+description: This rule has no body and must fail validation.
+EOF
+
+cat > "$RULES_CI_DIR/rule-bad-severity.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id: ci-bad-severity
+name: Bad Severity Rule
+description: This rule uses an illegal severity and must fail validation.
+severity: catastrophic
+body: Severity out of the allowed enum.
+EOF
+
+# 24.1 legal rule validates and exits 0
+node dist/index.js validate-rule "$RULES_CI_DIR/rule-legal.yaml" > /dev/null \
+  && pass "validate-rule 合法规则退 0" \
+  || fail "validate-rule 合法规则未通过"
+
+# 24.2 each malformed rule fails validation (exit 1) with a field-level warning.
+# Capture output and exit code separately — a naive `node ... | grep` pipeline
+# would let `set -o pipefail` surface node's exit-1 as the pipeline status.
+assert_rule_rejected() {
+  local file="$1" field="$2" label="$3"
+  local out status
+  # `|| status=$?` keeps `set -e` from aborting on the expected non-zero exit.
+  status=0
+  out="$(node dist/index.js validate-rule "$file" 2>&1)" || status=$?
+  if [ "$status" -eq 0 ]; then
+    fail "$label 不应通过 validate-rule"
+  elif echo "$out" | grep -q "$field"; then
+    pass "$label 被拒并给出字段级 warn"
+  else
+    fail "$label 未打印 $field 字段错误"
+  fi
+}
+
+assert_rule_rejected "$RULES_CI_DIR/rule-missing-id.yaml" "id" "缺 id 规则"
+assert_rule_rejected "$RULES_CI_DIR/rule-missing-body.yaml" "body" "缺 body 规则"
+assert_rule_rejected "$RULES_CI_DIR/rule-bad-severity.yaml" "severity" "非法 severity 规则"
+
+# 24.3 rules command lists the legal rules
+node dist/index.js rules --dir "$RULES_CI_DIR" 2>/dev/null | grep -q "ci-legal-rule" \
+  && pass "rules 列出合法规则" \
+  || fail "rules 未列出合法规则"
+
+# 24.4 default severity applied (omitted → info); severity filter works
+node dist/index.js rules --dir "$RULES_CI_DIR" --severity info 2>/dev/null | grep -q "ci-info-rule" \
+  && pass "省略 severity 默认为 info 且过滤有效" \
+  || fail "severity 默认或过滤失败"
+
+node dist/index.js rules --dir "$RULES_CI_DIR" --severity error 2>/dev/null | grep -q "ci-legal-rule" \
+  && pass "rules --severity error 过滤命中" \
+  || fail "rules --severity error 过滤失败"
+
+if node dist/index.js rules --dir "$RULES_CI_DIR" --severity error 2>/dev/null | grep -q "ci-info-rule"; then
+  fail "rules --severity error 不应包含 info 规则"
+else
+  pass "rules --severity 过滤集合正确（不含无关严重级）"
+fi
+
+# 24.5 tag filter works
+node dist/index.js rules --dir "$RULES_CI_DIR" --tag security 2>/dev/null | grep -q "ci-legal-rule" \
+  && pass "rules --tag 过滤命中" \
+  || fail "rules --tag 过滤失败"
+
+# 24.6 rules ↔ list are non-crossing: rule ids never appear in `list`,
+#      skill ids never appear in `rules`.
+if node dist/index.js list 2>/dev/null | grep -q "ci-legal-rule"; then
+  fail "list 不应包含规则 id"
+else
+  pass "list 输出不含规则 id（不交叉）"
+fi
+
+if node dist/index.js rules --dir "$RULES_CI_DIR" 2>/dev/null | grep -q "test-skill"; then
+  fail "rules 不应包含技能 id"
+else
+  pass "rules 输出不含技能 id（不交叉）"
+fi
+
+# 24.7 isolation: a broken rule is skipped, good rules + skills still load.
+cat > "$RULES_CI_DIR/rule-broken.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id:
+name:
+description: intentionally broken to prove failure isolation
+EOF
+
+node dist/index.js rules --dir "$RULES_CI_DIR" 2>/dev/null | grep -q "ci-legal-rule" \
+  && pass "坏规则被跳过后其余规则仍列出（隔离失败边界）" \
+  || fail "坏规则污染了其余规则加载"
+
+node dist/index.js list > /dev/null 2>&1 \
+  && pass "坏规则不影响 skill 侧 list 退 0" \
+  || fail "坏规则影响了 skill 侧加载"
+
+# 24.8 empty dir gives a friendly message and exits 0 (not an error).
+EMPTY_RULES_CI_DIR=".rules-empty-ci"
+rm -rf "$EMPTY_RULES_CI_DIR"
+mkdir -p "$EMPTY_RULES_CI_DIR"
+node dist/index.js rules --dir "$EMPTY_RULES_CI_DIR" > /dev/null 2>&1 \
+  && pass "空规则目录给出友好提示并退 0" \
+  || fail "空规则目录不应报错"
+
+rm -rf "$RULES_CI_DIR" "$EMPTY_RULES_CI_DIR"
+
+# 24.9 isolated shared-scope and Board API/UI contract matrix.
+npm run test:asset-scope \
+  && pass "Rules/Skills 作用域、Board 恢复路径与并发写入矩阵通过" \
+  || fail "作用域管理矩阵失败"
 
 # ── 清理测试数据 ──────────────────────────────────────────────────────────────
 echo ""

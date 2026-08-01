@@ -13,6 +13,12 @@ import type { SkillLayer, SkillSchema } from "../storage/schemas.js";
 import { getSkillById, querySkillRecords } from "../registry/query.js";
 import type { SkillQuery } from "../registry/query.js";
 import type {
+  AssetScope,
+  AssetScopeContext,
+} from "../schema/asset-scope.js";
+import { assetAppliesTo } from "../schema/asset-scope.js";
+import { resolveAssetScopeContext } from "../storage/project-identity.js";
+import type {
   LayerProvenance,
   SkillActivation,
   SkillCapabilities,
@@ -28,14 +34,27 @@ export class SkillEngine {
   private tree = new OverrideTree();
   private readyPromise: Promise<void> | null = null;
 
-  /** Rebuild the override tree from a list of layer definitions. */
-  async reload(layers: SkillLayer[]): Promise<void> {
-    this.readyPromise = readAllLayers(layers).then((entries) => {
-      this.tree.reset(entries);
+  /**
+   * Rebuild the override tree for one project context.
+   * Scope filtering happens before override resolution: an out-of-scope entry
+   * must not shadow or conflict with an applicable entry that shares its id.
+   */
+  async reload(
+    layers: SkillLayer[],
+    options: { scopeContext?: AssetScopeContext; projectRoot?: string; projectId?: string } = {},
+  ): Promise<void> {
+    this.readyPromise = (async () => {
+      // Tests and embedded consumers may supply a pre-resolved context. CLI
+      // callers normally provide a root/id and share the identity resolver.
+      const scopeContext = options.scopeContext
+        ?? await resolveAssetScopeContext(options.projectRoot, options.projectId);
+      const entries = await readAllLayers(layers);
+      const scopedEntries = entries.filter(({ schema }) => assetAppliesTo(schema.appliesTo, scopeContext));
+      this.tree.reset(scopedEntries);
       console.error(
         `[skill-central] Loaded ${this.tree.getAll().length} skills across ${layers.length} layer(s)`
       );
-    });
+    })();
     await this.readyPromise;
   }
 
@@ -108,6 +127,7 @@ export interface ResolvedSkillView {
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
+  appliesTo: AssetScope;
   activation?: SkillActivation;
   context?: SkillContext;
   capabilities?: SkillCapabilities;
@@ -142,6 +162,7 @@ function toView(skill: {
   inputSchema?: Record<string, unknown>;
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
   tags?: string[];
+  appliesTo: AssetScope;
   activation?: SkillActivation;
   context?: SkillContext;
   capabilities?: SkillCapabilities;
@@ -166,6 +187,7 @@ function toView(skill: {
     inputSchema: skill.inputSchema,
     arguments: skill.arguments,
     tags: skill.tags,
+    appliesTo: skill.appliesTo,
     activation: skill.activation,
     context: skill.context,
     capabilities: skill.capabilities,

@@ -1,6 +1,8 @@
 node_modules/
 dist/
 release-artifacts/
+build/icon.icns
+src/web/static/tray.png
 *.tsbuildinfo
 .claude/
 .ai/

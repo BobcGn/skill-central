@@ -21,6 +21,11 @@ import {
   normaliseTags,
 } from "./universal-skill.js";
 import type { ValidationIssue } from "./universal-skill.js";
+import {
+  normaliseAssetScope,
+  validateAssetScope,
+  type AssetScope,
+} from "./asset-scope.js";
 
 export interface LegacySkillSchema {
   id: string;
@@ -32,6 +37,7 @@ export interface LegacySkillSchema {
   inputSchema?: Record<string, unknown>;
   arguments?: SkillArgument[];
   tags?: string[];
+  appliesTo: AssetScope;
   version?: string;
 }
 
@@ -77,6 +83,9 @@ export function validateLegacySkillObject(
     issue("inputSchema", "expected object");
   }
   validateArguments(obj.arguments, issue);
+  for (const scopeIssue of validateAssetScope(obj.appliesTo)) {
+    issue(scopeIssue.fieldPath, scopeIssue.reason);
+  }
 
   return { ok: issues.length === 0, issues };
 }
@@ -92,6 +101,7 @@ export function upgradeLegacySkill(
     version: legacy.version,
     type: legacy.type,
     tags: legacy.tags,
+    appliesTo: legacy.appliesTo,
     capabilities: defaultCapabilities(legacy.type),
     targets: { genericMcp: { injection: { mode: legacy.type } } },
     prompt: legacy.prompt,
@@ -117,6 +127,7 @@ export function normaliseLegacySkill(
       : undefined,
     arguments: normaliseArguments(obj.arguments),
     tags: normaliseTags(obj.tags),
+    appliesTo: normaliseAssetScope(obj.appliesTo),
     version: typeof obj.version === "string" ? obj.version : undefined,
   };
 }

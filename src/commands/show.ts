@@ -8,10 +8,13 @@
 import { SkillEngine } from "../core/engine.js";
 import { loadConfig } from "../storage/config.js";
 
-export async function cmdShow(id: string): Promise<void> {
+export async function cmdShow(
+  id: string,
+  opts: { projectRoot?: string; projectId?: string } = {},
+): Promise<void> {
   const config = loadConfig();
   const engine = new SkillEngine();
-  await engine.reload(config.layers);
+  await engine.reload(config.layers, opts);
 
   const resolved = engine.getSkill(id);
   if (!resolved) {
@@ -23,7 +26,7 @@ export async function cmdShow(id: string): Promise<void> {
   // Phase 1B: source/layer provenance comes from the engine resolution record.
   // This keeps `show` aligned with MCP and doctor instead of re-scanning layers
   // with slightly different override semantics.
-  const sourcePath = `${resolved.layer.path}/${id}.yaml`;
+  const sourcePath = resolved.source;
   const sourceLayer = resolved.layer.name;
 
   console.log("");
@@ -36,6 +39,7 @@ export async function cmdShow(id: string): Promise<void> {
   console.log(`  Layer       : ${sourceLayer}`);
   console.log(`  Layer ID    : ${resolved.layer.id}`);
   console.log(`  Scope       : ${resolved.layer.scope}`);
+  console.log(`  Applies To  : ${resolved.appliesTo === "global" ? "global" : resolved.appliesTo.projects.join(", ")}`);
   console.log(`  Status      : ${resolved.status}`);
   console.log(`  Format      : ${resolved.sourceFormat}`);
   console.log(`  Source      : ${sourcePath}`);

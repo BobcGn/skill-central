@@ -85,7 +85,15 @@ export class GitHubDeviceFlowClient {
           intervalAdjustmentSeconds: data.error === "slow_down" ? 5 : 0,
         };
       }
-      throw new Error(`GitHub device flow failed: ${data.error}`);
+      // Do not propagate arbitrary provider response values into API responses
+      // or CLI logs. Known terminal states get stable, non-sensitive messages.
+      if (data.error === "expired_token") {
+        throw new Error("GitHub device flow expired. Start a new login attempt.");
+      }
+      if (data.error === "access_denied") {
+        throw new Error("GitHub device authorization was denied.");
+      }
+      throw new Error("GitHub device flow failed with an unexpected provider response.");
     }
 
     return {

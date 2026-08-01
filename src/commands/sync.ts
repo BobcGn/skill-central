@@ -23,6 +23,10 @@ import {
   GitHubDeviceFlowClient,
   tokenResponseToStoredToken,
 } from "../auth/github.js";
+import {
+  missingGitHubOAuthClientIdMessage,
+  resolveGitHubOAuthClientId,
+} from "../auth/github-config.js";
 import { buildGitHubRegistryRepoPlan } from "../sync/github-registry.js";
 import { scanRemoteRegistry } from "../sync/scanner.js";
 import { buildSyncPlan, type SyncDirection, type SyncPlan } from "../sync/sync-engine.js";
@@ -213,9 +217,9 @@ async function printStatus(opts: SyncOptions): Promise<void> {
 
 async function login(opts: SyncOptions): Promise<void> {
   const { tokenStore } = await prepareLocalSync(opts);
-  const clientId = opts.clientId ?? process.env.SKILL_CENTRAL_GITHUB_CLIENT_ID;
+  const clientId = resolveGitHubOAuthClientId({ override: opts.clientId });
   if (!clientId) {
-    throw new Error("Missing GitHub OAuth client id. Pass --client-id or set SKILL_CENTRAL_GITHUB_CLIENT_ID.");
+    throw new Error(missingGitHubOAuthClientIdMessage());
   }
   const client = new GitHubDeviceFlowClient({
     clientId,

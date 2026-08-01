@@ -132,11 +132,11 @@ export async function cmdDoctor(opts: DoctorOptions = {}): Promise<void> {
   // ── 2. Collision detection (raw layer scan, not engine) ────────────────
   const idMap = new Map<string, CollisionEntry[]>();
   const allEntries = await readAllLayers(config.layers);
-  for (const { schema, layer } of allEntries) {
+  for (const { schema, layer, filePath } of allEntries) {
     if (!idMap.has(schema.id)) idMap.set(schema.id, []);
     idMap.get(schema.id)!.push({
       layer: layer.name,
-      filePath: `${layer.path}/${schema.id}.yaml`,
+      filePath,
       priority: layer.priority,
     });
   }

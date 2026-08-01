@@ -22,15 +22,18 @@ const ALLOWED_EXTENSIONS = new Set([".json", ".json5", ".yaml", ".yml", ".md"]);
  */
 export async function readAllLayers(
   layers: SkillLayer[],
-): Promise<Array<{ schema: SkillSchema; layer: SkillLayer }>> {
-  const results: Array<{ schema: SkillSchema; layer: SkillLayer }> = [];
+): Promise<Array<{ schema: SkillSchema; layer: SkillLayer; filePath: string }>> {
+  const results: Array<{ schema: SkillSchema; layer: SkillLayer; filePath: string }> = [];
 
   for (const layer of layers) {
     const files = await discoverSkillFiles(layer.path);
     for (const filePath of files) {
       const schema = await parseSkillFile(filePath);
       if (schema) {
-        results.push({ schema, layer });
+        // Preserve the discovered path instead of reconstructing `<id>.yaml`
+        // later. Skills may use JSON/YML, nested directories, or a filename
+        // that intentionally differs from their stable id.
+        results.push({ schema, layer, filePath });
       }
     }
   }
