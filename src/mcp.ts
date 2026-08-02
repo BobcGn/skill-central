@@ -37,7 +37,10 @@ export async function startMcpServer(): Promise<void> {
   );
 
   const engine = new SkillEngine();
-  registerHandlers(server, engine);
+  registerHandlers(server, engine, {
+    config,
+    projectRoot: process.cwd(),
+  });
 
   await engine.reload(config.layers);
 

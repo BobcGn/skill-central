@@ -116,6 +116,74 @@ appliesTo:
 
 Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不会参与冲突解析，也不会进入 MCP、Compiler 或普通 CLI 查询。Rule 使用同一个匹配函数。Rules CLI 和 Web Board 提供独立规则视图；Rule MCP Resource 尚未实现，因为规则的 Agent 消费模型仍待确定。
 
+## 反向输出
+
+反向输出（reverse output）指 IDE、Board 或工作流在日常工作中主动产生了当前技能库和规则库里还没有的内容，并把它沉淀为数字资产，而不是留在临时笔记、聊天记录或一次性导出里。
+
+术语规范：
+
+- Skill：可持续复用、持续更新、应不断写回 `.skills/` 的资产。
+- Skill Central 公约：`.rules/` 中的共享规则资产，承载跨 IDE、跨人员的业务术语、架构边界、风格、质量底线和门禁。可以通过 `appliesTo` 作用于全局或项目。
+- Rule：稳定、可复用的约束、审查或治理类资产；只有属于 Skill Central 公约的内容才进入 `.rules/`。
+- IDE 原生规则：`AGENT.md`、`AGENTS.md`、`CLAUDE.md` 等环境说明文件，承载当前 IDE、机器、启动方式和本地执行方法，不承载具体业务公约。
+- Project-local guidance：仅对单个项目成立的内容，默认保留在工作记录或临时产物中，不进入规则库。
+
+### 规则边界划分法则
+
+规则库与 IDE 原生规则不是两份需要全文同步的规则，而是“公约”和“环境适配器”的关系。判断反向输出应该写入哪里时，必须依次检查：
+
+1. **业务领域 VS. 运行时环境**
+   - 跨 IDE、跨人员都必须遵守的业务术语、架构边界、代码质量底线，归入 Skill Central 公约。
+   - 当前机器的启动命令（例如 `./gradlew run`）、特定 IDE 的能力（例如 Cursor 的 `@` 检索语法）、要求 Agent 去远端拉取规则的 Bootloader，归入 IDE 原生规则。
+2. **战略约束 VS. 战术执行**
+   - 定义 What、Why 和绝对不能做什么的红线，归入 Skill Central 公约。
+   - 定义当前本地环境里点击什么、调用什么、怎么执行命令，归入 IDE 原生规则。
+3. **动态演进 VS. 相对静态**
+   - 高频迭代、需要跨项目复用的开发痛点与沉淀，归入 Skill 或 Rule，并通过反向输出持续培养。
+   - 工程模板初始化后几乎不再需要人类修改的低频基建配置，归入 IDE 原生规则。
+
+### 公约与 IDE 原生规则冲突
+
+- `.rules/` 负责定义跨 IDE 的 What、Why 和门禁；IDE 原生规则负责把这些要求翻译成当前环境中的 How。
+- IDE 原生规则可以补充执行细节，但不得重定义公约中的业务术语、删除质量门禁或放宽架构边界。
+- 同一份内容同时包含公约和本地执行细节时，必须拆分，而不是整段复制到两个位置。
+- 当前 IDE 无法满足公约时，必须记录不兼容并停止或显式降级；不得静默用 IDE 原生规则覆盖公约。
+- 不得仅因为加载方便，就把 `AGENT.md`、`AGENTS.md`、`CLAUDE.md` 或等价 Bootloader 文本写入 `.rules/`。
+
+反向输出必须检查：
+
+1. 来源与上下文。
+2. 资产类型与目标目录。
+3. 显式声明归属分类与理由，检查上述边界法则、重复和冲突资产。
+4. `scope` 与 `appliesTo` 是否明确。
+5. Schema 是否通过。
+6. 若编辑既有资产，必须记录 diff 预览、backup 和 rollback 路径。
+7. 是否完成验证和测试，或是否明确标记未验证。
+8. 最终结论：promote、defer 或 discard。
+
+### 当前 MVP 入口
+
+当前 Alpha 已实现一个统一的反向输出控制面：
+
+- 面向 IDE 的 MCP Tool 是 `reverse_output`。
+- 对应的 CLI 入口是 `skill-central reverse-output <action>`。
+- `preview` 不产生写入副作用。`apply` 必须显式选择 `promote`、`defer` 或 `discard`；
+  只有 `promote` 会写入源资产。
+- 每个提案都必须声明 `placement` 和 `placementReason`。Rule 必须使用
+  `covenant-rule`；`ide-native-rule` 会被拒绝。`project-local` Skill 必须使用项目级
+  `appliesTo`。
+- Skill 与 Rule 会按各自公开 Schema 校验，必须显式提供 `appliesTo`，并在重复、
+  目标路径或 expected SHA 冲突时阻断。
+- 更新使用同级 Backup 与原子替换。写入后会再次解析和校验，Apply/Rollback 决策会
+  写入 App State Audit Record。
+- Board 当前可以管理已有 Skill 与 Rule，但尚未接入反向输出的提案和 Promote 控件；
+  本 MVP 请使用 MCP Tool 或 CLI。
+
+首期路径是：IDE 提议一个可复用 Skill 或公约 Rule，`preview` 记录边界检查和 Diff，
+由人或 Workflow 选择决策，只有 `promote` 才写入已配置的库。只描述
+`AGENT.md`、`AGENTS.md`、`CLAUDE.md` 或其他本地 Bootloader 的建议仍属于 IDE 原生
+规则，不得 Promote 到 `.rules/`。
+
 查看当前项目身份或资产作用域：
 
 ```bash

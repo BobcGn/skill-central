@@ -19,6 +19,10 @@ flowchart TD
     CLI[skill-central commands] --> Engine[SkillEngine / Registry]
     IDE[IDE client] -->|stdio MCP| MCP[MCP handlers]
     MCP --> Engine
+    MCP --> Reverse[ReverseOutputService]
+    CLI --> Reverse
+    Reverse --> Layers
+    Reverse --> Audit[App State audit]
     Board --> Engine
 
     Global[User configuration] --> Config[Configuration loader]
@@ -39,6 +43,7 @@ The desktop shell does not grant Node.js access to renderer code. Electron start
 | `src/core/` and `src/registry/` | Resolve collisions, expose effective and diagnostic views, query skills | Parse IDE configuration |
 | `src/compiler/` and `src/adapters/` | Select skills for an intent, negotiate target capabilities, build preview artifacts | Change IDE configuration during dry-run |
 | `src/protocol/` and `src/mcp.ts` | Map resolved skills and evidence to MCP prompts, tools, and resources | Read layer files directly |
+| `src/reverse-output/` and `src/commands/reverse-output.ts` | Validate, preview, promote, defer, discard, audit, and roll back IDE-generated Skill/Rule candidates | Bypass scope, schema, conflict, or backup checks |
 | `src/ide-detection/` | Define IDE targets, candidate paths, and JSON/TOML codecs | Perform unplanned writes |
 | `src/connect/` and `src/health/` | Plan, apply, verify, and roll back IDE registration | Guess target paths independently |
 | `src/sync/` and `src/auth/` | GitHub Device Flow, registry scans, sync plans, apply evidence | Store credentials in browser state |
@@ -114,6 +119,28 @@ flowchart LR
 
 Layers with sync disabled are reported as excluded rather than silently uploaded. Remote writes require an explicit apply operation.
 
+### Reverse output
+
+```mermaid
+flowchart LR
+    IDE[IDE MCP client] --> Candidate[Structured Skill/Rule candidate]
+    Candidate --> Preview[Preview and placement checks]
+    Preview --> Decision{Promote / defer / discard}
+    Decision -->|promote| Validate[Schema and target validation]
+    Validate --> SHA[Expected SHA and duplicate checks]
+    SHA --> Backup[Atomic write and sibling backup]
+    Backup --> Verify[Post-write verification]
+    Verify --> Source[Configured .skills or .rules source]
+    Decision --> Audit[App State audit record]
+    Verify --> Audit
+```
+
+Reverse output is a controlled source mutation, not a text export. The MCP tool and CLI share
+the same service. Preview does not write; only an explicit `promote` decision writes. Updates
+require an expected SHA-256, produce a sibling backup, and can be rolled back with another
+expected SHA-256. Rules are promoted only when they belong to the Skill Central covenant;
+continuously evolving work knowledge should normally become a Skill.
+
 ## Architectural Invariants
 
 Changes must preserve these rules:
@@ -128,6 +155,9 @@ Changes must preserve these rules:
 8. **Credential separation:** Access tokens are not returned to browser code or stored with skills.
 9. **Dry-run purity:** Compile and sync planning do not mutate their targets.
 10. **Bilingual UI contract:** User-visible Board strings must remain available in English and Simplified Chinese.
+11. **Explicit reverse output:** IDE-generated content requires explicit placement and reason,
+    scope, schema, conflict, verification, and promote/defer/discard evidence before it becomes
+    a source asset.
 
 ## Extension Points
 
@@ -144,4 +174,6 @@ Cross-boundary changes require an issue and design agreement before implementati
 - macOS packages are unsigned and not notarized.
 - macOS/Windows in-app desktop updates use GitHub Release metadata, but remain alpha and must be reverified for each release.
 - Compiler adapters currently exist for generic MCP, Cursor, and Windsurf; this is narrower than the six IDE connection targets.
+- Reverse output is an Alpha MVP exposed through MCP and CLI. The Board does not yet expose
+  reverse-output proposal or promotion controls.
 - The Board has no user authentication. Non-loopback binding is an advanced, high-risk override, not a deployment mode.

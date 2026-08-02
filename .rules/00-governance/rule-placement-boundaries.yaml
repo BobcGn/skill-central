@@ -1,0 +1,47 @@
+schemaVersion: skillcentral.dev/rule/v1
+id: rule-placement-boundaries
+name: Rule Placement Boundaries
+description: Define what belongs in the Skill Central covenant versus an IDE-native instruction file.
+severity: warn
+tags:
+  - governance
+  - rules
+  - ide
+  - boundaries
+appliesTo: global
+body: |
+  The Skill Central rule library is the shared covenant for project and global obligations.
+  IDE-native files such as `AGENT.md`, `AGENTS.md`, and `CLAUDE.md` are environment adapters:
+  they describe the current IDE, machine, bootstrap path, or local execution method.
+
+  Rule Placement Checklist:
+
+  1. Business domain versus runtime environment
+     - Cross-IDE, cross-person business terminology, architecture boundaries, and code
+       quality floors belong in the Skill Central covenant.
+     - Machine-specific startup commands such as `./gradlew run`, IDE-specific features
+       such as Cursor `@` retrieval syntax, and bootloader instructions belong in the
+       IDE-native rule.
+
+  2. Strategic constraint versus tactical execution
+     - What, Why, and absolute prohibitions belong in the Skill Central covenant.
+     - How to click, invoke, or execute a command in this local environment belongs in
+       the IDE-native rule.
+
+  3. Dynamic evolution versus relative stability
+     - Frequently recurring, reusable development lessons belong in Skills or Rules and
+       should be cultivated through reverse output.
+     - Low-frequency bootstrap configuration that is established by an engineering
+       template belongs in the IDE-native rule.
+
+  Every placement decision must record its placement classification and reason before promotion.
+
+  Conflict policy:
+  - `.rules/` and IDE-native rules are complementary layers, not a single text blob.
+  - An IDE-native rule may translate a covenant requirement into local execution steps,
+    but it must not redefine shared terms, must not remove a gate, and must not weaken an
+    architecture boundary.
+  - If a document mixes policy and execution detail, split the document by boundary.
+  - If the IDE cannot satisfy the covenant, record the incompatibility and stop or
+    explicitly degrade the workflow; do not silently override the covenant.
+  - Do not promote IDE bootloader text into `.rules/` merely because it is convenient.

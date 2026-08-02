@@ -17,6 +17,45 @@ The executable must be available in the environment used by the IDE. The MCP pro
 
 When one-click connection is run from the packaged desktop app, Skill Central writes the absolute executable path of the current App Bundle and starts that executable with the `mcp` argument. The IDE therefore does not need to find `skill-central` on the shell `PATH`. Source CLI `connect` and `register` still write the generic command shown above.
 
+## Covenant and IDE-Native Rules
+
+The project `.rules/` directory is the Skill Central covenant for cross-IDE and cross-person
+business and engineering constraints. IDE-native files such as `AGENT.md`, `AGENTS.md`, and
+`CLAUDE.md` are environment adapters for the current IDE or machine; they describe startup,
+invocation, and local execution.
+
+They are not two copies of one rule set:
+
+- The covenant defines What, Why, terminology, architecture boundaries, quality floors, and gates.
+- IDE-native rules define local How, such as startup commands, IDE-specific capabilities, and
+  bootloader instructions.
+- IDE-native rules must not remove or weaken the covenant. Mixed content must be split.
+- When an IDE cannot satisfy the covenant, report the incompatibility or explicitly degrade; do
+  not silently override the covenant.
+
+## IDE Reverse Output
+
+After the MCP connection is verified, an IDE can use the `reverse_output` tool to propose
+durable library content discovered during work. The request must identify the source, context,
+asset type, operation, target library, explicit `placement`/`placementReason`, and explicit
+`appliesTo` scope. Skills target a configured writable Skill Layer, commonly under `.skills/`;
+Rules target a directory under `.rules/` and must pass the covenant placement checklist.
+
+The safe sequence is:
+
+1. Call `reverse_output` with `action: "preview"`.
+2. Review placement, schema, scope, duplicate, conflict, target, and diff checks.
+3. Call `action: "apply"` with exactly one decision: `promote`, `defer`, or `discard`.
+4. For an update, provide the SHA-256 returned by the current source inspection. Successful
+   updates return a sibling backup path and an App State audit path.
+5. Use `action: "rollback"` with the target path, backup path, and current expected SHA-256
+   when restoration is required.
+
+The same service is available for local verification through
+`skill-central reverse-output preview|apply|rollback`. The current Alpha MVP does not expose
+these proposal and promotion controls in the Web Board yet; the Board's existing Skill/Rule
+management remains a separate surface.
+
 ## Supported Connection Targets
 
 | Target | Format | Default candidates |

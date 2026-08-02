@@ -15,6 +15,8 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { SkillEngine } from "../core/engine.js";
+import { loadConfig, type SkillCentralConfig } from "../storage/config.js";
+import { ReverseOutputService } from "../reverse-output/service.js";
 import {
   buildListPromptsHandler,
   buildGetPromptHandler,
@@ -36,14 +38,22 @@ import {
 export function registerHandlers(
   server: Server,
   engine: SkillEngine,
+  options: { config?: SkillCentralConfig; projectRoot?: string } = {},
 ): void {
+  const projectRoot = options.projectRoot ?? process.cwd();
+  const reverseOutput = new ReverseOutputService({
+    config: options.config ?? loadConfig(projectRoot),
+    projectRoot,
+    engine,
+  });
+
   // ── Prompts ────────────────────────────────────────────────────────────
   server.setRequestHandler(ListPromptsRequestSchema, buildListPromptsHandler(engine));
   server.setRequestHandler(GetPromptRequestSchema, buildGetPromptHandler(engine));
 
   // ── Tools ──────────────────────────────────────────────────────────────
-  server.setRequestHandler(ListToolsRequestSchema, buildListToolsHandler(engine));
-  server.setRequestHandler(CallToolRequestSchema, buildCallToolHandler(engine));
+  server.setRequestHandler(ListToolsRequestSchema, buildListToolsHandler(engine, reverseOutput));
+  server.setRequestHandler(CallToolRequestSchema, buildCallToolHandler(engine, reverseOutput));
 
   // ── Resources ─────────────────────────────────────────────────────────
   // Resource handlers are read-only evidence surfaces. Workflow/session URIs

@@ -27,6 +27,7 @@ npm test
 | `src/core/`, `src/registry/` | Resolution engine and shared queries |
 | `src/compiler/`, `src/adapters/` | Intent compilation, capabilities, target previews |
 | `src/protocol/`, `src/mcp.ts` | MCP prompts, tools, resources, and stdio startup |
+| `src/reverse-output/`, `src/commands/reverse-output.ts` | Shared IDE/CLI reverse-output proposal, promotion, audit, and rollback control plane |
 | `src/ide-detection/`, `src/connect/`, `src/health/` | IDE metadata, codecs, connection transaction, health probe |
 | `src/auth/`, `src/sync/` | GitHub Device Flow and registry synchronization |
 | `src/local-store/`, `src/state/`, `src/scheduler/` | App data, sessions, blackboard, workflow scheduling |
@@ -46,6 +47,7 @@ npm run build         # compile TypeScript and copy adapter capabilities
 npm run build:web     # copy static Board assets to dist/web
 npm run build:desktop # build TypeScript plus Board assets
 npm run lint          # TypeScript no-emit validation
+npm run test:reverse-output # focused reverse-output control-plane matrix
 npm test              # build and run the integration suite
 ```
 
@@ -88,6 +90,7 @@ Run additional checks by risk:
 | Registry query or resolution | `npm run test:registry-perf` and conflict fixtures |
 | Board HTML/CSS/JS | `npm run build:web`; desktop/mobile visual inspection; keyboard, overflow, loading, empty, error, and success states |
 | MCP protocol | Start a real stdio client and confirm stdout contains protocol only |
+| Reverse output | `npm run test:reverse-output`; schema, scope, path, duplicate, SHA, backup, rollback, CLI, and MCP checks |
 | IDE target | Platform path fixtures, malformed config, unrelated-entry preservation, backup, rollback, and live probe |
 | Sync/auth | Negative path and credential-leak tests; dry-run/apply distinction; audit evidence |
 | Desktop/updater | `npm run build:desktop`, affected package build, and real installed-app behavior |
@@ -124,6 +127,27 @@ Do not silently reduce coverage because a platform is unavailable. Record the un
 - Never send secrets to browser code.
 - Planning must remain side-effect free.
 - Every mutation needs conflict handling and auditable evidence.
+
+### Reverse Output
+
+- Reverse output must state the source, asset type, target library, and applicable scope.
+- Reverse output must explicitly state `placement` and `placementReason`; IDE-native rules
+  cannot be promoted as covenant Rules.
+- Skills should be continuously cultivated, updated, and written back into `.skills/`; rules should
+  only be promoted into `.rules/` when they belong to the Skill Central covenant and are stable
+  and reusable.
+- `.rules/` carries cross-IDE business terminology, What/Why, architecture boundaries, style,
+  quality floors, and gates. IDE-native rules such as `AGENT.md`, `AGENTS.md`, and `CLAUDE.md`
+  carry only the current IDE/machine environment and local How.
+- Every placement decision must check business domain versus runtime environment, strategic
+  constraint versus tactical execution, and dynamic evolution versus relative stability.
+- Mixed policy and local execution content must be split. An IDE-native rule must not redefine
+  shared terms, remove a gate, or weaken an architecture boundary.
+- Project-local guidance should not default into the rule library; keep it in work records or
+  temporary output.
+- Editing an existing asset requires a diff preview, backup path, and rollback plan.
+- Reverse-output work must include verification results, or be explicitly marked unverified.
+- The final decision must be `promote`, `defer`, or `discard`, not just "possible" or "not possible".
 
 ## Documentation Review
 

@@ -17,6 +17,39 @@ Skill Central 以本地 stdio MCP Server 连接 IDE：
 
 通过打包桌面应用执行一键连接时，Skill Central 会写入当前 App Bundle 的绝对可执行路径，并让该可执行文件以 `mcp` 参数进入 stdio MCP 模式。这样 IDE 不需要从 shell `PATH` 中找到 `skill-central` 命令。源码 CLI 运行 `connect` 或 `register` 时仍写入上面的通用命令。
 
+## 公约与 IDE 原生规则
+
+项目 `.rules/` 是 Skill Central 公约，承载跨 IDE、跨人员的业务与工程约束。`AGENT.md`、`AGENTS.md`、`CLAUDE.md` 等 IDE 原生规则属于当前 IDE 或机器的环境适配层，只描述启动、调用和本地执行方式。
+
+两者不是同一份规则的两种副本：
+
+- 公约定义 What、Why、术语、架构边界、质量底线和门禁。
+- IDE 原生规则定义当前环境中的 How，例如启动命令、IDE 特有能力和 Bootloader。
+- IDE 原生规则不得删除或放宽公约；同一内容同时包含两类信息时必须拆分。
+- IDE 无法满足公约时，应报告不兼容或显式降级，不得静默覆盖公约。
+
+## IDE 反向输出
+
+完成 MCP 连接验证后，IDE 可以使用 `reverse_output` Tool，将工作中发现的内容提议为
+持久化库资产。请求必须说明来源、上下文、资产类型、操作、目标库以及明确的
+`appliesTo` 作用域以及明确的 `placement`/`placementReason`。Skill 写入已配置且可写的
+Skill Layer（通常位于 `.skills/`）；Rule 写入 `.rules/` 下的目录，并且必须通过公约
+边界检查。
+
+安全流程是：
+
+1. 使用 `action: "preview"` 调用 `reverse_output`。
+2. 检查归属、Schema、作用域、重复、冲突、目标和 Diff 结果。
+3. 使用 `action: "apply"`，并且明确选择 `promote`、`defer` 或 `discard` 之一。
+4. 更新既有资产时，提供当前源文件检查得到的 SHA-256。成功更新会返回同级 Backup
+   Path 和 App State Audit Path。
+5. 需要恢复时，使用 `action: "rollback"`，提供 Target Path、Backup Path 和当前
+   expected SHA-256。
+
+本地验证可使用同一服务的
+`skill-central reverse-output preview|apply|rollback`。当前 Alpha MVP 尚未在 Web
+Board 接入反向输出提案和 Promote 控件；Board 已有的 Skill/Rule 管理仍是独立入口。
+
 ## 支持的连接目标
 
 | 目标 | 格式 | 默认候选位置 |

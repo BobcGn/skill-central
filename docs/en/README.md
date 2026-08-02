@@ -21,6 +21,8 @@ The implementation is authoritative when documentation and code disagree. In par
 
 - CLI flags are defined in [`src/index.ts`](../../src/index.ts).
 - Skill and layer contracts are defined in [`src/schema/`](../../src/schema) and [`src/storage/`](../../src/storage).
+- Reverse-output behavior is defined in [`src/reverse-output/service.ts`](../../src/reverse-output/service.ts),
+  with CLI and focused integration coverage in [`scripts/test-reverse-output.mjs`](../../scripts/test-reverse-output.mjs).
 - IDE targets and paths are defined in [`src/ide-detection/registry.ts`](../../src/ide-detection/registry.ts).
 - Board APIs are defined in [`src/web/server.ts`](../../src/web/server.ts).
 - Packaging and release behavior is defined in [`electron-builder.yml`](../../electron-builder.yml) and [`.github/workflows/release.yml`](../../.github/workflows/release.yml).

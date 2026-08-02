@@ -21,6 +21,8 @@
 
 - CLI 参数定义在 [`src/index.ts`](../../src/index.ts)。
 - Skill 与 Layer 契约定义在 [`src/schema/`](../../src/schema) 和 [`src/storage/`](../../src/storage)。
+- 反向输出行为定义在 [`src/reverse-output/service.ts`](../../src/reverse-output/service.ts)，
+  CLI 与专项集成覆盖在 [`scripts/test-reverse-output.mjs`](../../scripts/test-reverse-output.mjs)。
 - IDE 目标及其路径定义在 [`src/ide-detection/registry.ts`](../../src/ide-detection/registry.ts)。
 - Board API 定义在 [`src/web/server.ts`](../../src/web/server.ts)。
 - 打包和发布行为定义在 [`electron-builder.yml`](../../electron-builder.yml) 与 [`.github/workflows/release.yml`](../../.github/workflows/release.yml)。

@@ -116,6 +116,98 @@ Project identity prefers a stable `git:<host>/<owner>/<repo>` ID derived from Gi
 
 Skills are filtered before entering the override tree, so non-matching candidates cannot affect conflict resolution and do not reach MCP, compiler, or ordinary CLI queries. Rules use the same matcher. The Rules CLI and Web Board expose an independent rule view; rule MCP resources are not implemented because the agent consumption model is still undecided.
 
+## Reverse Output
+
+Reverse output means the IDE, Board, or workflow has produced content that is not yet
+represented in the current skill or rule library, and the result should be preserved as a
+durable digital asset rather than left in chat, notes, or a one-off export.
+
+Terminology:
+
+- Skill: a reusable, evolving asset that should be continuously cultivated and written back
+  into `.skills/` once it proves stable.
+- Skill Central covenant: the shared rule assets in `.rules/`. It carries cross-IDE,
+  cross-person business terminology, architecture boundaries, style, quality floors, and
+  gates. `appliesTo` may make a covenant global or project-scoped.
+- Rule: a stable, reusable constraint, review, or governance asset. Only content that
+  belongs to the Skill Central covenant should be promoted into `.rules/`.
+- IDE-native rule: an environment file such as `AGENT.md`, `AGENTS.md`, or `CLAUDE.md`.
+  It describes the current IDE, machine, startup path, and local execution method; it does
+  not carry business policy.
+- Project-local guidance: content that only applies to one project. Keep it in work records or
+  temporary output by default instead of promoting it into the rule library.
+
+### Rule Placement Checklist
+
+The rule library and IDE-native rules are not two copies of one instruction set. They are a
+covenant and an environment adapter. When deciding where reverse output belongs, apply these
+checks in order:
+
+1. **Business domain versus runtime environment**
+   - Cross-IDE, cross-person business terminology, architecture boundaries, and code quality
+     floors belong in the Skill Central covenant.
+   - Machine-specific startup commands such as `./gradlew run`, IDE-specific capabilities
+     such as Cursor `@` retrieval syntax, and bootloader instructions that tell an agent to
+     fetch rules remotely belong in the IDE-native rule.
+2. **Strategic constraint versus tactical execution**
+   - What, Why, and absolute prohibitions belong in the Skill Central covenant.
+   - How to click, invoke, or execute a command in the local environment belongs in the
+     IDE-native rule.
+3. **Dynamic evolution versus relative stability**
+   - Frequently recurring, reusable development lessons belong in Skills or Rules and should
+     be cultivated through reverse output.
+   - Low-frequency bootstrap configuration that is established by an engineering template
+     belongs in the IDE-native rule.
+
+### Covenant and IDE-Native Conflicts
+
+- `.rules/` defines cross-IDE What, Why, and gates; IDE-native rules translate those
+  requirements into local How.
+- An IDE-native rule may add execution detail, but must not redefine covenant terminology,
+  remove a quality gate, or weaken an architecture boundary.
+- When one document mixes covenant policy and local execution detail, split it instead of
+  copying the whole document into both locations.
+- If the current IDE cannot satisfy the covenant, record the incompatibility and stop or
+  explicitly degrade the workflow. Do not silently let the IDE-native rule override it.
+- Do not promote `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, or equivalent bootloader text into
+  `.rules/` merely because it is convenient to load.
+
+Required checkpoints before promoting reverse output:
+
+1. Source and context are identified.
+2. The asset type and intended target library are explicit.
+3. The placement classification and reason are explicit; the boundary checklist, duplicate
+   check, and conflict check are recorded.
+4. Scope and `appliesTo` are explicit.
+5. Schema validation passes.
+6. If an existing asset is edited, diff preview, backup, and rollback path are recorded.
+7. Verification and tests are completed, or the output is explicitly marked unverified.
+8. The decision is recorded as promote, defer, or discard.
+
+### Current MVP Surface
+
+The current Alpha implementation exposes one shared reverse-output control plane:
+
+- The IDE-facing MCP tool is `reverse_output`.
+- The equivalent CLI entry is `skill-central reverse-output <action>`.
+- `preview` is side-effect free. `apply` requires an explicit `promote`, `defer`, or
+  `discard` decision; only `promote` writes a source asset.
+- Every proposal declares `placement` and `placementReason`. Rules must use
+  `covenant-rule`; `ide-native-rule` is rejected. A `project-local` Skill must use a
+  project-scoped `appliesTo`.
+- Skill and Rule candidates are validated against their public schemas, require an explicit
+  `appliesTo`, and are blocked on duplicate, target, or expected-SHA conflicts.
+- Updates use a sibling backup and atomic replacement. Successful writes are parsed and
+  validated again, and apply/rollback decisions are written to App State audit records.
+- The Board can manage existing Skills and Rules, but its reverse-output proposal and
+  promotion controls are not wired yet. Use the MCP tool or CLI for this MVP.
+
+The intended first path is therefore: an IDE proposes a reusable Skill or covenant Rule,
+`preview` records the boundary checks and diff, a human or workflow chooses the decision,
+and only a `promote` result writes to the configured library. A Rule suggestion that only
+describes `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, or another local bootloader remains an
+IDE-native instruction and must not be promoted into `.rules/`.
+
 Inspect the current project identity or an asset scope:
 
 ```bash

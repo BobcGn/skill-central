@@ -20,6 +20,7 @@ Report vulnerabilities through the private process in [SECURITY.md](../../SECURI
 | App state on Linux | `~/.local/share/skill-central/` | Same as above | Derived/local application state |
 | IDE backups | Next to the IDE config as `.bak.<timestamp>` | Connection rollback | Recovery evidence for that config |
 | Skill edit backups | Next to the skill source as `.bak.<timestamp>` | Board edit/restore | Recovery evidence for that skill |
+| Reverse-output backups | Next to an updated Skill/Rule source as `.bak.<timestamp>` | Reverse-output rollback | Recovery evidence for a promoted update |
 
 `SKILL_CENTRAL_APP_STATE_DIR` can override the application-state root for tests or controlled deployments. Application state intentionally does not contain the governed skill source layers.
 
@@ -69,6 +70,17 @@ Board edits enforce:
 - backup before write;
 - engine reload after a successful write.
 
+### Reverse output
+
+The IDE-facing MCP tool and CLI share one mutation boundary. `preview` is side-effect free;
+`promote` requires explicit source, target, scope, schema, duplicate, and conflict checks.
+It also requires an explicit placement classification and reason; IDE-native rules are rejected
+as covenant assets.
+Updates require an expected SHA-256, use an atomic replacement with a sibling backup, and are
+parsed and validated again after writing. Rollback requires the target path, the returned backup
+path, and the current expected SHA-256. Every apply/defer/discard/rollback decision is recorded
+under App State audit storage. The current Board does not expose this write flow.
+
 ### IDE configuration
 
 IDE writes parse structured JSON or TOML, preserve unrelated entries, create a backup when a file exists, and support explicit rollback. Malformed existing configuration blocks the write instead of being replaced.
@@ -103,6 +115,9 @@ These are release risks, not installation conveniences. Changes that claim to im
 - Keep privileged browser operations loopback-scoped and add negative tests for origin/path checks.
 - Resolve paths before authorization checks and verify containment using path boundaries.
 - Preserve backup and conflict evidence for file writes.
+- Treat reverse-output candidates as untrusted input: keep them under configured Skill Layers or
+  `.rules/`, require explicit `appliesTo`, and never promote IDE bootloader instructions as
+  covenant rules.
 - Do not broaden OAuth scopes without an approved design and migration note.
 - Do not weaken Electron isolation settings to simplify renderer development.
 - State clearly which operating systems and package formats were actually tested.

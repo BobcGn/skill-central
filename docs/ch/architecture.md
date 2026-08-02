@@ -19,6 +19,10 @@ flowchart TD
     CLI[skill-central 命令] --> Engine[SkillEngine / Registry]
     IDE[IDE Client] -->|stdio MCP| MCP[MCP Handlers]
     MCP --> Engine
+    MCP --> Reverse[ReverseOutputService]
+    CLI --> Reverse
+    Reverse --> Layers
+    Reverse --> Audit[App State Audit]
     Board --> Engine
 
     Global[用户配置] --> Config[配置加载器]
@@ -39,6 +43,7 @@ flowchart TD
 | `src/core/`、`src/registry/` | 解决冲突、输出有效与诊断视图、查询 Skill | 解析 IDE 配置 |
 | `src/compiler/`、`src/adapters/` | 按意图选择 Skill、协商能力、生成预览产物 | 在 dry-run 中修改 IDE 配置 |
 | `src/protocol/`、`src/mcp.ts` | 将有效 Skill 和证据映射为 MCP prompts、tools、resources | 直接读取 Layer 文件 |
+| `src/reverse-output/`、`src/commands/reverse-output.ts` | 校验、预览、Promote、Defer、Discard、Audit 和回退 IDE 生成的 Skill/Rule 候选项 | 绕过作用域、Schema、冲突或 Backup 检查 |
 | `src/ide-detection/` | 定义 IDE、候选路径以及 JSON/TOML Codec | 执行未计划的写入 |
 | `src/connect/`、`src/health/` | 计划、应用、验证和回退 IDE 注册 | 在各模块独立猜测目标路径 |
 | `src/sync/`、`src/auth/` | GitHub Device Flow、Registry 扫描、同步计划和执行证据 | 在浏览器状态中保存凭据 |
@@ -114,6 +119,27 @@ flowchart LR
 
 关闭同步的 Layer 会被标记为 excluded，不会静默上传。远端写入需要显式执行 Apply。
 
+### 反向输出
+
+```mermaid
+flowchart LR
+    IDE[IDE MCP Client] --> Candidate[结构化 Skill/Rule 候选项]
+    Candidate --> Preview[Preview 与归属检查]
+    Preview --> Decision{Promote / Defer / Discard}
+    Decision -->|promote| Validate[Schema 与目标校验]
+    Validate --> SHA[Expected SHA 与重复检查]
+    SHA --> Backup[原子写入与同级 Backup]
+    Backup --> Verify[写入后验证]
+    Verify --> Source[已配置的 .skills 或 .rules 源文件]
+    Decision --> Audit[App State Audit Record]
+    Verify --> Audit
+```
+
+反向输出是受控的源文件修改，不是文本导出。MCP Tool 与 CLI 共用同一个服务。
+Preview 不写入；只有显式 `promote` 才会写入。更新必须提供 expected SHA-256，生成
+同级 Backup，并可使用另一个 expected SHA-256 回退。Rule 只有在属于 Skill Central
+公约时才 Promote；持续演进的工作知识通常应沉淀为 Skill。
+
 ## 架构不变量
 
 所有改动必须保持以下规则：
@@ -128,6 +154,8 @@ flowchart LR
 8. **凭据隔离：** Access Token 不得返回浏览器或与 Skill 一起存储。
 9. **纯 Dry-run：** Compile 与 Sync Planning 不得修改目标。
 10. **双语 UI 契约：** Board 的用户可见文本必须同时支持英文和简体中文。
+11. **显式反向输出：** IDE 生成的内容必须先完成归属与理由、作用域、Schema、冲突、
+    验证和 promote/defer/discard 证据，才能成为源资产。
 
 ## 扩展点
 
@@ -144,4 +172,5 @@ flowchart LR
 - macOS 安装包未签名、未公证。
 - macOS/Windows 桌面应用内更新通过 GitHub Release Metadata，仍属于 Alpha 能力，每次 Release 都必须重新验证。
 - Compiler Adapter 当前只有 generic MCP、Cursor 和 Windsurf，少于六个 IDE 连接目标。
+- 反向输出当前是通过 MCP 与 CLI 提供的 Alpha MVP；Board 尚未提供反向输出提案或 Promote 控件。
 - Board 没有用户认证。非 loopback 绑定是高风险高级覆盖，不是部署模式。

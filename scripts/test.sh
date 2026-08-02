@@ -29,6 +29,7 @@
 #   22. Phase 4A/B local app state / GitHub auth boundary
 #   23. Phase 4D/E sync engine dry-run plan / apply transaction
 #   24. Rules 规则库、Asset Scope 与 Web Board 作用域管理
+#   25. IDE reverse output preview/apply/defer/rollback control plane
 #
 # 此脚本假设 dist/ 已构建完毕。如果通过 npm test 调用，
 # pretest 钩子会自动执行 npm run build && npm run build:web。
@@ -3019,6 +3020,49 @@ node dist/index.js rules --dir "$RULES_CI_DIR" 2>/dev/null | grep -q "ci-legal-r
   && pass "rules 列出合法规则" \
   || fail "rules 未列出合法规则"
 
+node dist/index.js validate-rule .rules/00-governance/reverse-output-governance.yaml \
+  && pass "反向输出治理规则可通过 validate-rule" \
+  || fail "反向输出治理规则校验失败"
+
+node dist/index.js validate-rule .rules/00-governance/rule-placement-boundaries.yaml \
+  && pass "规则边界划分治理规则可通过 validate-rule" \
+  || fail "规则边界划分治理规则校验失败"
+
+node dist/index.js rules 2>/dev/null | grep -q "reverse-output-governance" \
+  && pass "默认规则库包含反向输出治理规则" \
+  || fail "默认规则库未包含反向输出治理规则"
+
+node dist/index.js rules 2>/dev/null | grep -q "rule-placement-boundaries" \
+  && pass "默认规则库包含规则边界划分治理规则" \
+  || fail "默认规则库未包含规则边界划分治理规则"
+
+node --input-type=module <<'NODE'
+import { readFile } from "node:fs/promises";
+import { load } from "js-yaml";
+
+const raw = await readFile(".rules/00-governance/rule-placement-boundaries.yaml", "utf8");
+const rule = load(raw);
+const body = rule?.body;
+if (typeof body !== "string") throw new Error("rule placement body missing");
+
+for (const phrase of [
+  "Business domain versus runtime environment",
+  "Strategic constraint versus tactical execution",
+  "Dynamic evolution versus relative stability",
+  "Skill Central covenant",
+  "IDE-native rule",
+  "AGENT.md",
+  "CLAUDE.md",
+  "must not redefine shared terms",
+  "must not remove a gate",
+  "placement classification",
+  "reason before promotion",
+]) {
+  if (!body.includes(phrase)) throw new Error(`rule placement phrase missing: ${phrase}`);
+}
+NODE
+pass "规则边界划分法则与 IDE 原生规则冲突策略已固化"
+
 # 24.4 default severity applied (omitted → info); severity filter works
 node dist/index.js rules --dir "$RULES_CI_DIR" --severity info 2>/dev/null | grep -q "ci-info-rule" \
   && pass "省略 severity 默认为 info 且过滤有效" \
@@ -3083,6 +3127,14 @@ rm -rf "$RULES_CI_DIR" "$EMPTY_RULES_CI_DIR"
 npm run test:asset-scope \
   && pass "Rules/Skills 作用域、Board 恢复路径与并发写入矩阵通过" \
   || fail "作用域管理矩阵失败"
+
+# ── 25. IDE Reverse Output control plane ─────────────────────────────────────
+echo ""
+echo "→ 25/25 IDE 反向输出预览、应用、延期与回退..."
+
+npm run test:reverse-output \
+  && pass "IDE 反向输出 Skill/Rule、CLI/MCP、冲突、备份和回退矩阵通过" \
+  || fail "IDE 反向输出控制面矩阵失败"
 
 # ── 清理测试数据 ──────────────────────────────────────────────────────────────
 echo ""

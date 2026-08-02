@@ -14,6 +14,7 @@
 //   skill-central rules   →  List all loaded rules (with filters)
 //   skill-central validate-rule → Validate one or more rule files
 //   skill-central scope   →  Inspect or atomically edit Skill/Rule scope
+//   skill-central reverse-output → Preview/apply/rollback IDE reverse output
 //   skill-central compile →  Preview target artifacts without writing files
 //   skill-central export  →  Write compiled artifacts with conflict protection
 //   skill-central connect →  Preview/apply/verify IDE MCP registration
@@ -35,6 +36,7 @@ import { cmdValidate } from "./commands/validate.js";
 import { cmdRules } from "./commands/rules.js";
 import { cmdValidateRule } from "./commands/validate-rule.js";
 import { cmdScope } from "./commands/scope.js";
+import { cmdReverseOutput } from "./commands/reverse-output.js";
 import { cmdDoctor } from "./commands/doctor.js";
 import { cmdInstall } from "./commands/install.js";
 import { cmdUpdate } from "./commands/update.js";
@@ -322,6 +324,48 @@ program
       remove: opts.remove,
     }).catch((err) => {
       console.error("[skill-central] Register error:", err.message ?? err);
+      process.exit(1);
+    });
+  });
+
+program
+  .command("reverse-output <action>")
+  .description("Preview/apply/rollback a structured IDE reverse-output proposal")
+  .option("--asset-type <type>", 'Asset type: "skill" or "rule"')
+  .option("--operation <operation>", 'Operation: "create" or "update"')
+  .option("--source <source>", "Proposal source, such as ide:codex")
+  .option("--context <context>", "Work context for the proposal")
+  .option("--target <target>", "Skill layer id/name or directory under .rules/")
+  .option("--placement <placement>", "Placement: skill, covenant-rule, ide-native-rule, or project-local")
+  .option("--placement-reason <text>", "Why the candidate belongs in the selected placement")
+  .option("--asset-file <path>", "JSON/YAML asset object for preview/apply")
+  .option("--decision <decision>", 'Apply decision: "promote", "defer", or "discard"')
+  .option("--expected-sha256 <hash>", "Expected source hash for update/rollback")
+  .option("--app-state-dir <path>", "Override app-state directory for audit evidence")
+  .option("--target-path <path>", "Existing asset path for rollback")
+  .option("--backup-path <path>", "Sibling backup path for rollback")
+  .option("--project-root <path>", "Override project root")
+  .option("--json", "Print machine-readable result")
+  .action((action: string, opts) => {
+    cmdReverseOutput({
+      action,
+      assetType: opts.assetType,
+      operation: opts.operation,
+      source: opts.source,
+      context: opts.context,
+      target: opts.target,
+      placement: opts.placement,
+      placementReason: opts.placementReason,
+      assetFile: opts.assetFile,
+      decision: opts.decision,
+      expectedSha256: opts.expectedSha256,
+      appStateDir: opts.appStateDir,
+      targetPath: opts.targetPath,
+      backupPath: opts.backupPath,
+      projectRoot: opts.projectRoot,
+      json: opts.json,
+    }).catch((err) => {
+      console.error("[skill-central] Reverse output error:", err.message ?? err);
       process.exit(1);
     });
   });

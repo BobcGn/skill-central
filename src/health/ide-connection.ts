@@ -17,7 +17,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { detectIdeRegistration } from "../ide-detection/detect.js";
 import type { IdeDetectionOptions, IdeTarget, McpServerConfig } from "../ide-detection/types.js";
 import type { SkillEngine } from "../core/engine.js";
-import { BUILTIN_WORKFLOW_TOOL_NAMES } from "../protocol/tools.js";
+import { BUILTIN_CONTROL_TOOL_NAMES } from "../protocol/tools.js";
 import { VERSION } from "../version.js";
 
 export type IdeConnectionStatus =
@@ -203,13 +203,13 @@ async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promi
 
 function registryBaseline(engine: SkillEngine) {
   const promptIds = engine.querySkills({ type: "prompt" }).skills.map((skill) => skill.id).sort();
-  // MCP tools/list contains two sources: user-authored tool skills from the
-  // Registry and control-plane workflow tools owned by skill-central itself.
-  // Keep both in the parity baseline so health drift means a real IDE-visible
-  // mismatch, not an expected built-in command surface.
+  // MCP tools/list contains user-authored tool skills from the Registry and
+  // control-plane tools owned by skill-central itself. Keep both in the parity
+  // baseline so health drift means a real IDE-visible mismatch, not an expected
+  // built-in command surface.
   const toolIds = [
     ...engine.querySkills({ type: "tool" }).skills.map((skill) => skill.id),
-    ...BUILTIN_WORKFLOW_TOOL_NAMES,
+    ...BUILTIN_CONTROL_TOOL_NAMES,
   ].sort();
   const skillIds = Array.from(new Set([...promptIds, ...toolIds])).sort();
   return {

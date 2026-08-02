@@ -20,6 +20,7 @@ Skill Central 采用本地优先设计，但它不是安全沙箱。它会读写
 | Linux App State | `~/.local/share/skill-central/` | 同上 | 影响派生/本地应用状态 |
 | IDE Backup | IDE 配置同级的 `.bak.<timestamp>` | 连接回退 | 影响该配置的恢复证据 |
 | Skill Edit Backup | Skill 源文件同级的 `.bak.<timestamp>` | Board 编辑与恢复 | 影响该 Skill 的恢复证据 |
+| Reverse-output Backup | 更新后 Skill/Rule 源文件同级的 `.bak.<timestamp>` | 反向输出回退 | 影响 Promote 更新的恢复证据 |
 
 测试或受控部署可以通过 `SKILL_CENTRAL_APP_STATE_DIR` 覆盖 App State Root。App State 有意不包含受治理的 Skill Source Layer。
 
@@ -69,6 +70,15 @@ Board 编辑会执行：
 - 写入前备份；
 - 成功写入后重新加载 Engine。
 
+### 反向输出
+
+面向 IDE 的 MCP Tool 与 CLI 共用一个修改边界。`preview` 不产生写入副作用；
+`promote` 必须通过来源、目标、作用域、Schema、重复和冲突检查。更新必须提供 expected
+SHA-256，并且必须显式提供归属分类和理由；IDE 原生规则会被拒绝为公约资产。写入使用
+同级 Backup 和原子替换，并在写入后再次解析和校验。Rollback 必须提供
+Target Path、返回的 Backup Path 以及当前 expected SHA-256。每个
+Apply/Defer/Discard/Rollback 决策都会写入 App State Audit；当前 Board 尚未暴露该写入流程。
+
 ### IDE 配置
 
 IDE 写入会结构化解析 JSON 或 TOML，保留无关 Entry，在文件已存在时创建备份，并支持显式回退。已有配置格式错误时会阻止写入，不会覆盖原文件。
@@ -103,6 +113,8 @@ Board 本身在本地提供服务。当前代码库没有记录或实现 Telemet
 - 保持高权限浏览器操作的 loopback 边界，并为 Origin/Path 检查补充负向测试。
 - 授权判断前先解析 Path，并按路径边界校验包含关系。
 - 文件写入必须保留 Backup 与 Conflict Evidence。
+- 将反向输出候选项视为不可信输入：只能写入已配置的 Skill Layer 或 `.rules/`，必须显式
+  提供 `appliesTo`，不得把 IDE Bootloader 指令 Promote 为公约 Rule。
 - 未经设计批准和迁移说明，不得扩大 OAuth Scope。
 - 不得为了简化 Renderer 开发而削弱 Electron Isolation 设置。
 - 明确说明实际测试过的操作系统与 Package Format。

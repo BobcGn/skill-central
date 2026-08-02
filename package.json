@@ -52,6 +52,7 @@
     "package:win": "npm run build:desktop && node scripts/package-desktop.mjs win",
     "test:registry-perf": "node scripts/test-registry-performance.mjs",
     "test:asset-scope": "node scripts/test-asset-scope.mjs",
+    "test:reverse-output": "node scripts/test-reverse-output.mjs",
     "test:auth:mac": "npm run build && node scripts/validate-macos-github-auth.mjs",
     "test:keychain:mac": "npm run build && node scripts/validate-macos-keychain.mjs",
     "pretest": "npm run build && npm run build:web",

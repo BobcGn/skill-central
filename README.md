@@ -17,6 +17,7 @@ Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared sk
 - Preview, backup, apply, verify, and rollback for IDE configuration writes.
 - GitHub registry sync plans with conflict choices, audit records, and backups.
 - MCP prompts, tools, resources, sessions, blackboard topics, and workflow scheduling.
+- Experimental IDE reverse output for promoting reusable Skills and covenant Rules through MCP or CLI.
 - macOS Homebrew Cask installation with pinned SHA-256; macOS/Windows desktop updates check GitHub Releases in app.
 
 ## Install
@@ -103,6 +104,15 @@ skill-central mcp
 
 Protocol responses use stdout; diagnostics use stderr so MCP JSON-RPC remains clean.
 
+## Reverse Output (Alpha MVP)
+
+After an IDE connects to Skill Central, it can call the `reverse_output` MCP tool to preview
+and explicitly promote, defer, discard, or roll back a structured Skill/Rule candidate. The
+same control plane is available as `skill-central reverse-output <action>`. Skills are the
+primary evolving digital asset; proposals must state their placement and reason, and Rules are
+promoted only when the content belongs to the cross-IDE Skill Central covenant. The Web Board
+does not expose reverse-output promotion controls yet.
+
 ## Desktop Board
 
 The main navigation is organized around repeatable work:
@@ -150,6 +160,10 @@ skill-central add <id>             Create a skill
 skill-central list                 Query loaded skills
 skill-central show <id>            Show one resolved skill
 skill-central validate <files...> Validate skill files
+skill-central rules                Query covenant rules
+skill-central validate-rule <files...> Validate rule files
+skill-central scope                Inspect or edit asset scope
+skill-central reverse-output <action> Preview/apply/rollback reverse output
 skill-central doctor               Diagnose layers, conflicts, and backups
 skill-central install <source>     Install a skill from GitHub or npm
 skill-central update [id]          Update installed skills

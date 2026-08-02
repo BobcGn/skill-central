@@ -13,6 +13,7 @@ import type { SkillEngine, ResolvedSkillView } from "../core/engine.js";
 import { composeSkill } from "../core/composer.js";
 import type { ComposedToolCall } from "../core/composer.js";
 import { runWorkflowAction } from "../commands/workflow.js";
+import { ReverseOutputService } from "../reverse-output/service.js";
 
 export const BUILTIN_WORKFLOW_TOOL_NAMES = [
   "workflow.start",
@@ -20,20 +21,41 @@ export const BUILTIN_WORKFLOW_TOOL_NAMES = [
   "workflow.publish",
   "workflow.summarize",
 ] as const;
+export const REVERSE_OUTPUT_TOOL_NAME = "reverse_output" as const;
+export const BUILTIN_CONTROL_TOOL_NAMES = [
+  ...BUILTIN_WORKFLOW_TOOL_NAMES,
+  REVERSE_OUTPUT_TOOL_NAME,
+] as const;
 
-export function buildListToolsHandler(engine: SkillEngine) {
+export function buildListToolsHandler(
+  engine: SkillEngine,
+  reverseOutput: ReverseOutputService,
+) {
   return async (): Promise<ListToolsResult> => {
     await engine.waitForReady();
     const skills = engine.querySkills({ type: "tool" }).skills;
-    return { tools: [...workflowToolMetas(), ...skills.map(toToolMeta)] };
+    void reverseOutput;
+    return {
+      tools: [reverseOutputToolMeta(), ...workflowToolMetas(), ...skills.map(toToolMeta)],
+    };
   };
 }
 
-export function buildCallToolHandler(engine: SkillEngine) {
+export function buildCallToolHandler(
+  engine: SkillEngine,
+  reverseOutput: ReverseOutputService,
+) {
   return async (
     request: { params: { name: string; arguments?: Record<string, unknown> } },
   ): Promise<CallToolResult> => {
     await engine.waitForReady();
+    if (request.params.name === REVERSE_OUTPUT_TOOL_NAME) {
+      const result = await reverseOutput.execute(request.params.arguments ?? {});
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+
     const workflowResult = await callWorkflowTool(request.params.name, request.params.arguments ?? {});
     if (workflowResult) return workflowResult;
 
@@ -123,6 +145,81 @@ function workflowTool(
       type: "object" as const,
       properties,
       required,
+    },
+  };
+}
+
+function reverseOutputToolMeta() {
+  return {
+    name: REVERSE_OUTPUT_TOOL_NAME,
+    description:
+      "Preview or explicitly promote, defer, discard, and roll back a Skill Central reverse-output asset.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        action: {
+          type: "string",
+          enum: ["preview", "apply", "rollback"],
+          description: "preview is side-effect free; apply requires a decision.",
+        },
+        assetType: {
+          type: "string",
+          enum: ["skill", "rule"],
+          description: "The durable asset class to write.",
+        },
+        operation: {
+          type: "string",
+          enum: ["create", "update"],
+          description: "Create a missing asset or update one exact existing asset.",
+        },
+        source: {
+          type: "string",
+          description: "Where the candidate came from, such as ide:codex.",
+        },
+        context: {
+          type: "string",
+          description: "Work context that explains why this candidate was produced.",
+        },
+        target: {
+          type: "string",
+          description: "Skill layer id/name, or a directory under .rules/.",
+        },
+        placement: {
+          type: "string",
+          enum: ["skill", "covenant-rule", "ide-native-rule", "project-local"],
+          description: "Explicit boundary classification; IDE-native rules are never promotable.",
+        },
+        placementReason: {
+          type: "string",
+          description: "Why the candidate belongs in the selected placement.",
+        },
+        asset: {
+          type: "object",
+          description: "Universal Skill v1 or Rule v1 object with explicit appliesTo.",
+        },
+        decision: {
+          type: "string",
+          enum: ["promote", "defer", "discard"],
+          description: "Required for apply; promote is the only decision that writes source.",
+        },
+        expectedSha256: {
+          type: "string",
+          description: "Required for update and rollback concurrency protection.",
+        },
+        targetPath: {
+          type: "string",
+          description: "Existing configured Skill Layer or .rules/ file for rollback.",
+        },
+        backupPath: {
+          type: "string",
+          description: "Sibling backup returned by a prior promote or rollback.",
+        },
+        appStateDir: {
+          type: "string",
+          description: "Optional isolated app-state directory for audit evidence.",
+        },
+      },
+      required: ["action"],
     },
   };
 }

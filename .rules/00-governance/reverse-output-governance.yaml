@@ -1,0 +1,65 @@
+schemaVersion: skillcentral.dev/rule/v1
+id: reverse-output-governance
+name: Reverse Output Governance
+description: Define how reverse output should promote reusable skills and covenant rules into durable assets.
+severity: info
+tags:
+  - governance
+  - reverse-output
+  - skills
+  - rules
+  - ide
+appliesTo: global
+body: |
+  Reverse output means the IDE, Board, or workflow has produced content that is not yet
+  represented in the current skill or rule library, and the result should be preserved as
+  a durable digital asset rather than left in chat, notes, or a one-off export.
+
+  Terminology:
+  - Skill: a reusable, evolving asset that should be continuously cultivated and written
+    back into `.skills/` when it proves stable.
+  - Skill Central covenant: the project rule library in `.rules/`. It contains reusable
+    constraints, business terms, architecture boundaries, style requirements, quality
+    floors, and gates. A rule may be global or project-scoped through `appliesTo`.
+  - IDE-native rule: an environment instruction such as `AGENT.md`, `AGENTS.md`, or
+    `CLAUDE.md`. It describes how the current IDE or machine starts, invokes, or navigates
+    work; it is not the source of business policy.
+  - Rule: a stable, reusable constraint, review, or governance asset. Only content that
+    belongs to the Skill Central covenant should be promoted into `.rules/`.
+  - Project-local guidance: content that only applies to one project. Keep it in work
+    records or temporary output by default instead of promoting it into the rule library.
+
+  Boundary placement:
+  - Business domain versus runtime environment: cross-IDE, cross-person business terms,
+    architecture boundaries, and quality floors belong in the Skill Central covenant.
+    Machine-specific commands, IDE capabilities, and bootloader instructions belong in
+    the IDE-native rule.
+  - Strategic constraint versus tactical execution: state What, Why, and absolute
+    prohibitions in the covenant. State How to click, invoke, or execute locally in the
+    IDE-native rule.
+  - Dynamic evolution versus relative stability: recurring, reusable lessons belong in
+    Skills or Rules and should be cultivated through reverse output. Low-frequency
+    bootstrap configuration belongs in the IDE-native rule.
+
+  Conflict handling:
+  - These sources are complementary, not two copies of one instruction set. Do not resolve
+    a conflict by silently letting an IDE file weaken a covenant rule.
+  - If one instruction mixes policy and local execution, split it: keep the What/Why and
+    red lines in `.rules/`, and keep the environment-specific How in the IDE-native file.
+  - An IDE-native rule may add execution detail but must not redefine shared business terms,
+    remove a quality gate, or weaken an architecture boundary from the covenant.
+  - If the current IDE cannot satisfy a covenant rule, record the incompatibility and mark
+    the result as `defer` or `discard`; do not silently promote an exception as a global rule.
+  - Do not copy `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, or equivalent bootloader text into
+    `.rules/` solely because it is convenient to load.
+
+  Required checkpoints before promoting reverse output:
+  1. Source, context, and whether the content came from an IDE-native rule are identified.
+  2. The asset type and intended target library are explicit.
+  3. The placement classification and reason are explicit; the boundary placement checklist
+     and any duplicate or conflict check are recorded.
+  4. Scope and `appliesTo` are explicit.
+  5. Schema validation passes.
+  6. Diff preview, backup, and rollback path are recorded if an existing asset is edited.
+  7. Verification and tests are completed, or the output is explicitly marked unverified.
+  8. The decision is recorded as `promote`, `defer`, or `discard`.

@@ -17,6 +17,7 @@ Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共�
 - IDE 配置写入支持预览、备份、应用、验证与回退。
 - GitHub Registry 同步支持冲突选择、审计记录和备份。
 - 提供 MCP prompts、tools、resources、sessions、blackboard topics 和 workflow scheduler。
+- 提供实验性的 IDE 反向输出，可通过 MCP 或 CLI 沉淀可复用 Skill 与公约 Rule。
 - macOS Homebrew Cask 安装带固定 SHA-256；macOS/Windows 桌面应用内更新统一检查 GitHub Releases。
 
 ## 安装
@@ -103,6 +104,14 @@ skill-central mcp
 
 协议响应使用 stdout，诊断信息使用 stderr，避免污染 MCP JSON-RPC 通道。
 
+## 反向输出（Alpha MVP）
+
+IDE 连接 Skill Central 后，可以调用 `reverse_output` MCP Tool，预览并显式
+Promote、Defer、Discard 或 Rollback 结构化 Skill/Rule 候选项。相同控制面也可通过
+`skill-central reverse-output <action>` 使用。Skill 是持续演进的主要数字资产；Rule
+提案必须说明 placement 与理由，且只有在内容属于跨 IDE 的 Skill Central 公约时才
+Promote。Web Board 当前尚未提供反向输出 Promote 控件。
+
 ## Desktop Board
 
 主导航围绕常用工作流组织：
@@ -150,6 +159,10 @@ skill-central add <id>             创建 Skill
 skill-central list                 查询已加载 Skill
 skill-central show <id>            查看一个解析后的 Skill
 skill-central validate <files...> 校验 Skill 文件
+skill-central rules                查询公约 Rule
+skill-central validate-rule <files...> 校验 Rule 文件
+skill-central scope                查看或修改资产作用域
+skill-central reverse-output <action> 预览/应用/回退反向输出
 skill-central doctor               诊断层级、冲突和备份
 skill-central install <source>     从 GitHub 或 npm 安装 Skill
 skill-central update [id]          更新已安装 Skill
