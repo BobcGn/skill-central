@@ -2336,6 +2336,9 @@ if (desktopUpdaterSource.includes("BrewCaskUpdater")) {
 if (!desktopUpdaterSource.includes('provider: "github"')) {
   throw new Error("desktop updater should expose the unified GitHub provider");
 }
+if (!desktopUpdaterSource.includes("classifyUpdateError")) {
+  throw new Error("desktop updater must classify raw errors before exposing them");
+}
 
 const calls = [];
 let restarted = false;
@@ -2499,6 +2502,34 @@ if (!cask.includes('uninstall quit: "dev.skillcentral.app"')) {
   throw new Error("candidate Cask cannot quit the background application");
 }
 NODE
+pass "桌面更新器统一走 GitHub provider 且错误经分类器封装"
+
+node --input-type=module <<'NODE'
+import { classifyUpdateError } from "./dist/update/error-classifier.js";
+
+const rawHttpError = new Error(
+  'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/BobcGn/skill-central/releases/download/v1.0.0-rc.2/latest-mac.yml): HttpError: 404 "method: GET url: https://github.com/BobcGn/skill-central/releases/download/v1.0.0-rc.2/latest-mac.yml" Headers: { "cache-control": "no-cache", "x-github-request-id": "A3BC" }',
+);
+const cases = [
+  [rawHttpError, "release-not-published"],
+  [new Error("Cannot find latest.yml in the latest release artifacts"), "release-not-published"],
+  [new Error("getaddrinfo ENOTFOUND github.com"), "network"],
+  [new Error("request to https://github.com failed, reason: connect ETIMEDOUT"), "network"],
+  [new Error('HttpError: 403 "Forbidden"'), "server-rejected"],
+  [new Error("boom"), "generic"],
+  ["not an error object", "generic"],
+];
+for (const [err, expected] of cases) {
+  const { code, message } = classifyUpdateError(err);
+  if (code !== expected) {
+    throw new Error(`expected ${expected}, got ${code} for ${String(err).slice(0, 60)}`);
+  }
+  if (/https?:|cache-control|releases\/download|stack|x-github/i.test(message)) {
+    throw new Error(`classified message must not leak request details: ${message}`);
+  }
+}
+NODE
+pass "更新错误分类器输出稳定错误码且不泄漏请求细节"
 
 [ "$(git -C "$candidate_tap" rev-list --count HEAD)" = "1" ] \
   && ruby -c "$candidate_tap/Casks/skill-central.rb" > /dev/null \
