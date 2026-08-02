@@ -6,7 +6,7 @@ Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护�
 
 ## 当前 Release Candidate
 
-`1.0.0-rc.2` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.2 包含本地 MCP Runtime 子进程的 macOS Dock 单图标修复、打包后自动清理解包应用副本，以及从解包构建位置启动的警告。macOS 仅为本地 ad-hoc 签名（无 Developer ID）、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
+`1.0.0-rc.3` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.3 在 RC.2 的 macOS Dock 单图标、解包副本清理和安装位置警告之上，新增 macOS 应用内更新安装修复（ad-hoc 重新签名使 `SecStaticCodeCheckValidity` 通过）与分类化、本地化的更新错误原因。macOS 仅为本地 ad-hoc 签名（无 Developer ID）、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
 
 已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装升级至 `alpha.2` 时，需要执行一次终端命令或手动安装新版 DMG；后续打包桌面版可使用修复后的应用内更新。
 

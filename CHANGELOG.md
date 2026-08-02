@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] - 2026-08-02
+
 ### 修复
 
 - **macOS 应用内更新安装签名校验**：`mac.identity: null` 会保留 Electron 模板的失效
