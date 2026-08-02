@@ -158,6 +158,10 @@ Desktop 创建一个平台特定的 `UpdateController`，通过 Loopback Board A
 
 macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release Metadata。Alpha 版本允许接收 Prerelease；检查更新不再依赖 Homebrew Tap 信任状态或 Cask 归属。当前 macOS Alpha 仍未签名，自动安装行为必须用真实包验证；失败时应按 Release DMG 手动替换。Homebrew Cask 仍是 macOS 安装和固定 SHA-256 校验路线，但不是应用内检查更新的前置条件。
 
+更新检查失败会被分类为简洁、稳定的用户可见原因（发布尚未就绪 / 网络不可达 /
+服务器拒绝 / 未知错误），并在 Board 中以本地化文案展示。原始请求细节（URL、响应头、
+堆栈上下文）绝不进入客户端 UI，只保留在桌面诊断日志中。
+
 Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI 与 ZIP 属于手动部署格式，不得假设它们拥有 NSIS 更新行为。本轮变更尚未在 Windows 验证，对外说明时必须明确该状态。
 
 ## GitHub OAuth 发布配置

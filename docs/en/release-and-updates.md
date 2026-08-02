@@ -159,6 +159,11 @@ The desktop creates one platform-specific `UpdateController` and exposes its sna
 
 On macOS and Windows, packaged desktop builds use `electron-updater` against GitHub Release metadata. Alpha builds allow prerelease updates; checking for updates no longer depends on Homebrew Tap trust or Cask ownership. The current macOS alpha remains unsigned, so automatic installation must be validated with real packages; use the Release DMG manually if installation fails. The Homebrew Cask remains a macOS installation route with pinned SHA-256 checksums, but it is not a prerequisite for in-app update checks.
 
+Update check failures are classified into concise, stable user-facing reasons
+(release not published yet, network unreachable, server rejection, or unknown) and
+rendered with localized copy in the Board. Raw request details — URLs, headers, and
+stack context — never reach the client UI; they stay in the desktop diagnostic log.
+
 On Windows, packaged NSIS builds also use `electron-updater` with GitHub. MSI and ZIP are manual deployment formats and are not assumed to have NSIS update behavior. Windows remains unverified for these changes and must be tested separately before claiming support.
 
 ## GitHub OAuth Release Configuration
