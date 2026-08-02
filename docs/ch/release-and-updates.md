@@ -6,7 +6,7 @@ Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护�
 
 ## 当前 Release Candidate
 
-`1.0.0-rc.1` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.1 包含统一的 macOS/Windows 更新检查、打包应用 MCP 启动修复、本地 MCP Runtime 修复和首个 IDE 反向输出控制面。macOS 仍未签名、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
+`1.0.0-rc.2` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.2 包含本地 MCP Runtime 子进程的 macOS Dock 单图标修复、打包后自动清理解包应用副本，以及从解包构建位置启动的警告。macOS 仍未签名、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
 
 已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装升级至 `alpha.2` 时，需要执行一次终端命令或手动安装新版 DMG；后续打包桌面版可使用修复后的应用内更新。
 
@@ -45,6 +45,10 @@ Workflow 不会自动公开 Release。目标 Artifact 仍在私有 Draft 时不�
 | Homebrew | arm64、x64 | 带双架构 SHA-256 的生成文件 `skill-central.rb` |
 
 Desktop 文件名使用 `Skill-Central-<version>-<os>-<arch>.<ext>`。本地产物生成在 `release-artifacts/`，不提交到仓库。
+
+打包成功后，electron-builder 留在输出目录中的中间解包应用副本（`mac/`、`mac-arm64/`、
+`win-unpacked/`、`__msi-*` 等）会被自动删除。因此 `release-artifacts/` 只包含最终
+产物，绝不会在正式安装之外留下第二个可运行的应用副本。
 
 ## macOS Homebrew 安装
 

@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-08-02
+
+### 修复
+
+- **macOS 双 Dock 图标**：桌面应用启动的本地 MCP Runtime 子进程（同一 App 可执行文件
+  的第二个 Electron 实例）默认以 Regular 激活策略运行，会在程序坞额外生成一个图标。
+  MCP 分支现在在 macOS 上显式调用 `app.dock.hide()`，使程序坞只保留主应用一个图标。
+  IDE 通过一键连接写入的 `Skill Central.app/.../Skill Central mcp` 配置同样受益。
+
+### 变更
+
+- **打包产物清理**：`npm run package:mac|win` 打包成功后自动删除 electron-builder 在
+  输出目录留下的解包应用副本（`mac/`、`mac-arm64/`、`win-unpacked/`、`__msi-*` 等），
+  `release-artifacts/` 只保留最终交付物（dmg/zip/exe/msi/blockmap/yml）。系统中不再
+  存在与正式安装并行的多余可运行应用副本；清理逻辑跨 macOS/Windows，目录名固定且
+  绝不删除交付物文件。
+- **非安装位置启动防御**：桌面应用若从构建产物/解包目录启动（如
+  `release-artifacts/…`、`win-unpacked/…`），会输出警告提示安装正式版本到
+  `/Applications`（macOS）或 `Program Files`（Windows）；路径检测对分隔符与大小写
+  不敏感，兼容各平台。
+
 ## [1.0.0-rc.1] - 2026-08-02
 
 ### 修复

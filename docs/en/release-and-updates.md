@@ -6,7 +6,7 @@ Release creation, tags, package publication, signing, and repository permission 
 
 ## Current Release Candidate
 
-`1.0.0-rc.1` is the current release candidate and is intended to be published as a public GitHub prerelease after the workflow stages the draft artifacts. Public prerelease publication is required before Homebrew and in-app update checks can download `latest-mac.yml`, `latest.yml`, and installer assets. RC.1 contains the unified macOS/Windows release checks, the packaged-app MCP launch fix, the local MCP Runtime fix, and the initial IDE reverse-output control plane. It remains unsigned and not notarized on macOS, and Windows packaged behavior still requires real machine verification before `1.0.0`.
+`1.0.0-rc.2` is the current release candidate and is intended to be published as a public GitHub prerelease after the workflow stages the draft artifacts. Public prerelease publication is required before Homebrew and in-app update checks can download `latest-mac.yml`, `latest.yml`, and installer assets. RC.2 contains the macOS Dock single-icon fix for the local MCP Runtime child process, automatic cleanup of unpacked app bundles after packaging, and the unpacked-build-location launch warning. It remains unsigned and not notarized on macOS, and Windows packaged behavior still requires real machine verification before `1.0.0`.
 
 The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Upgrading an existing `alpha.1` installation to `alpha.2` therefore requires one Terminal operation or a manual DMG replacement. Later packaged desktop releases can use the repaired in-app updater.
 
@@ -45,6 +45,11 @@ The workflow never makes the Release public automatically. Do not merge a genera
 | Homebrew | arm64, x64 | Generated `skill-central.rb` with per-architecture SHA-256 |
 
 Desktop filenames use `Skill-Central-<version>-<os>-<arch>.<ext>`. Local artifacts are generated under `release-artifacts/` and are not committed.
+
+After a successful packaging run, the intermediate unpacked app bundles that
+electron-builder leaves in the output directory (`mac/`, `mac-arm64/`, `win-unpacked/`,
+`__msi-*`) are removed automatically. `release-artifacts/` therefore contains only final
+artifacts — never a second runnable copy of the application next to the installed one.
 
 ## macOS Homebrew Installation
 
