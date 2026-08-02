@@ -7,6 +7,7 @@ import {
   type UpdateController,
   type UpdateSnapshot,
 } from "../update/types.js";
+import { classifyUpdateError } from "../update/error-classifier.js";
 
 const require = createRequire(import.meta.url);
 
@@ -53,7 +54,7 @@ class GitHubUpdateController implements UpdateController {
       progressPercent: 100,
       message: "Update downloaded and ready to install.",
     }));
-    updater.on("error", (err) => this.update({ status: "error", message: err.message }));
+    updater.on("error", (err) => this.updateError(err));
   }
 
   getSnapshot(): UpdateSnapshot {
@@ -64,11 +65,11 @@ class GitHubUpdateController implements UpdateController {
     if (this.snapshot.status === "checking" || this.snapshot.status === "downloading") {
       return this.getSnapshot();
     }
-    this.update({ status: "checking", message: undefined });
+    this.update({ status: "checking", message: undefined, errorCode: undefined });
     try {
       await this.updater.checkForUpdates();
     } catch (err) {
-      this.update({ status: "error", message: errorMessage(err) });
+      this.updateError(err);
     }
     return this.getSnapshot();
   }
@@ -86,8 +87,19 @@ class GitHubUpdateController implements UpdateController {
   private update(change: Partial<UpdateSnapshot>): void {
     this.snapshot = { ...this.snapshot, ...change };
   }
-}
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  /**
+   * Surface a raw updater failure as a concise, stable error. The raw error
+   * (which may contain request URLs, headers, or stack context) is logged for
+   * diagnostics only and never placed into the UI snapshot message.
+   */
+  private updateError(err: unknown): void {
+    const classified = classifyUpdateError(err);
+    console.error("[skill-central] Update check failed:", err);
+    this.update({
+      status: "error",
+      errorCode: classified.code,
+      message: classified.message,
+    });
+  }
 }

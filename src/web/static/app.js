@@ -147,6 +147,10 @@ const messages = {
     "update.ready": "Version {version} is ready",
     "update.installing": "Installing and restarting...",
     "update.error": "Update failed",
+    "update.error.release-not-published": "The latest release is not published yet. Try checking again later.",
+    "update.error.network": "Cannot reach the update server. Check your network connection and try again.",
+    "update.error.server-rejected": "The update server rejected this request. If this keeps happening, reinstall the latest release.",
+    "update.error.generic": "Update check failed. Please try again later.",
   },
   "zh-CN": {
     "nav.skills": "Skills",
@@ -251,6 +255,10 @@ const messages = {
     "update.ready": "版本 {version} 已准备好",
     "update.installing": "正在安装并重启...",
     "update.error": "更新失败",
+    "update.error.release-not-published": "最新版本的安装包尚未发布，请稍后再试。",
+    "update.error.network": "无法连接更新服务器，请检查网络后重试。",
+    "update.error.server-rejected": "更新服务器拒绝了本次请求。若持续出现，请重新安装最新版本。",
+    "update.error.generic": "检查更新失败，请稍后重试。",
   },
 };
 
@@ -1629,7 +1637,9 @@ function renderUpdateStatus(status) {
     ? "setup-required"
     : status.supported === false ? "unsupported" : (status.status || "idle");
   statusText.textContent = t(`update.${key}`, { version, percent: String(percent) });
-  output.textContent = status.message || (status.provider ? `${status.provider} · v${status.currentVersion}` : "");
+  output.textContent = status.errorCode
+    ? t(`update.error.${status.errorCode}`)
+    : (status.message || (status.provider ? `${status.provider} · v${status.currentVersion}` : ""));
   output.classList.toggle("error", status.status === "error");
   checkButton.disabled = !status.supported || ["checking", "downloading", "installing"].includes(status.status);
   installButton.disabled = !status.supported || !["available", "ready"].includes(status.status);

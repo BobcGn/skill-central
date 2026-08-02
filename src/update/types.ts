@@ -19,6 +19,8 @@ export interface UpdateSnapshot {
   availableVersion?: string;
   progressPercent?: number;
   message?: string;
+  /** Stable, user-facing failure reason produced by the update error classifier. */
+  errorCode?: string;
 }
 
 export interface UpdateController {
