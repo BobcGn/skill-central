@@ -117,6 +117,10 @@ runtime snapshot return to `stopped`. IDE health verification still launches the
 in that IDE's MCP config and reports `server-stopped` only when that configured process cannot be
 spawned or exits during the probe.
 
+On macOS, this child process is a second Electron instance of the same App executable and would
+otherwise occupy an extra Dock icon (Electron defaults to the Regular activation policy). The MCP
+branch therefore calls `app.dock.hide()` so the Dock keeps exactly one icon for the main app.
+
 ### Registry sync
 
 ```mermaid

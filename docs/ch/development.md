@@ -53,6 +53,11 @@ npm test              # 构建并运行集成测试
 
 `npm run package:mac` 与 `npm run package:win` 在 `release-artifacts/` 生成可安装产物。打包前必须将项目 OAuth App 的公共 Client ID 设置为 `SKILL_CENTRAL_GITHUB_CLIENT_ID`；该 App 必须启用 Device Flow，且不得在客户端配置 Client Secret。只运行 `build:desktop` 不代表完成打包验证。
 
+打包成功后，构建脚本会删除 electron-builder 留在输出目录中的中间解包应用副本
+（`mac/`、`mac-arm64/`、`win-unpacked/`、`__msi-*` 等），使 `release-artifacts/` 只保留
+最终交付物，系统中不会在 `/Applications`（macOS）或 Program Files（Windows）之外出现
+第二个可运行的应用副本。桌面入口在从解包构建位置启动而非正式安装时，也会给出警告。
+
 ## 开发期本地状态
 
 仓库中的 `.skills/` 和 `skill-central.yaml` 是实际开发 Fixture。集成测试会临时加入更多 Fixture，并通过 Cleanup Handler 清理。测试操作 Fixture 时应避免外部中断；如进程被强行终止，继续前先检查 `git status` 和本地 Skill Path。
@@ -123,6 +128,8 @@ npm test
 - 保持 `contextIsolation`、禁用 Node Integration 和 Sandbox。
 - 桌面 Board 拥有一个本地 MCP Runtime 进程，必须保持 stdio stdin 打开，直到显式停止或应用退出。
   打包 MCP Server Config 已存在时，不得再从 Electron argv 猜测启动入口。
+- macOS 上 Runtime 子进程必须在 MCP 分支调用 `app.dock.hide()` 隐藏 Dock 图标，
+  确保程序坞不会为同一 App Bundle 显示第二个图标。
 
 ### Authentication 与 Sync
 

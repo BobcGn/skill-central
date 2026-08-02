@@ -114,6 +114,10 @@ Board 的 Runtime 视图观察桌面进程持有的本地 MCP stdio 进程。它
 Server 退出，并使 Runtime Snapshot 回到 `stopped`。IDE 健康验证仍会独立启动写在对应 IDE
 MCP 配置里的命令；只有该配置进程无法 Spawn 或在 Probe 中退出时，才报告 `server-stopped`。
 
+在 macOS 上，该子进程是同一 App 可执行文件的第二个 Electron 实例，默认 Regular 激活策略
+会在程序坞额外占据一个图标。MCP 分支因此调用 `app.dock.hide()`，使程序坞只为主应用保留
+一个图标。
+
 ### Registry 同步
 
 ```mermaid

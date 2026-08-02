@@ -145,7 +145,8 @@ Health Result 会包含失败阶段、诊断文本和下一步建议。默认 Pr
 Board 的 Runtime 视图是独立的本地烟测面。桌面应用启动后，它应默认显示一个 running 的
 MCP stdio 进程，并使用一键连接写入 IDE 配置的同一个可执行文件路径。Board Runtime 停止
 本身不能证明某个 IDE 配置已损坏，但说明打包 MCP 启动入口无法保持运行，必须先修复后再
-依赖 IDE 健康检查结果。
+依赖 IDE 健康检查结果。macOS 上的 Runtime 子进程会隐藏自己的 Dock 图标
+（`app.dock.hide()`），因此程序坞只显示主应用一个图标。
 
 ## 新增 IDE
 

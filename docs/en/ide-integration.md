@@ -152,7 +152,8 @@ The Board Runtime view is a separate local smoke surface. In the desktop app it 
 show a running MCP stdio process after startup, using the same executable path that one-click
 connection writes into IDE configuration. A stopped Board Runtime does not by itself prove that
 an IDE config is broken, but it does indicate the packaged MCP launcher cannot stay alive and must
-be fixed before relying on IDE health results.
+be fixed before relying on IDE health results. On macOS the runtime child process hides its Dock
+icon (`app.dock.hide()`), so the Dock shows a single icon for the main application.
 
 ## Adding an IDE
 

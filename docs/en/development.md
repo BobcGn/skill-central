@@ -53,6 +53,13 @@ npm test              # build and run the integration suite
 
 `npm run package:mac` and `npm run package:win` create installable artifacts under `release-artifacts/`. Set `SKILL_CENTRAL_GITHUB_CLIENT_ID` to the project OAuth App's public Client ID first; the app must have Device Flow enabled, and no client secret belongs in a desktop build. Do not claim packaging coverage based only on `build:desktop`.
 
+After a successful packaging run, the build script removes the intermediate unpacked app
+bundles that electron-builder leaves in the output directory (`mac/`, `mac-arm64/`,
+`win-unpacked/`, `__msi-*`), so `release-artifacts/` contains only final deliverables and
+no second runnable copy of the application exists outside `/Applications` (macOS) or
+Program Files (Windows). The desktop entry point also warns when it is launched from an
+unpacked build location instead of the installed application.
+
 ## Local State During Development
 
 The repository's `.skills/` and `skill-central.yaml` are real development fixtures. Integration tests temporarily add more fixtures and install cleanup handlers. Avoid interrupting the test script while it is manipulating fixtures; if a run is terminated externally, inspect `git status` and local skill paths before continuing.
@@ -124,6 +131,8 @@ Do not silently reduce coverage because a platform is unavailable. Record the un
 - The desktop Board owns one local MCP runtime process and must keep stdio stdin open until
   explicit stop or application quit. Do not infer its launcher from Electron argv when a packaged
   MCP server config is available.
+- On macOS, the runtime child process must hide its Dock icon (`app.dock.hide()`) in the MCP
+  branch so the Dock never shows a second icon for the same App bundle.
 
 ### Authentication and sync
 
