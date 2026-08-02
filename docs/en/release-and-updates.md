@@ -6,7 +6,7 @@ Release creation, tags, package publication, signing, and repository permission 
 
 ## Current Release Candidate
 
-`1.0.0-rc.2` is the current release candidate and is intended to be published as a public GitHub prerelease after the workflow stages the draft artifacts. Public prerelease publication is required before Homebrew and in-app update checks can download `latest-mac.yml`, `latest.yml`, and installer assets. RC.2 contains the macOS Dock single-icon fix for the local MCP Runtime child process, automatic cleanup of unpacked app bundles after packaging, and the unpacked-build-location launch warning. It remains unsigned and not notarized on macOS, and Windows packaged behavior still requires real machine verification before `1.0.0`.
+`1.0.0-rc.2` is the current release candidate and is intended to be published as a public GitHub prerelease after the workflow stages the draft artifacts. Public prerelease publication is required before Homebrew and in-app update checks can download `latest-mac.yml`, `latest.yml`, and installer assets. RC.2 contains the macOS Dock single-icon fix for the local MCP Runtime child process, automatic cleanup of unpacked app bundles after packaging, and the unpacked-build-location launch warning. It remains ad-hoc signed (no Developer ID) and not notarized on macOS, and Windows packaged behavior still requires real machine verification before `1.0.0`.
 
 The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Upgrading an existing `alpha.1` installation to `alpha.2` therefore requires one Terminal operation or a manual DMG replacement. Later packaged desktop releases can use the repaired in-app updater.
 
@@ -68,13 +68,13 @@ Review the repository and `Casks/skill-central.rb` before granting trust. The Ca
 npm run homebrew:diagnose
 ```
 
-The macOS alpha has no Developer ID signature and is not notarized, so it cannot pass normal Gatekeeper verification. If Gatekeeper blocks the first launch, verify the official repository, Release asset, and pinned Cask SHA-256, then prefer **System Settings > Privacy & Security > Open Anyway** or Control-click the application in Finder and choose **Open**. Only if macOS still reports that the app is damaged and offers no exception, run:
+The macOS alpha carries only an ad-hoc signature (no Developer ID) and is not notarized, so it cannot pass normal Gatekeeper verification. If Gatekeeper blocks the first launch, verify the official repository, Release asset, and pinned Cask SHA-256, then prefer **System Settings > Privacy & Security > Open Anyway** or Control-click the application in Finder and choose **Open**. Only if macOS still reports that the app is damaged and offers no exception, run:
 
 ```bash
 xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 ```
 
-This exact-path last resort removes the quarantine attribute and weakens Gatekeeper protection for that App Bundle. Do not use it for another path or an unverified artifact. Developer ID signing and Apple notarization are the proper fix. An upgrade may require another Gatekeeper decision while packages remain unsigned.
+This exact-path last resort removes the quarantine attribute and weakens Gatekeeper protection for that App Bundle. Do not use it for another path or an unverified artifact. Developer ID signing and Apple notarization are the proper fix. An upgrade may require another Gatekeeper decision while packages remain ad-hoc signed.
 
 ## Adopt a DMG Installation
 
@@ -157,7 +157,7 @@ Restore any `.pre-homebrew` App Bundle only after the candidate has been uninsta
 
 The desktop creates one platform-specific `UpdateController` and exposes its snapshot through the loopback Board API. A packaged desktop checks once shortly after first window load; development and unsupported builds do not modify an installation.
 
-On macOS and Windows, packaged desktop builds use `electron-updater` against GitHub Release metadata. Alpha builds allow prerelease updates; checking for updates no longer depends on Homebrew Tap trust or Cask ownership. The current macOS alpha remains unsigned, so automatic installation must be validated with real packages; use the Release DMG manually if installation fails. The Homebrew Cask remains a macOS installation route with pinned SHA-256 checksums, but it is not a prerequisite for in-app update checks.
+On macOS and Windows, packaged desktop builds use `electron-updater` against GitHub Release metadata. Alpha builds allow prerelease updates; checking for updates no longer depends on Homebrew Tap trust or Cask ownership. The current macOS alpha is ad-hoc signed (no Developer ID) and not notarized; in-app update installation passes local signature validation, and the Release DMG remains the manual fallback. The Homebrew Cask remains a macOS installation route with pinned SHA-256 checksums, but it is not a prerequisite for in-app update checks.
 
 Update check failures are classified into concise, stable user-facing reasons
 (release not published yet, network unreachable, server rejection, or unknown) and

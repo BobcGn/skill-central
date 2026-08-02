@@ -189,7 +189,7 @@ Cross-boundary changes require an issue and design agreement before implementati
 ## Current Alpha Limitations
 
 - Official desktop GitHub credentials use macOS Keychain/Windows DPAPI; the CLI still uses the development file TokenStore, and real Windows behavior remains unverified.
-- macOS packages are unsigned and not notarized.
+- macOS packages are ad-hoc signed (no Developer ID) and not notarized.
 - macOS/Windows in-app desktop updates use GitHub Release metadata, but remain alpha and must be reverified for each release.
 - Compiler adapters currently exist for generic MCP, Cursor, and Windsurf; this is narrower than the six IDE connection targets.
 - Reverse output is an Alpha MVP exposed through MCP and CLI. The Board does not yet expose

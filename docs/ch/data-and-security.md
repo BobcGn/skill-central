@@ -100,7 +100,7 @@ Board 本身在本地提供服务。当前代码库没有记录或实现 Telemet
 
 ## 打包限制
 
-- macOS 产物未签名、未公证。文档中的 `xattr` 方案会移除 Quarantine，只应对确认来自官方 Release 的产物使用。
+- macOS 产物为本地 ad-hoc 签名（无 Developer ID）、未公证。文档中的 `xattr` 方案会移除 Quarantine，只应对确认来自官方 Release 的产物使用。
 - Windows NSIS 的更新元数据与 Binary 来自 GitHub Releases，目前没有文档化代码签名保证。
 - Homebrew Cask 已为 macOS Release 产物固定不同架构的 SHA-256。
 - macOS/Windows 桌面 Updater 通过 GitHub Release Metadata 检查更新；每次 Release 仍必须重新检查真实打包行为。

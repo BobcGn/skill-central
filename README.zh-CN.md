@@ -26,7 +26,7 @@ Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共�
 
 请从 [GitHub Releases](https://github.com/BobcGn/skill-central/releases) 下载适合当前 Mac 架构的 `.dmg`，打开后将 **Skill Central** 拖入 **Applications（应用程序）**。
 
-项目当前没有使用 Apple Developer Program 证书，因此 macOS Alpha 包没有 Developer ID 签名，也没有公证。首次启动被 Gatekeeper 阻止时，请先确认 DMG 来自官方 `BobcGn/skill-central` Release，然后在**系统设置 → 隐私与安全性**中选择**仍要打开**。也可以在 Finder 中按住 Control 点击应用、选择**打开**并确认。
+项目当前没有使用 Apple Developer Program 证书，因此 macOS Alpha 包仅有本地 ad-hoc 签名（无 Developer ID），未公证。首次启动被 Gatekeeper 阻止时，请先确认 DMG 来自官方 `BobcGn/skill-central` Release，然后在**系统设置 → 隐私与安全性**中选择**仍要打开**。也可以在 Finder 中按住 Control 点击应用、选择**打开**并确认。
 
 如果系统仍提示应用“已损坏”且没有提供放行选项，才使用以下最后手段：
 
@@ -51,7 +51,7 @@ open -a "Skill Central"
 
 Homebrew 6 在加载第三方 Tap 前要求显式信任。执行 `brew trust` 前应先检查仓库和 `Casks/skill-central.rb`。安装不会自动启动应用；`open -a` 启动的是打包后的 Electron 桌面程序。维护者可以在源码 Checkout 中运行 `npm run homebrew:diagnose`，核验 Tap 归属、版本、进程数量和 Loopback Listener。
 
-当前 Alpha 没有 Developer ID 签名，也没有公证。如果 macOS 阻止首次启动，请先核验仓库、Release 产物和固定校验值，再优先使用系统提供的**仍要打开**；仅在系统没有提供放行选项时，使用 DMG 小节中限定准确路径的 `xattr` 命令。完成签名和公证后才能移除这个临时处理。
+当前 Alpha 仅有本地 ad-hoc 签名（无 Developer ID），未公证。如果 macOS 阻止首次启动，请先核验仓库、Release 产物和固定校验值，再优先使用系统提供的**仍要打开**；仅在系统没有提供放行选项时，使用 DMG 小节中限定准确路径的 `xattr` 命令。完成签名和公证后才能移除这个临时处理。
 
 安装 `1.0.0-alpha.2` 后，点击左上角红色按钮会保留一个本地进程和 Board Server。可以通过 Dock、应用菜单或菜单栏图标重新显示窗口；使用 **Quit Skill Central** 或 `Command-Q` 才会完全退出。
 
@@ -210,7 +210,7 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 
 ## 自动更新
 
-- **macOS：** 打包桌面版检查 GitHub Releases，不再要求 Homebrew Tap 已信任或由 Cask 接管后才能检查更新。当前 Alpha 仍未签名，自动安装需要真实包验证；失败时按 Release DMG 手动替换。Homebrew 仍可作为安装和固定校验值路线。
+- **macOS：** 打包桌面版检查 GitHub Releases，不再要求 Homebrew Tap 已信任或由 Cask 接管后才能检查更新。当前 Alpha 为本地 ad-hoc 签名（无 Developer ID）、未公证，应用内更新安装可通过本地签名校验；失败时按 Release DMG 手动替换。Homebrew 仍可作为安装和固定校验值路线。
 - **Windows：** NSIS 安装版本检查 GitHub Releases，自动下载更新包和 blockmap，准备完成后显示 **安装并重启**。
 - **仅 CLI/Web 模式：** 明确显示更新器不可用，不会尝试修改安装目录。
 - 当前安装版本为 Alpha 时允许接收预发布更新。
@@ -221,7 +221,7 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 - IDE 写入经过预览、备份、验证与回退阶段。
 - Sync 的远程写入需要明确计划和确认。
 - Device code 和 access token 不进入浏览器响应或 Web Storage。
-- macOS 包未签名；上述 `xattr` 命令会移除已安装应用的 quarantine 属性，执行前必须确认仓库和 Release 来源。
+- macOS 包为本地 ad-hoc 签名（无 Developer ID）、未公证；上述 `xattr` 命令会移除已安装应用的 quarantine 属性，执行前必须确认仓库和 Release 来源。
 
 ## 技术文档
 

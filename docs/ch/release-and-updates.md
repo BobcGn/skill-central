@@ -6,7 +6,7 @@ Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护�
 
 ## 当前 Release Candidate
 
-`1.0.0-rc.2` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.2 包含本地 MCP Runtime 子进程的 macOS Dock 单图标修复、打包后自动清理解包应用副本，以及从解包构建位置启动的警告。macOS 仍未签名、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
+`1.0.0-rc.2` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.2 包含本地 MCP Runtime 子进程的 macOS Dock 单图标修复、打包后自动清理解包应用副本，以及从解包构建位置启动的警告。macOS 仅为本地 ad-hoc 签名（无 Developer ID）、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
 
 已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装升级至 `alpha.2` 时，需要执行一次终端命令或手动安装新版 DMG；后续打包桌面版可使用修复后的应用内更新。
 
@@ -156,7 +156,7 @@ brew trust bobcgn/skill-central
 
 Desktop 创建一个平台特定的 `UpdateController`，通过 Loopback Board API 暴露 Snapshot。打包版本在首个窗口加载后检查一次；开发版本与不支持的平台不会修改安装目录。
 
-macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release Metadata。Alpha 版本允许接收 Prerelease；检查更新不再依赖 Homebrew Tap 信任状态或 Cask 归属。当前 macOS Alpha 仍未签名，自动安装行为必须用真实包验证；失败时应按 Release DMG 手动替换。Homebrew Cask 仍是 macOS 安装和固定 SHA-256 校验路线，但不是应用内检查更新的前置条件。
+macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release Metadata。Alpha 版本允许接收 Prerelease；检查更新不再依赖 Homebrew Tap 信任状态或 Cask 归属。当前 macOS Alpha 为本地 ad-hoc 签名（无 Developer ID）、未公证，应用内更新安装可通过本地签名校验；失败时应按 Release DMG 手动替换。Homebrew Cask 仍是 macOS 安装和固定 SHA-256 校验路线，但不是应用内检查更新的前置条件。
 
 更新检查失败会被分类为简洁、稳定的用户可见原因（发布尚未就绪 / 网络不可达 /
 服务器拒绝 / 未知错误），并在 Board 中以本地化文案展示。原始请求细节（URL、响应头、

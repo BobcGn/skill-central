@@ -102,7 +102,7 @@ The Board itself is served locally. No telemetry pipeline is documented or imple
 
 ## Packaging Limitations
 
-- macOS artifacts are unsigned and not notarized. The documented `xattr` workaround removes quarantine and should only be used for artifacts verified to come from the official release.
+- macOS artifacts are ad-hoc signed (no Developer ID) and not notarized. The documented `xattr` workaround removes quarantine and should only be used for artifacts verified to come from the official release.
 - Windows NSIS update metadata and binaries are downloaded from GitHub Releases. Code-signing guarantees are not currently documented.
 - Homebrew Cask pins per-architecture SHA-256 values for macOS release artifacts.
 - The macOS/Windows desktop updater checks GitHub Release metadata, but package behavior must still be rechecked for each release.

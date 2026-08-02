@@ -6,6 +6,11 @@
 
 ### 修复
 
+- **macOS 应用内更新安装签名校验**：`mac.identity: null` 会保留 Electron 模板的失效
+  ad-hoc 签名（seal 与替换后的内容不一致），导致 electron-updater 安装更新时
+  `SecStaticCodeCheckValidity` 失败（"代码不含资源，但签名指示这些资源必须存在"）。
+  改为对整个 bundle 做 ad-hoc 签名（`identity: "-"`）并关闭 hardened runtime，重新
+  seal 后严格签名校验通过；仍未公证，Gatekeeper/quarantine 行为保持不变。
 - **更新错误封装**：桌面应用检查更新失败时，不再把原始 HttpError（含请求 URL、响应头、
   堆栈上下文）直接展示给用户。新增更新错误分类器，将失败映射为稳定错误码与简练原因
   （发布尚未就绪 / 网络不可达 / 服务器拒绝 / 未知错误），前端以中英文双语文案优雅

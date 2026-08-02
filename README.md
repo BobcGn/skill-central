@@ -26,7 +26,7 @@ Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared sk
 
 Download the `.dmg` for your Mac from [GitHub Releases](https://github.com/BobcGn/skill-central/releases), open it, and drag **Skill Central** into **Applications**.
 
-The macOS alpha has no Developer ID signature and is not notarized because the project does not currently use an Apple Developer Program certificate. If Gatekeeper blocks the first launch, first verify that the DMG came from the official `BobcGn/skill-central` Release, then use **System Settings > Privacy & Security > Open Anyway**. You can also Control-click the application in Finder, choose **Open**, and confirm.
+The macOS alpha carries only an ad-hoc signature (no Developer ID) and is not notarized because the project does not currently use an Apple Developer Program certificate. If Gatekeeper blocks the first launch, first verify that the DMG came from the official `BobcGn/skill-central` Release, then use **System Settings > Privacy & Security > Open Anyway**. You can also Control-click the application in Finder, choose **Open**, and confirm.
 
 Only if macOS still reports that the app is damaged and offers no exception, use this last resort:
 
@@ -51,7 +51,7 @@ open -a "Skill Central"
 
 Homebrew 6 requires explicit trust before it loads this third-party Tap. Review the repository and `Casks/skill-central.rb` before running `brew trust`. Installation does not launch the app; `open -a` starts the packaged Electron desktop program. Maintainers can run `npm run homebrew:diagnose` from a source checkout to audit Tap ownership, versions, process count, and the loopback listener.
 
-This alpha has no Developer ID signature and is not notarized. If macOS blocks first launch, verify the repository, Release asset, and pinned checksum, then prefer **Open Anyway** in System Settings. Use the exact-path `xattr` command in the DMG section only when macOS offers no exception. Signing and notarization are required before this workaround can be removed.
+This alpha carries only an ad-hoc signature (no Developer ID) and is not notarized. If macOS blocks first launch, verify the repository, Release asset, and pinned checksum, then prefer **Open Anyway** in System Settings. Use the exact-path `xattr` command in the DMG section only when macOS offers no exception. Signing and notarization are required before this workaround can be removed.
 
 After `1.0.0-alpha.2` is installed, closing the red window button leaves one local process and Board server running. Reopen it from the Dock, the application menu, or the menu bar icon. Use **Quit Skill Central** or `Command-Q` to stop the process fully.
 
@@ -211,7 +211,7 @@ Official desktop packages encrypt GitHub tokens through macOS Keychain or Window
 
 ## Automatic Updates
 
-- **macOS:** packaged desktop builds check GitHub Releases in app and no longer require a trusted Homebrew Tap or Cask ownership before update checks. The current alpha remains unsigned, so automatic installation requires real package validation; use the Release DMG manually if installation fails. Homebrew remains available as an installation route with pinned checksums.
+- **macOS:** packaged desktop builds check GitHub Releases in app and no longer require a trusted Homebrew Tap or Cask ownership before update checks. The current alpha is ad-hoc signed (no Developer ID) and not notarized, so in-app update installation passes local signature validation; the Release DMG remains the manual fallback. Homebrew remains available as an installation route with pinned checksums.
 - **Windows:** packaged NSIS builds check GitHub Releases, download the update and blockmap automatically, then expose **Install and restart** when ready.
 - **CLI/Web-only mode:** reports the updater as unavailable and never tries to mutate an installation.
 - Prereleases are enabled while the installed app version is an alpha.
@@ -222,7 +222,7 @@ Official desktop packages encrypt GitHub tokens through macOS Keychain or Window
 - IDE writes use preview, backup, verification, and rollback stages.
 - Sync requires explicit plans and confirmation for remote writes.
 - Device codes and access tokens are kept out of browser responses and Web Storage.
-- The macOS package is unsigned. The `xattr` command above removes quarantine from the installed app, so verify the repository and release source first.
+- The macOS package is ad-hoc signed (local-only, no Developer ID) and not notarized. The `xattr` command above removes quarantine from the installed app, so verify the repository and release source first.
 
 ## Technical Documentation
 
