@@ -142,6 +142,6 @@ flowchart LR
 
 - 正式桌面 GitHub 凭据已接入 macOS Keychain/Windows DPAPI；CLI 仍使用开发型文件 `TokenStore`，Windows 实机行为尚未验证。
 - macOS 安装包未签名、未公证。
-- macOS Homebrew 更新路径已在 `1.0.0-alpha.2` 公开，但仍属于 Alpha 能力，每次 Release 都必须重新验证。
+- macOS/Windows 桌面应用内更新通过 GitHub Release Metadata，仍属于 Alpha 能力，每次 Release 都必须重新验证。
 - Compiler Adapter 当前只有 generic MCP、Cursor 和 Windsurf，少于六个 IDE 连接目标。
 - Board 没有用户认证。非 loopback 绑定是高风险高级覆盖，不是部署模式。

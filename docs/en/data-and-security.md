@@ -82,8 +82,8 @@ Sync planning compares SHA-256 hashes without writes. Disabled layers remain exc
 Skill Central can contact:
 
 - GitHub OAuth and API endpoints for Device Flow and user/registry operations;
-- GitHub Releases through the Windows updater;
-- Homebrew commands on macOS when the app is Homebrew-managed;
+- GitHub Releases through the macOS/Windows desktop updater;
+- Homebrew commands when users explicitly run installation, upgrade, or diagnostic steps;
 - GitHub or npm sources selected by install/update commands.
 
 The Board itself is served locally. No telemetry pipeline is documented or implemented in the current codebase.
@@ -93,7 +93,7 @@ The Board itself is served locally. No telemetry pipeline is documented or imple
 - macOS artifacts are unsigned and not notarized. The documented `xattr` workaround removes quarantine and should only be used for artifacts verified to come from the official release.
 - Windows NSIS update metadata and binaries are downloaded from GitHub Releases. Code-signing guarantees are not currently documented.
 - Homebrew Cask pins per-architecture SHA-256 values for macOS release artifacts.
-- The macOS Homebrew updater is released for Cask-managed alpha installations, but package behavior must still be rechecked for each release.
+- The macOS/Windows desktop updater checks GitHub Release metadata, but package behavior must still be rechecked for each release.
 
 These are release risks, not installation conveniences. Changes that claim to improve them require real packaged-platform verification.
 

@@ -8,7 +8,7 @@ Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护�
 
 `1.0.0-alpha.2` 是当前公开预发布版本，已在 2026-08-01 于 Release Workflow 完成且生成的 Homebrew Cask 合并后公开。它仍是 Alpha：macOS 包未签名、未公证；Windows 打包行为仍需要真实机器验证后才能声明已验证。
 
-已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装迁移到 Homebrew 并升级至 `alpha.2` 时，需要执行一次终端命令；后续由 Cask 管理的版本才能使用修复后的应用内更新。
+已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装升级至 `alpha.2` 时，需要执行一次终端命令或手动安装新版 DMG；后续打包桌面版可使用修复后的应用内更新。
 
 ## 版本不变量
 
@@ -98,7 +98,7 @@ brew upgrade --cask --require-sha bobcgn/skill-central/skill-central
 open -a "Skill Central"
 ```
 
-公开的 `alpha.1` Binary 不包含修复后的 Updater，因此这次终端操作无法省略。
+公开的 `alpha.1` Binary 不包含修复后的 Updater，因此这次终端操作或手动 DMG 替换无法省略。
 
 ## 桌面后台契约
 
@@ -152,9 +152,9 @@ brew trust bobcgn/skill-central
 
 Desktop 创建一个平台特定的 `UpdateController`，通过 Loopback Board API 暴露 Snapshot。打包版本在首个窗口加载后检查一次；开发版本与不支持的平台不会修改安装目录。
 
-macOS Updater 要求存在可执行的 Homebrew、已安装且受信任的 `bobcgn/skill-central` Tap，以及 `bobcgn/skill-central/skill-central` 的 Cask 归属。它会更新 Tap Metadata，将 Homebrew 针对指定 Cask 的退出码 `1` 正确识别为“存在更新”，升级时强制固定校验值，并在重启前核验已安装 Cask Version。配置错误在设置界面中保持可重试；并发检查与安装会被串行化。
+macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release Metadata。Alpha 版本允许接收 Prerelease；检查更新不再依赖 Homebrew Tap 信任状态或 Cask 归属。当前 macOS Alpha 仍未签名，自动安装行为必须用真实包验证；失败时应按 Release DMG 手动替换。Homebrew Cask 仍是 macOS 安装和固定 SHA-256 校验路线，但不是应用内检查更新的前置条件。
 
-Windows 打包的 NSIS 版本通过 `electron-updater` 使用 GitHub。MSI 与 ZIP 属于手动部署格式，不得假设它们拥有 NSIS 更新行为。本轮变更尚未在 Windows 验证，对外说明时必须明确该状态。
+Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI 与 ZIP 属于手动部署格式，不得假设它们拥有 NSIS 更新行为。本轮变更尚未在 Windows 验证，对外说明时必须明确该状态。
 
 ## GitHub OAuth 发布配置
 

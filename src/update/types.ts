@@ -1,4 +1,4 @@
-export type UpdateProvider = "none" | "homebrew" | "github-nsis";
+export type UpdateProvider = "none" | "homebrew" | "github";
 
 export type UpdateStatus =
   | "unsupported"

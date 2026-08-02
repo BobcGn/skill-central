@@ -8,7 +8,7 @@ Release creation, tags, package publication, signing, and repository permission 
 
 `1.0.0-alpha.2` is the current public prerelease. It was published on 2026-08-01 after the Release workflow completed and the generated Homebrew Cask was merged. It remains an alpha: macOS packages are unsigned and not notarized, and Windows packaged behavior still requires real machine verification before it is described as verified.
 
-The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Moving an existing `alpha.1` installation under Homebrew management and upgrading it to `alpha.2` therefore requires one Terminal operation. Later Cask-managed releases can use the repaired in-app updater.
+The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Upgrading an existing `alpha.1` installation to `alpha.2` therefore requires one Terminal operation or a manual DMG replacement. Later packaged desktop releases can use the repaired in-app updater.
 
 ## Version Invariants
 
@@ -98,7 +98,7 @@ brew upgrade --cask --require-sha bobcgn/skill-central/skill-central
 open -a "Skill Central"
 ```
 
-This one-time Terminal step is required because the public `alpha.1` binary does not contain the repaired updater.
+This one-time Terminal step or manual DMG replacement is required because the public `alpha.1` binary does not contain the repaired updater.
 
 ## Desktop Background Contract
 
@@ -152,9 +152,9 @@ Restore any `.pre-homebrew` App Bundle only after the candidate has been uninsta
 
 The desktop creates one platform-specific `UpdateController` and exposes its snapshot through the loopback Board API. A packaged desktop checks once shortly after first window load; development and unsupported builds do not modify an installation.
 
-On macOS, the updater requires an executable Homebrew, an installed and trusted `bobcgn/skill-central` Tap, and Cask ownership under `bobcgn/skill-central/skill-central`. It updates Tap metadata, treats Homebrew's named-Cask exit code `1` as “update available”, requires a pinned checksum during upgrade, and verifies the installed Cask version before restarting. Configuration errors remain retryable in the settings UI. Concurrent checks/installs are serialized.
+On macOS and Windows, packaged desktop builds use `electron-updater` against GitHub Release metadata. Alpha builds allow prerelease updates; checking for updates no longer depends on Homebrew Tap trust or Cask ownership. The current macOS alpha remains unsigned, so automatic installation must be validated with real packages; use the Release DMG manually if installation fails. The Homebrew Cask remains a macOS installation route with pinned SHA-256 checksums, but it is not a prerequisite for in-app update checks.
 
-On Windows, packaged NSIS builds use `electron-updater` with GitHub. MSI and ZIP are manual deployment formats and are not assumed to have NSIS update behavior. Windows remains unverified for these changes and must be tested separately before claiming support.
+On Windows, packaged NSIS builds also use `electron-updater` with GitHub. MSI and ZIP are manual deployment formats and are not assumed to have NSIS update behavior. Windows remains unverified for these changes and must be tested separately before claiming support.
 
 ## GitHub OAuth Release Configuration
 

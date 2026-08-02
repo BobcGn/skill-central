@@ -142,6 +142,6 @@ Cross-boundary changes require an issue and design agreement before implementati
 
 - Official desktop GitHub credentials use macOS Keychain/Windows DPAPI; the CLI still uses the development file TokenStore, and real Windows behavior remains unverified.
 - macOS packages are unsigned and not notarized.
-- The Homebrew-managed macOS update path is public in `1.0.0-alpha.2`, but remains alpha and must be reverified for each release.
+- macOS/Windows in-app desktop updates use GitHub Release metadata, but remain alpha and must be reverified for each release.
 - Compiler adapters currently exist for generic MCP, Cursor, and Windsurf; this is narrower than the six IDE connection targets.
 - The Board has no user authentication. Non-loopback binding is an advanced, high-risk override, not a deployment mode.

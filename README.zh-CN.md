@@ -17,7 +17,7 @@ Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共�
 - IDE 配置写入支持预览、备份、应用、验证与回退。
 - GitHub Registry 同步支持冲突选择、审计记录和备份。
 - 提供 MCP prompts、tools、resources、sessions、blackboard topics 和 workflow scheduler。
-- macOS Homebrew Cask 安装与固定 SHA-256 更新；Windows 通过 GitHub Release/NSIS 支持应用内更新。
+- macOS Homebrew Cask 安装带固定 SHA-256；macOS/Windows 桌面应用内更新统一检查 GitHub Releases。
 
 ## 安装
 
@@ -35,7 +35,7 @@ xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 
 执行完成后，从 **Applications（应用程序）** 再次启动 Skill Central。该命令只会移除上述准确路径中应用的 quarantine 属性，会降低该 App Bundle 的 Gatekeeper 保护；不要对其他路径或未经核验的产物执行。真正的修复仍是 Developer ID 签名和 Apple 公证。
 
-`1.0.0-alpha.2` 已发布修复后的 Homebrew 路线。现有 `1.0.0-alpha.1` 安装包含旧更新器，无法被追溯修复，因此需要按[发布与更新](./docs/ch/release-and-updates.md)中的一次性 Homebrew 接管或升级步骤迁移。
+`1.0.0-alpha.2` 已发布修复后的桌面更新路线。现有 `1.0.0-alpha.1` 安装包含旧更新器，无法被追溯修复，因此需要按[发布与更新](./docs/ch/release-and-updates.md)中的一次性升级步骤迁移。
 
 ### macOS：Homebrew
 
@@ -197,7 +197,7 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 
 ## 自动更新
 
-- **macOS：** Homebrew 管理的 `1.0.0-alpha.2` 安装会通过 Homebrew 检查并安装 Cask 更新，重启前核验已安装版本。现有 `1.0.0-alpha.1` 用户需要执行文档中的一次性终端迁移，因为旧 Binary 无法被追溯修复。
+- **macOS：** 打包桌面版检查 GitHub Releases，不再要求 Homebrew Tap 已信任或由 Cask 接管后才能检查更新。当前 Alpha 仍未签名，自动安装需要真实包验证；失败时按 Release DMG 手动替换。Homebrew 仍可作为安装和固定校验值路线。
 - **Windows：** NSIS 安装版本检查 GitHub Releases，自动下载更新包和 blockmap，准备完成后显示 **安装并重启**。
 - **仅 CLI/Web 模式：** 明确显示更新器不可用，不会尝试修改安装目录。
 - 当前安装版本为 Alpha 时允许接收预发布更新。

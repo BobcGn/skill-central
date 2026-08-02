@@ -17,7 +17,7 @@ Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared sk
 - Preview, backup, apply, verify, and rollback for IDE configuration writes.
 - GitHub registry sync plans with conflict choices, audit records, and backups.
 - MCP prompts, tools, resources, sessions, blackboard topics, and workflow scheduling.
-- macOS Homebrew Cask installation and updates with pinned SHA-256; Windows in-app updates through GitHub Release/NSIS.
+- macOS Homebrew Cask installation with pinned SHA-256; macOS/Windows desktop updates check GitHub Releases in app.
 
 ## Install
 
@@ -35,7 +35,7 @@ xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 
 Then launch Skill Central again from **Applications**. This command removes the quarantine attribute only from the app at the exact path shown above and weakens Gatekeeper protection for that App Bundle. Do not run it against another path or an unverified artifact. Developer ID signing and Apple notarization remain the proper fix.
 
-`1.0.0-alpha.2` publishes the repaired Homebrew route. Existing `1.0.0-alpha.1` installations contain the old updater, so they need the one-time Homebrew adoption or upgrade step documented in [Release and Updates](./docs/en/release-and-updates.md).
+`1.0.0-alpha.2` publishes the repaired desktop update route. Existing `1.0.0-alpha.1` installations contain the old updater, so they need the one-time upgrade step documented in [Release and Updates](./docs/en/release-and-updates.md).
 
 ### macOS: Homebrew
 
@@ -197,7 +197,7 @@ Official desktop packages encrypt GitHub tokens through macOS Keychain or Window
 
 ## Automatic Updates
 
-- **macOS:** Homebrew-managed `1.0.0-alpha.2` installations check and install Cask upgrades through Homebrew, then verify the installed version before restart. Existing `1.0.0-alpha.1` users need the documented one-time terminal migration because the old binary cannot be fixed retroactively.
+- **macOS:** packaged desktop builds check GitHub Releases in app and no longer require a trusted Homebrew Tap or Cask ownership before update checks. The current alpha remains unsigned, so automatic installation requires real package validation; use the Release DMG manually if installation fails. Homebrew remains available as an installation route with pinned checksums.
 - **Windows:** packaged NSIS builds check GitHub Releases, download the update and blockmap automatically, then expose **Install and restart** when ready.
 - **CLI/Web-only mode:** reports the updater as unavailable and never tries to mutate an installation.
 - Prereleases are enabled while the installed app version is an alpha.

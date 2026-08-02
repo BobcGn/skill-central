@@ -82,8 +82,8 @@ Sync Planning 只比较 SHA-256，不执行写入。关闭同步的 Layer 保持
 Skill Central 可能访问：
 
 - 用于 Device Flow、用户信息和 Registry 操作的 GitHub OAuth/API Endpoint；
-- Windows Updater 使用的 GitHub Releases；
-- macOS 应用由 Homebrew 管理时执行的 Homebrew 命令；
+- macOS/Windows 桌面 Updater 使用的 GitHub Releases；
+- 用户显式执行 Homebrew 安装、升级或诊断步骤时的 Homebrew 命令；
 - Install/Update 命令中由用户选择的 GitHub 或 npm Source。
 
 Board 本身在本地提供服务。当前代码库没有记录或实现 Telemetry Pipeline。
@@ -93,7 +93,7 @@ Board 本身在本地提供服务。当前代码库没有记录或实现 Telemet
 - macOS 产物未签名、未公证。文档中的 `xattr` 方案会移除 Quarantine，只应对确认来自官方 Release 的产物使用。
 - Windows NSIS 的更新元数据与 Binary 来自 GitHub Releases，目前没有文档化代码签名保证。
 - Homebrew Cask 已为 macOS Release 产物固定不同架构的 SHA-256。
-- macOS Homebrew Updater 已面向 Cask 管理的 Alpha 安装发布，但每次 Release 仍必须重新检查打包行为。
+- macOS/Windows 桌面 Updater 通过 GitHub Release Metadata 检查更新；每次 Release 仍必须重新检查真实打包行为。
 
 这些是 Release 风险，不是安装便利性问题。任何宣称改善这些问题的变更都需要真实打包平台验证。
 

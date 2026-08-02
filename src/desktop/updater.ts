@@ -2,7 +2,6 @@ import { app } from "electron";
 import { createRequire } from "node:module";
 import type { AppUpdater } from "electron-updater";
 
-import { BrewCaskUpdater } from "../update/brew-cask.js";
 import {
   UnsupportedUpdateController,
   type UpdateController,
@@ -16,29 +15,20 @@ export function createDesktopUpdater(): UpdateController {
   if (!app.isPackaged) {
     return new UnsupportedUpdateController(currentVersion, "Automatic updates are available in packaged builds.");
   }
-  if (process.platform === "darwin") {
-    return new BrewCaskUpdater({
-      currentVersion,
-      restart: () => {
-        app.relaunch();
-        app.exit(0);
-      },
-    });
-  }
-  if (process.platform === "win32") {
+  if (process.platform === "darwin" || process.platform === "win32") {
     const { autoUpdater } = require("electron-updater") as typeof import("electron-updater");
-    return new WindowsUpdateController(autoUpdater, currentVersion);
+    return new GitHubUpdateController(autoUpdater, currentVersion);
   }
   return new UnsupportedUpdateController(currentVersion, "Automatic updates are not available on this platform.");
 }
 
-class WindowsUpdateController implements UpdateController {
+class GitHubUpdateController implements UpdateController {
   private snapshot: UpdateSnapshot;
 
   constructor(private readonly updater: AppUpdater, currentVersion: string) {
     this.snapshot = {
       supported: true,
-      provider: "github-nsis",
+      provider: "github",
       currentVersion,
       status: "idle",
     };
