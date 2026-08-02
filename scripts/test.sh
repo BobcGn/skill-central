@@ -2575,6 +2575,63 @@ if grep -q "project-client-fixture" package.json; then
 fi
 pass "桌面打包强制注入项目 GitHub OAuth 配置且不修改源码 Metadata"
 
+cleanup_fixture="$TEST_BIN_DIR/unpacked-cleanup-ci"
+rm -rf "$cleanup_fixture"
+mkdir -p "$cleanup_fixture/mac/Skill Central.app" \
+         "$cleanup_fixture/mac-arm64/Skill Central.app" \
+         "$cleanup_fixture/mac-universal" \
+         "$cleanup_fixture/win-unpacked" \
+         "$cleanup_fixture/__msi-x64"
+printf 'deliverable\n' > "$cleanup_fixture/Skill-Central-1.0.0-rc.1-mac-arm64.dmg"
+printf 'deliverable\n' > "$cleanup_fixture/Skill-Central-1.0.0-rc.1-mac-arm64.zip"
+printf 'not-a-directory\n' > "$cleanup_fixture/win"
+CLEANUP_FIXTURE="$cleanup_fixture" node --input-type=module <<'NODE'
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { cleanupUnpackedArtifacts } from "./scripts/lib/unpacked-cleanup.mjs";
+
+const dir = process.env.CLEANUP_FIXTURE;
+const removed = cleanupUnpackedArtifacts(dir, { log: () => {} });
+for (const name of ["mac", "mac-arm64", "mac-universal", "win-unpacked", "__msi-x64"]) {
+  if (!removed.includes(name)) throw new Error(`expected ${name} removed, got [${removed.join(",")}]`);
+}
+if (removed.includes("win")) throw new Error("non-directory 'win' must not be removed");
+for (const deliverable of [
+  "Skill-Central-1.0.0-rc.1-mac-arm64.dmg",
+  "Skill-Central-1.0.0-rc.1-mac-arm64.zip",
+  "win",
+]) {
+  if (!existsSync(join(dir, deliverable))) throw new Error(`deliverable ${deliverable} must survive`);
+}
+const secondRun = cleanupUnpackedArtifacts(dir, { log: () => {} });
+if (secondRun.length !== 0) throw new Error("second cleanup must remove nothing");
+NODE
+pass "打包后清理移除所有 electron-builder 解包目录且保留交付物"
+
+node --input-type=module <<'NODE'
+import { isUnpackedBuildLocation } from "./dist/desktop/location.js";
+
+const cases = [
+  // [execPath, expected]
+  ["/Applications/Skill Central.app/Contents/MacOS/Skill Central", false],
+  ["/Users/alice/Applications/Skill Central.app", false],
+  ["C:\\Program Files\\Skill Central\\Skill Central.exe", false],
+  ["/opt/skill-central/Skill Central.app", false],
+  ["/Users/bobcgn/AAA_Codings/skill-central/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron", false],
+  ["/Users/bobcgn/AAA_Codings/skill-central/release-artifacts/mac-arm64/Skill Central.app/Contents/MacOS/Skill Central", true],
+  ["/Users/bobcgn/AAA_Codings/skill-central/release-artifacts/mac/Skill Central.app", true],
+  ["C:\\dev\\skill-central\\release-artifacts\\win-unpacked\\Skill Central.exe", true],
+  ["C:\\build\\win-unpacked\\Skill Central.exe", true],
+  ["/tmp/out/__msi-x64/project.wxs", true],
+  ["/tmp/out/__uninstaller-nsis/uninstaller.exe", true],
+];
+for (const [path, expected] of cases) {
+  const got = isUnpackedBuildLocation(path);
+  if (got !== expected) throw new Error(`isUnpackedBuildLocation(${path}) = ${got}, expected ${expected}`);
+}
+NODE
+pass "非安装位置启动检测覆盖 macOS/Windows/开发路径矩阵"
+
 repo_plan=$(node dist/index.js sync repo --app-state-dir "$app_state_dir" --owner octocat --dry-run --json)
 SYNC_REPO_PLAN_JSON="$repo_plan" node --input-type=module <<'NODE'
 const report = JSON.parse(process.env.SYNC_REPO_PLAN_JSON);
