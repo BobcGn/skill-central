@@ -14,7 +14,7 @@
 
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { once } from "node:events";
-import type { Readable } from "node:stream";
+import type { Readable, Writable } from "node:stream";
 import { resolve } from "node:path";
 
 export type RuntimeStatus = "running" | "stopped" | "error";
@@ -35,12 +35,20 @@ export interface RuntimeSnapshot {
   stderrLines: string[];
 }
 
+export interface LocalRuntimeManagerOptions {
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  maxLogLines?: number;
+  autoStart?: boolean;
+}
+
 export class LocalRuntimeManager {
-  private child: ChildProcessByStdio<null, Readable, Readable> | undefined;
+  private child: ChildProcessByStdio<Writable, Readable, Readable> | undefined;
   private snapshot: RuntimeSnapshot;
 
   constructor(
-    private readonly options: { command?: string; args?: string[]; cwd?: string; maxLogLines?: number } = {},
+    private readonly options: LocalRuntimeManagerOptions = {},
   ) {
     this.snapshot = {
       status: "stopped",
@@ -50,6 +58,9 @@ export class LocalRuntimeManager {
       stdoutLines: [],
       stderrLines: [],
     };
+    if (options.autoStart) {
+      this.start();
+    }
   }
 
   getSnapshot(): RuntimeSnapshot {
@@ -67,7 +78,7 @@ export class LocalRuntimeManager {
     const args = this.options.args ?? [resolve(process.argv[1] ?? "dist/index.js"), "mcp"];
     const child = spawn(command, args, {
       cwd: this.options.cwd ?? process.cwd(),
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     this.child = child;

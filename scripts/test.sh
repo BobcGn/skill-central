@@ -1539,7 +1539,7 @@ cat > "$web_app_state_dir/audit/sync-apply.2026-07-29T00-00-02-000Z.json" <<'JSO
 JSON
 
 node --input-type=module <<'NODE'
-import { createBoardApp } from "./dist/web/server.js";
+import { createBoardApp, startBoardServer } from "./dist/web/server.js";
 import { SkillEngine } from "./dist/core/engine.js";
 import { loadConfig } from "./dist/storage/config.js";
 import { compileIntentDryRun } from "./dist/compiler/compiler.js";
@@ -1885,6 +1885,30 @@ if (runtimeStopped.status !== "stopped") {
   throw new Error("web runtime stop did not expose stopped snapshot");
 }
 
+const mcpRuntimeApp = createBoardApp({
+  config,
+  engine,
+  rootDir: process.cwd(),
+  version: "test",
+  mcpServerConfig: { command: "desktop-skill-central", args: ["mcp"] },
+});
+const mcpRuntimeStatusRes = await mcpRuntimeApp.request("/api/runtime/status");
+const mcpRuntimeStatus = await mcpRuntimeStatusRes.json();
+if (mcpRuntimeStatus.command !== "desktop-skill-central" || mcpRuntimeStatus.args[0] !== "mcp") {
+  throw new Error("web runtime did not adopt the injected desktop MCP command");
+}
+
+const boardHandle = startBoardServer({
+  host: "127.0.0.1",
+  port: 0,
+  runtime,
+  mcpServerConfig: { command: "desktop-skill-central", args: ["mcp"] },
+});
+if (boardHandle.runtime !== runtime) {
+  throw new Error("startBoardServer did not expose the runtime owned by the Board handle");
+}
+boardHandle.server.close();
+
 const manager = new LocalRuntimeManager({
   command: process.execPath,
   args: ["-e", "console.error('runtime smoke'); setTimeout(() => {}, 10000);"],
@@ -1902,6 +1926,33 @@ if (stopped.status !== "stopped") {
 if (!stopped.stderrLines.some((line) => line.includes("runtime smoke"))) {
   throw new Error("LocalRuntimeManager did not capture diagnostic stderr");
 }
+
+const autoManager = new LocalRuntimeManager({
+  command: process.execPath,
+  args: ["-e", "setTimeout(() => {}, 10000);"],
+  autoStart: true,
+});
+const autoStarted = autoManager.getSnapshot();
+if (autoStarted.status !== "running" || !autoStarted.pid) {
+  throw new Error("LocalRuntimeManager autoStart did not keep the child process running");
+}
+await autoManager.stop();
+
+const mcpManager = new LocalRuntimeManager({
+  command: process.execPath,
+  args: ["dist/index.js", "mcp"],
+  maxLogLines: 10,
+});
+const mcpStarted = mcpManager.start();
+if (mcpStarted.status !== "running" || !mcpStarted.pid) {
+  throw new Error("LocalRuntimeManager did not start real MCP runtime");
+}
+await new Promise((resolve) => setTimeout(resolve, 300));
+const mcpStillRunning = mcpManager.getSnapshot();
+if (mcpStillRunning.status !== "running") {
+  throw new Error(`real MCP runtime should remain running with stdin held open; got ${mcpStillRunning.status}`);
+}
+await mcpManager.stop();
 
 const syncStatusRes = await app.request("/api/sync/status?appStateDir=.skill-central-web-ci/app-state");
 const syncStatus = await syncStatusRes.json();

@@ -90,6 +90,7 @@ npm test
 | Registry Query 或 Resolution | `npm run test:registry-perf` 与 Conflict Fixture |
 | Board HTML/CSS/JS | `npm run build:web`；桌面/移动视觉检查；键盘、溢出、Loading、Empty、Error、Success 状态 |
 | MCP Protocol | 启动真实 stdio Client，并确认 stdout 只含协议数据 |
+| Runtime Manager | 通过 `LocalRuntimeManager` 启动真实 `dist/index.js mcp`，确认 stdin 保持打开、状态维持 `running`，并且 stop 能捕获 stderr 且不污染 stdout |
 | 反向输出 | `npm run test:reverse-output`；覆盖 Schema、作用域、路径、重复、SHA、Backup、Rollback、CLI 与 MCP |
 | IDE Target | 平台路径 Fixture、畸形配置、无关 Entry 保留、Backup、Rollback 和实时 Probe |
 | Sync/Auth | Path 与凭据泄露负向测试；区分 Dry-run/Apply；Audit Evidence |
@@ -120,6 +121,8 @@ npm test
 - 同步更新两套 Message Dictionary 与两种语言公共文档。
 - 保持 System/Light/Dark Theme、Keyboard Focus 与窄屏导航。
 - 保持 `contextIsolation`、禁用 Node Integration 和 Sandbox。
+- 桌面 Board 拥有一个本地 MCP Runtime 进程，必须保持 stdio stdin 打开，直到显式停止或应用退出。
+  打包 MCP Server Config 已存在时，不得再从 Electron argv 猜测启动入口。
 
 ### Authentication 与 Sync
 

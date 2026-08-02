@@ -143,6 +143,7 @@ export interface BoardOptions {
   host?: string;
   port?: number;
   updater?: UpdateController;
+  runtime?: RuntimeController;
   mcpServerConfig?: McpServerConfig;
   githubOAuthClientId?: string;
   tokenStore?: TokenStore;
@@ -153,6 +154,7 @@ export interface BoardServerHandle {
   host: string;
   port: number;
   server: ServerType;
+  runtime: RuntimeController;
 }
 
 export interface RuntimeController {
@@ -401,7 +403,7 @@ async function buildRuleDto(
 export function createBoardApp(deps: BoardDeps): Hono {
   const app = new Hono();
   const rulesDir = path.resolve(deps.rootDir, deps.rulesDir ?? DEFAULT_RULES_DIR);
-  const runtime = deps.runtime ?? new LocalRuntimeManager();
+  const runtime = deps.runtime ?? createRuntimeController(deps.mcpServerConfig);
   const updater = deps.updater ?? new UnsupportedUpdateController(
     deps.version,
     "Automatic updates are available in the packaged desktop app.",
@@ -1763,12 +1765,13 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
   // (engine.reload is sync-ish at startup; Hono handlers are async so it's fine.)
   void engine.reload(config.layers, { projectRoot: rootDir });
 
+  const runtime = opts.runtime ?? createRuntimeController(opts.mcpServerConfig);
   const app = createBoardApp({
     config,
     engine,
     rootDir,
     version,
-    runtime: new LocalRuntimeManager(),
+    runtime,
     updater: opts.updater,
     mcpServerConfig: opts.mcpServerConfig,
     githubOAuthClientId: opts.githubOAuthClientId,
@@ -1781,5 +1784,13 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
 
   const server = serve({ fetch: app.fetch, port, hostname: host });
 
-  return { port, host, server };
+  return { port, host, server, runtime };
+}
+
+function createRuntimeController(mcpServerConfig?: McpServerConfig): RuntimeController {
+  return new LocalRuntimeManager(
+    mcpServerConfig
+      ? { command: mcpServerConfig.command, args: mcpServerConfig.args }
+      : {},
+  );
 }

@@ -148,6 +148,12 @@ Possible states include:
 
 Health results include the failure stage, diagnostic text, and suggested next actions. The default probe timeout is eight seconds.
 
+The Board Runtime view is a separate local smoke surface. In the desktop app it should already
+show a running MCP stdio process after startup, using the same executable path that one-click
+connection writes into IDE configuration. A stopped Board Runtime does not by itself prove that
+an IDE config is broken, but it does indicate the packaged MCP launcher cannot stay alive and must
+be fixed before relying on IDE health results.
+
 ## Adding an IDE
 
 An IDE is not complete when only its label appears in the UI. A contribution must cover:

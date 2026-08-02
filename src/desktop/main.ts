@@ -33,6 +33,7 @@ import { createDesktopUpdater } from "./updater.js";
 import type { UpdateController } from "../update/types.js";
 import { startMcpServer } from "../mcp.js";
 import { desktopMcpServerConfig, isDesktopMcpMode } from "./mcp-launch.js";
+import { LocalRuntimeManager } from "../runtime/manager.js";
 
 const DEFAULT_PORT = 5417;
 const MAX_PORT_TRIES = 10;
@@ -54,17 +55,26 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
   const githubOAuthClientId = resolveGitHubOAuthClientId({
     packaged: PACKAGED_GITHUB_OAUTH_CLIENT_ID,
   });
+  const mcpServerConfig = desktopMcpServerConfig(app.isPackaged, process.execPath);
   // safeStorage is only queried after app.whenReady(). The store rejects Linux
   // and unavailable OS encryption rather than falling back to plaintext.
   const tokenStore = new SafeStorageTokenStore({
     safeStorage,
     onEvent: logSecureTokenStoreEvent,
   });
+  const runtime = new LocalRuntimeManager(mcpServerConfig
+    ? {
+        command: mcpServerConfig.command,
+        args: mcpServerConfig.args,
+        autoStart: true,
+      }
+    : { autoStart: true });
   const board = startBoardServer({
     host,
     port,
     updater: desktopUpdater,
-    mcpServerConfig: desktopMcpServerConfig(app.isPackaged, process.execPath),
+    runtime,
+    mcpServerConfig,
     githubOAuthClientId,
     tokenStore,
     authLogger: ({ operation, code }) => {
@@ -248,6 +258,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   // The Board listener belongs to this process and must not survive a real
   // Quit or hold the loopback port for a future launch.
+  void boardServer?.runtime.stop();
   boardServer?.server.close();
   boardServer = undefined;
 });

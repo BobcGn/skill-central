@@ -90,6 +90,7 @@ Run additional checks by risk:
 | Registry query or resolution | `npm run test:registry-perf` and conflict fixtures |
 | Board HTML/CSS/JS | `npm run build:web`; desktop/mobile visual inspection; keyboard, overflow, loading, empty, error, and success states |
 | MCP protocol | Start a real stdio client and confirm stdout contains protocol only |
+| Runtime manager | Start the real `dist/index.js mcp` through `LocalRuntimeManager`, confirm stdin stays open, status remains `running`, and stop captures stderr without polluting stdout |
 | Reverse output | `npm run test:reverse-output`; schema, scope, path, duplicate, SHA, backup, rollback, CLI, and MCP checks |
 | IDE target | Platform path fixtures, malformed config, unrelated-entry preservation, backup, rollback, and live probe |
 | Sync/auth | Negative path and credential-leak tests; dry-run/apply distinction; audit evidence |
@@ -120,6 +121,9 @@ Do not silently reduce coverage because a platform is unavailable. Record the un
 - Update both message dictionaries and both public documentation languages.
 - Preserve system/light/dark themes, keyboard focus, and narrow-screen navigation.
 - Keep `contextIsolation`, disabled Node integration, and sandboxing.
+- The desktop Board owns one local MCP runtime process and must keep stdio stdin open until
+  explicit stop or application quit. Do not infer its launcher from Electron argv when a packaged
+  MCP server config is available.
 
 ### Authentication and sync
 

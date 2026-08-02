@@ -142,6 +142,11 @@ Apply 会解析当前 JSON 或 TOML，保留无关设置和其他 MCP Server，�
 
 Health Result 会包含失败阶段、诊断文本和下一步建议。默认 Probe Timeout 为八秒。
 
+Board 的 Runtime 视图是独立的本地烟测面。桌面应用启动后，它应默认显示一个 running 的
+MCP stdio 进程，并使用一键连接写入 IDE 配置的同一个可执行文件路径。Board Runtime 停止
+本身不能证明某个 IDE 配置已损坏，但说明打包 MCP 启动入口无法保持运行，必须先修复后再
+依赖 IDE 健康检查结果。
+
 ## 新增 IDE
 
 仅在 UI 中加入名称不代表完成 IDE 支持。贡献必须覆盖：

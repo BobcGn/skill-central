@@ -13,6 +13,7 @@ The project deliberately separates source assets from derived runtime state. Ski
 ```mermaid
 flowchart TD
     Electron[Electron main process] --> Board[Local Hono Board server]
+    Electron --> Runtime[Local MCP runtime process]
     Electron --> Window[Sandboxed BrowserWindow]
     Window -->|Loopback HTTP| Board
 
@@ -72,7 +73,9 @@ The desktop shell does not grant Node.js access to renderer code. Electron start
 1. Electron finds an available port from `5417` through `5427` on `127.0.0.1`.
 2. It starts the same Board server used by the CLI.
 3. It loads the Board in a sandboxed window with context isolation and no Node integration.
-4. A packaged build checks for updates shortly after the first window loads.
+4. It starts one local MCP stdio runtime using the same launcher that desktop IDE
+   connection plans write into IDE configuration.
+5. A packaged build checks for updates shortly after the first window loads.
 
 ## Primary Data Flows
 
@@ -104,6 +107,15 @@ flowchart LR
 ```
 
 Only the `skill-central` server entry is added or replaced. Other MCP entries are preserved. See [IDE Integration](./ide-integration.md).
+
+### Local runtime
+
+The Board Runtime view observes the desktop-owned local MCP stdio process. It is an
+operational smoke surface for the packaged launcher, not a shared MCP daemon for IDE clients.
+The process must keep stdin open while idle; closing stdin makes the MCP server exit and the
+runtime snapshot return to `stopped`. IDE health verification still launches the command written
+in that IDE's MCP config and reports `server-stopped` only when that configured process cannot be
+spawned or exits during the probe.
 
 ### Registry sync
 
@@ -151,11 +163,13 @@ Changes must preserve these rules:
 4. **Planned privileged writes:** IDE and sync mutations expose a plan and retain rollback or audit evidence.
 5. **Structured configuration:** JSON, TOML, and YAML are handled through parsers and codecs, not text substitution.
 6. **Clean MCP transport:** stdout is reserved for stdio JSON-RPC.
-7. **Loopback by default:** The Board is an unauthenticated local administration surface and must not be exposed accidentally.
-8. **Credential separation:** Access tokens are not returned to browser code or stored with skills.
-9. **Dry-run purity:** Compile and sync planning do not mutate their targets.
-10. **Bilingual UI contract:** User-visible Board strings must remain available in English and Simplified Chinese.
-11. **Explicit reverse output:** IDE-generated content requires explicit placement and reason,
+7. **Runtime stdin ownership:** Managed stdio MCP runtimes keep stdin open until an explicit stop
+   or application quit.
+8. **Loopback by default:** The Board is an unauthenticated local administration surface and must not be exposed accidentally.
+9. **Credential separation:** Access tokens are not returned to browser code or stored with skills.
+10. **Dry-run purity:** Compile and sync planning do not mutate their targets.
+11. **Bilingual UI contract:** User-visible Board strings must remain available in English and Simplified Chinese.
+12. **Explicit reverse output:** IDE-generated content requires explicit placement and reason,
     scope, schema, conflict, verification, and promote/defer/discard evidence before it becomes
     a source asset.
 

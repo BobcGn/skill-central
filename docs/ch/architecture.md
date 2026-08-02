@@ -13,6 +13,7 @@ Skill Central 是一个本地优先的可复用 AI Skill 控制中心。它从�
 ```mermaid
 flowchart TD
     Electron[Electron 主进程] --> Board[本地 Hono Board Server]
+    Electron --> Runtime[本地 MCP Runtime 进程]
     Electron --> Window[沙箱化 BrowserWindow]
     Window -->|Loopback HTTP| Board
 
@@ -72,7 +73,8 @@ flowchart TD
 1. Electron 在 `127.0.0.1` 上从 `5417` 到 `5427` 寻找可用端口。
 2. 启动与 CLI 相同的 Board Server。
 3. 在启用沙箱、上下文隔离且关闭 Node Integration 的窗口中加载 Board。
-4. 打包版本在首个窗口加载后不久执行一次更新检查。
+4. 使用桌面 IDE 连接计划写入 IDE 配置的同一个启动入口，启动一个本地 MCP stdio Runtime。
+5. 打包版本在首个窗口加载后不久执行一次更新检查。
 
 ## 主要数据流
 
@@ -104,6 +106,13 @@ flowchart LR
 ```
 
 系统只新增或替换 `skill-central` Server Entry，保留其他 MCP 配置。详见 [IDE 集成](./ide-integration.md)。
+
+### 本地 Runtime
+
+Board 的 Runtime 视图观察桌面进程持有的本地 MCP stdio 进程。它是打包启动入口的运行烟测面，
+不是供 IDE 共用的 MCP Daemon。该进程空闲时也必须保持 stdin 打开；关闭 stdin 会让 MCP
+Server 退出，并使 Runtime Snapshot 回到 `stopped`。IDE 健康验证仍会独立启动写在对应 IDE
+MCP 配置里的命令；只有该配置进程无法 Spawn 或在 Probe 中退出时，才报告 `server-stopped`。
 
 ### Registry 同步
 
@@ -150,11 +159,12 @@ Preview 不写入；只有显式 `promote` 才会写入。更新必须提供 exp
 4. **受计划约束的高权限写入：** IDE 与 Sync 修改必须展示计划并保留回退或审计证据。
 5. **结构化配置：** JSON、TOML、YAML 必须使用 Parser 与 Codec，不得用文本替换模拟解析。
 6. **纯净 MCP 传输：** stdout 只用于 stdio JSON-RPC。
-7. **默认 Loopback：** Board 是无认证的本地管理面，禁止意外暴露。
-8. **凭据隔离：** Access Token 不得返回浏览器或与 Skill 一起存储。
-9. **纯 Dry-run：** Compile 与 Sync Planning 不得修改目标。
-10. **双语 UI 契约：** Board 的用户可见文本必须同时支持英文和简体中文。
-11. **显式反向输出：** IDE 生成的内容必须先完成归属与理由、作用域、Schema、冲突、
+7. **Runtime stdin 所有权：** 受管理的 stdio MCP Runtime 必须保持 stdin 打开，直到显式停止或应用退出。
+8. **默认 Loopback：** Board 是无认证的本地管理面，禁止意外暴露。
+9. **凭据隔离：** Access Token 不得返回浏览器或与 Skill 一起存储。
+10. **纯 Dry-run：** Compile 与 Sync Planning 不得修改目标。
+11. **双语 UI 契约：** Board 的用户可见文本必须同时支持英文和简体中文。
+12. **显式反向输出：** IDE 生成的内容必须先完成归属与理由、作用域、Schema、冲突、
     验证和 promote/defer/discard 证据，才能成为源资产。
 
 ## 扩展点
