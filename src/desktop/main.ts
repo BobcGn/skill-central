@@ -33,6 +33,7 @@ import { createDesktopUpdater } from "./updater.js";
 import type { UpdateController } from "../update/types.js";
 import { startMcpServer } from "../mcp.js";
 import { desktopMcpServerConfig, isDesktopMcpMode } from "./mcp-launch.js";
+import { isUnpackedBuildLocation } from "./location.js";
 import { LocalRuntimeManager } from "../runtime/manager.js";
 
 const DEFAULT_PORT = 5417;
@@ -217,12 +218,31 @@ function desktopIconPath(): string | undefined {
 }
 
 if (isDesktopMcpMode(process.argv, app.isPackaged)) {
+  // macOS Dock 只应展示主应用一个图标。该 MCP 分支由本地 MCP Runtime
+  // 子进程命中：它是同一个 App 可执行文件的第二个 Electron 实例，
+  // 默认 Regular 激活策略会让 Dock 额外生成一个图标（“双图标”现象）。
+  // 这里显式隐藏 Dock 图标；主 GUI 进程不进入此分支，不受影响。
+  if (process.platform === "darwin") {
+    app.dock?.hide();
+  }
   startMcpServer().catch((err) => {
     console.error("[skill-central] Fatal:", err);
     process.exit(1);
   });
 } else {
   app.setName("Skill Central");
+
+  // Defensive check: warn when the app is launched from an unpacked build
+  // copy (release-artifacts/…, win-unpacked/…) instead of the installed
+  // location. Build scripts clean these copies, but an older or hand-copied
+  // bundle may still exist; running it next to the installed app creates
+  // duplicate Dock entries and a confusing single-instance lock.
+  if (isUnpackedBuildLocation(process.execPath)) {
+    console.warn(
+      "[skill-central] Running from an unpacked build location. Install the official package to " +
+      "/Applications (macOS) or Program Files (Windows) so only one application instance exists.",
+    );
+  }
 
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
