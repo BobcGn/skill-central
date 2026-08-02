@@ -4,9 +4,9 @@
 
 Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护者执行。贡献者可以改进实现与测试，但未经明确授权不得创建项目 Release。
 
-## 当前 Alpha Release
+## 当前 Release Candidate
 
-`1.0.0-alpha.3` 是当前 Release Candidate。其 Tag 会先生成用于桌面验收的 Draft GitHub Release；在 Draft 公开前，`1.0.0-alpha.2` 仍是最新公开预发布版本。Alpha.3 包含统一的 macOS/Windows 更新检查、打包应用 MCP 启动修复和首个 IDE 反向输出控制面。它仍是 Alpha：macOS 包未签名、未公证；Windows 打包行为仍需要真实机器验证后才能声明已验证。
+`1.0.0-rc.1` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.1 包含统一的 macOS/Windows 更新检查、打包应用 MCP 启动修复、本地 MCP Runtime 修复和首个 IDE 反向输出控制面。macOS 仍未签名、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
 
 已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装升级至 `alpha.2` 时，需要执行一次终端命令或手动安装新版 DMG；后续打包桌面版可使用修复后的应用内更新。
 

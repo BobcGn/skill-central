@@ -4,7 +4,7 @@ Local-first MCP hub for distributing reusable AI skills across IDEs.
 
 [简体中文](./README.zh-CN.md)
 
-> Current release candidate: `1.0.0-alpha.3`. The GitHub Release is staged as a draft for desktop validation; `1.0.0-alpha.2` remains the latest public prerelease until the candidate is published. Keep backups of important skill registries and review every sync or IDE connection plan before applying it.
+> Current release candidate: `1.0.0-rc.1`. It is published as a public prerelease for real desktop, Homebrew, IDE, update, sync, and reverse-output validation before `1.0.0`. Keep backups of important skill registries and review every sync or IDE connection plan before applying it.
 
 Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared skill library. It includes a desktop application, a browser-based local board, a CLI, an MCP server, transactional IDE configuration, GitHub registry sync, and workflow/session primitives.
 

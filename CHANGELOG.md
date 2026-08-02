@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-08-02
+
+### 修复
+
+- **本地 MCP Runtime**：桌面应用启动时默认启动一个本地 MCP stdio Runtime，并使用与
+  IDE 一键连接相同的打包可执行文件入口。
+- **Runtime 状态保持**：`LocalRuntimeManager` 保持 stdio stdin 打开，避免 MCP Server
+  空闲时立即退出并让 Board Runtime 状态从 `running` 回到 `stopped`。
+
+### 变更
+
+- **正式版候选验证**：rc.1 用作公开 Prerelease 测试入口，验证 Homebrew、DMG、
+  应用内更新、真实 IDE 连接、GitHub 同步和 IDE 反向输出路径是否达到 `1.0.0` 正式发布条件。
+
 ## [1.0.0-alpha.3] - 2026-08-02
 
 ### 新增

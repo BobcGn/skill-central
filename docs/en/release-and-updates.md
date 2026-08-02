@@ -4,9 +4,9 @@
 
 Release creation, tags, package publication, signing, and repository permission changes are maintainer-only operations. Contributors may improve implementation and tests, but must not create a project Release without explicit authorization.
 
-## Current Alpha Release
+## Current Release Candidate
 
-`1.0.0-alpha.3` is the current release candidate. Its tag stages a draft GitHub Release for desktop validation; until that draft is published, `1.0.0-alpha.2` remains the latest public prerelease. Alpha.3 contains the unified macOS/Windows release checks, the packaged-app MCP launch fix, and the initial IDE reverse-output control plane. It remains an alpha: macOS packages are unsigned and not notarized, and Windows packaged behavior still requires real machine verification before it is described as verified.
+`1.0.0-rc.1` is the current release candidate and is intended to be published as a public GitHub prerelease after the workflow stages the draft artifacts. Public prerelease publication is required before Homebrew and in-app update checks can download `latest-mac.yml`, `latest.yml`, and installer assets. RC.1 contains the unified macOS/Windows release checks, the packaged-app MCP launch fix, the local MCP Runtime fix, and the initial IDE reverse-output control plane. It remains unsigned and not notarized on macOS, and Windows packaged behavior still requires real machine verification before `1.0.0`.
 
 The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Upgrading an existing `alpha.1` installation to `alpha.2` therefore requires one Terminal operation or a manual DMG replacement. Later packaged desktop releases can use the repaired in-app updater.
 
