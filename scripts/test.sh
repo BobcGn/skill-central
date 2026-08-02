@@ -2606,6 +2606,13 @@ if grep -q "project-client-fixture" package.json; then
 fi
 pass "桌面打包强制注入项目 GitHub OAuth 配置且不修改源码 Metadata"
 
+if grep -qE '^[[:space:]]*identity: null' electron-builder.yml; then
+  fail "macOS 打包不得跳过签名（identity: null 会留下失效 seal 并破坏应用内更新安装）"
+fi
+grep -qE '^[[:space:]]*identity: "-"' electron-builder.yml \
+  && pass "macOS 打包使用 ad-hoc 签名以支持应用内更新安装" \
+  || fail "electron-builder.yml 缺少 mac.identity: \"-\""
+
 cleanup_fixture="$TEST_BIN_DIR/unpacked-cleanup-ci"
 rm -rf "$cleanup_fixture"
 mkdir -p "$cleanup_fixture/mac/Skill Central.app" \
