@@ -4,7 +4,7 @@
 
 [English](./README.md)
 
-> 当前版本：`1.0.0-alpha.2`。这是 Alpha 版本。请为重要的 Skill Registry 保留备份，并在执行同步或 IDE 连接前检查计划内容。
+> 当前 Release Candidate：`1.0.0-alpha.3`。GitHub Release 将先以 Draft 形式提供桌面验收；候选版本公开前，`1.0.0-alpha.2` 仍是最新公开预发布版本。请为重要的 Skill Registry 保留备份，并在执行同步或 IDE 连接前检查计划内容。
 
 Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共享 Skill 库，包含桌面应用、本地 Web Board、CLI、MCP Server、事务化 IDE 配置、GitHub Registry 同步以及 Workflow/Session 能力。
 

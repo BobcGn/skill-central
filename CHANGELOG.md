@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+## [1.0.0-alpha.3] - 2026-08-02
+
+### 新增
+
+- **IDE 反向输出 MVP**：新增 `reverse_output` MCP Tool 和
+  `skill-central reverse-output` CLI，支持预览、Promote、Defer、Discard、
+  Rollback，并将工作中沉淀的内容安全写回 Skill Layer 或 `.rules/`。
+- **反向输出治理**：新增 Skill、Skill Central 公约 Rule、IDE 原生 Rule 的术语、
+  边界划分法则和 Promote 检查点；Skill 作为持续演进的主要数字资产，Rule 仅在
+  属于跨 IDE 公约时进入规则库。
+
+### 修复
+
+- **桌面更新检查**：统一 macOS 与 Windows 的 GitHub Release 检查路径，macOS
+  不再因 Homebrew Tap 或 Cask 归属状态而无法检查更新。
+- **IDE MCP 连接状态**：打包桌面应用连接 IDE 时使用当前 App Bundle 内的 MCP
+  可执行文件，修复连接后显示 `server-stopped` 的问题。
+
+### 变更
+
+- **反向输出安全门禁**：增加 Schema、作用域、重复、冲突、路径遍历、SHA-256
+  并发保护、原子写入、Backup、写后校验和审计记录。
+
 ## [1.0.0-alpha.2] - 2026-08-01
 
 ### 新增

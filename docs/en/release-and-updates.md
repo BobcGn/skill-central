@@ -6,7 +6,7 @@ Release creation, tags, package publication, signing, and repository permission 
 
 ## Current Alpha Release
 
-`1.0.0-alpha.2` is the current public prerelease. It was published on 2026-08-01 after the Release workflow completed and the generated Homebrew Cask was merged. It remains an alpha: macOS packages are unsigned and not notarized, and Windows packaged behavior still requires real machine verification before it is described as verified.
+`1.0.0-alpha.3` is the current release candidate. Its tag stages a draft GitHub Release for desktop validation; until that draft is published, `1.0.0-alpha.2` remains the latest public prerelease. Alpha.3 contains the unified macOS/Windows release checks, the packaged-app MCP launch fix, and the initial IDE reverse-output control plane. It remains an alpha: macOS packages are unsigned and not notarized, and Windows packaged behavior still requires real machine verification before it is described as verified.
 
 The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Upgrading an existing `alpha.1` installation to `alpha.2` therefore requires one Terminal operation or a manual DMG replacement. Later packaged desktop releases can use the repaired in-app updater.
 
