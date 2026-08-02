@@ -27,7 +27,15 @@ publish:
 mac:
   icon: build/icon.icns
   category: public.app-category.developer-tools
-  identity: null
+  # Ad-hoc signing (`-`) re-seals the bundle so electron-updater's
+  # SecStaticCodeCheckValidity passes. `identity: null` leaves Electron's
+  # stale ad-hoc signature behind, which fails update installation with
+  # "code has no resources but signature indicates they must be present".
+  identity: "-"
+  # Hardened runtime is only meaningful for Developer ID + notarization; with
+  # ad-hoc signing it would enforce library validation on every dylib with no
+  # benefit, so keep it off for unsigned release candidates.
+  hardenedRuntime: false
   target:
     - target: dmg
       arch:
