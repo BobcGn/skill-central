@@ -9,11 +9,15 @@
 
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { cleanupUnpackedArtifacts } from "./lib/unpacked-cleanup.mjs";
 
 const require = createRequire(import.meta.url);
 
 const platform = process.argv[2];
 const clientId = process.env.SKILL_CENTRAL_GITHUB_CLIENT_ID?.trim();
+
+// Must match `directories.output` in electron-builder.yml.
+const OUTPUT_DIR = "release-artifacts";
 
 if (platform !== "mac" && platform !== "win") {
   console.error("Usage: node scripts/package-desktop.mjs <mac|win>");
@@ -62,5 +66,21 @@ child.once("exit", (code, signal) => {
     process.exitCode = 1;
     return;
   }
-  process.exitCode = code ?? 1;
+  if (code !== 0) {
+    process.exitCode = code ?? 1;
+    return;
+  }
+  // electron-builder leaves complete runnable app bundles (mac/, mac-arm64/,
+  // win-unpacked/, __msi-*/) in the output directory. They are build staging
+  // areas, not deliverables: only the officially installed application in
+  // /Applications (macOS) or Program Files (Windows) should exist. Remove them
+  // so the output directory contains only release artifacts. The same logic
+  // runs on every platform, including Windows, which we cannot test locally.
+  try {
+    cleanupUnpackedArtifacts(OUTPUT_DIR);
+    process.exitCode = 0;
+  } catch (cleanupError) {
+    console.error(`Unable to clean unpacked app dirs: ${cleanupError.message}`);
+    process.exitCode = 1;
+  }
 });
