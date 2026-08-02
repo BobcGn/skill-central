@@ -15,6 +15,8 @@ Skill Central connects to IDEs as a local stdio MCP server:
 
 The executable must be available in the environment used by the IDE. The MCP process loads the same configured skill layers as the CLI and exposes prompts, tools, and read-only resources.
 
+When one-click connection is run from the packaged desktop app, Skill Central writes the absolute executable path of the current App Bundle and starts that executable with the `mcp` argument. The IDE therefore does not need to find `skill-central` on the shell `PATH`. Source CLI `connect` and `register` still write the generic command shown above.
+
 ## Supported Connection Targets
 
 | Target | Format | Default candidates |

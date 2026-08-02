@@ -15,6 +15,8 @@ Skill Central 以本地 stdio MCP Server 连接 IDE：
 
 `skill-central` 可执行文件必须存在于 IDE 进程使用的环境中。MCP 进程加载与 CLI 相同的 Skill Layer，并暴露 prompts、tools 和只读 resources。
 
+通过打包桌面应用执行一键连接时，Skill Central 会写入当前 App Bundle 的绝对可执行路径，并让该可执行文件以 `mcp` 参数进入 stdio MCP 模式。这样 IDE 不需要从 shell `PATH` 中找到 `skill-central` 命令。源码 CLI 运行 `connect` 或 `register` 时仍写入上面的通用命令。
+
 ## 支持的连接目标
 
 | 目标 | 格式 | 默认候选位置 |

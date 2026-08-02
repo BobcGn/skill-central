@@ -1312,6 +1312,37 @@ node dist/index.js connect --target cursor --config-path "$new_connect_config" -
   && pass "connect 新建配置 rollback 会删除文件" \
   || fail "connect 新建配置 rollback 不应留下空 JSON 文件"
 
+node --input-type=module <<'NODE'
+import { readFile } from "node:fs/promises";
+import { buildConnectPlan, applyConnectPlan, rollbackConnectPlan } from "./dist/connect/connect-plan.js";
+
+const configPath = ".skill-central-connect-ci/desktop-cursor-mcp.json";
+const desiredServer = {
+  command: "/Applications/Skill Central.app/Contents/MacOS/Skill Central",
+  args: ["mcp"],
+};
+let plan = await buildConnectPlan("cursor", { configPath, desiredServer });
+if (plan.desiredServer.command !== desiredServer.command) {
+  throw new Error("connect plan did not preserve desktop MCP command");
+}
+plan = await applyConnectPlan(plan);
+const raw = JSON.parse(await readFile(configPath, "utf8"));
+if (raw.mcpServers["skill-central"].command !== desiredServer.command) {
+  throw new Error("connect apply did not write desktop MCP command");
+}
+if (raw.mcpServers["skill-central"].args[0] !== "mcp") {
+  throw new Error("connect apply did not write desktop MCP args");
+}
+await rollbackConnectPlan(plan);
+try {
+  await readFile(configPath, "utf8");
+  throw new Error("desktop-created config should be removed by rollback");
+} catch (err) {
+  if (err.code !== "ENOENT") throw err;
+}
+NODE
+pass "connect 支持桌面安装包注入绝对 MCP 启动入口并正确回退"
+
 malformed_config="$connect_dir/malformed-cursor-mcp.json"
 printf '{ invalid json\n' > "$malformed_config"
 set +e
@@ -2228,7 +2259,31 @@ node scripts/test-secure-token-store.mjs \
   || fail "SafeStorageTokenStore 安全边界失败"
 
 node --input-type=module <<'NODE'
+import { readFile } from "node:fs/promises";
+import { desktopCliArgs, desktopMcpServerConfig, isDesktopMcpMode } from "./dist/desktop/mcp-launch.js";
 import { BrewCaskUpdater } from "./dist/update/brew-cask.js";
+
+if (!isDesktopMcpMode(["/Applications/Skill Central.app/Contents/MacOS/Skill Central", "mcp"], true)) {
+  throw new Error("packaged desktop executable should accept mcp mode");
+}
+if (desktopCliArgs(["electron", "dist/desktop/main.js", "mcp"], false).join(" ") !== "mcp") {
+  throw new Error("development desktop argv parsing changed");
+}
+const packagedMcp = desktopMcpServerConfig(true, "/Applications/Skill Central.app/Contents/MacOS/Skill Central");
+if (packagedMcp?.command !== "/Applications/Skill Central.app/Contents/MacOS/Skill Central" || packagedMcp.args?.[0] !== "mcp") {
+  throw new Error("packaged desktop MCP config is invalid");
+}
+if (desktopMcpServerConfig(false, "/usr/bin/electron") !== undefined) {
+  throw new Error("development desktop should keep CLI MCP config");
+}
+
+const desktopUpdaterSource = await readFile("dist/desktop/updater.js", "utf8");
+if (desktopUpdaterSource.includes("BrewCaskUpdater")) {
+  throw new Error("desktop updater should not route macOS packaged checks through Homebrew");
+}
+if (!desktopUpdaterSource.includes('provider: "github"')) {
+  throw new Error("desktop updater should expose the unified GitHub provider");
+}
 
 const calls = [];
 let restarted = false;

@@ -102,6 +102,7 @@ import type {
   SkillType,
   UniversalSkillSchemaVersion,
 } from "../schema/universal-skill.js";
+import type { McpServerConfig } from "../ide-detection/types.js";
 import {
   assetAppliesTo,
   normaliseAssetScope,
@@ -132,6 +133,8 @@ export interface BoardDeps {
   githubOAuthClientId?: string;
   githubClientFactory?: (clientId: string) => BoardGitHubClient;
   updater?: UpdateController;
+  /** Desktop packages use their own executable as the MCP launcher. */
+  mcpServerConfig?: McpServerConfig;
   /** Override the default .rules directory for embedded consumers and tests. */
   rulesDir?: string;
 }
@@ -140,6 +143,7 @@ export interface BoardOptions {
   host?: string;
   port?: number;
   updater?: UpdateController;
+  mcpServerConfig?: McpServerConfig;
   githubOAuthClientId?: string;
   tokenStore?: TokenStore;
   authLogger?: (event: BoardAuthLogEvent) => void;
@@ -874,6 +878,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
     return c.json(await buildConnectPlan(body.target, {
       configPath: body.configPath,
       dryRun: true,
+      desiredServer: deps.mcpServerConfig,
     }));
   });
 
@@ -893,6 +898,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
     }
     let plan = await buildConnectPlan(body.target, {
       configPath: body.configPath,
+      desiredServer: deps.mcpServerConfig,
     });
     plan = await applyConnectPlan(plan);
     if (body.verify) {
@@ -914,6 +920,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
     }
     const plan = await buildConnectPlan(body.target, {
       configPath: body.configPath,
+      desiredServer: deps.mcpServerConfig,
     });
     return c.json(await rollbackConnectPlan({
       ...plan,
@@ -1763,6 +1770,7 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
     version,
     runtime: new LocalRuntimeManager(),
     updater: opts.updater,
+    mcpServerConfig: opts.mcpServerConfig,
     githubOAuthClientId: opts.githubOAuthClientId,
     tokenStore: opts.tokenStore,
     authLogger: opts.authLogger,

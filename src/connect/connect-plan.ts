@@ -25,7 +25,7 @@ import {
   defaultIdeConfigPath,
   SKILL_CENTRAL_MCP_SERVER_NAME,
 } from "../ide-detection/registry.js";
-import type { IdeTarget } from "../ide-detection/types.js";
+import type { IdeTarget, McpServerConfig } from "../ide-detection/types.js";
 import { checkIdeConnectionHealth } from "../health/ide-connection.js";
 import type { SkillEngine } from "../core/engine.js";
 import type { OneClickConnectPlan } from "./types.js";
@@ -35,6 +35,7 @@ export interface BuildConnectPlanOptions {
   force?: boolean;
   dryRun?: boolean;
   backupStamp?: string;
+  desiredServer?: McpServerConfig;
 }
 
 export async function buildConnectPlan(
@@ -50,8 +51,9 @@ export async function buildConnectPlan(
         `Parse error: ${registration.error ?? "unknown error"}`,
     );
   }
+  const desiredServer = options.desiredServer ?? DEFAULT_MCP_SERVER_CONFIG;
   const currentConfig = await readConfig(configPath, registration.configFormat);
-  const nextConfig = mergeSkillCentralServerConfig(currentConfig, registration.configFormat);
+  const nextConfig = mergeSkillCentralServerConfig(currentConfig, registration.configFormat, desiredServer);
   const backupPath = registration.configExists
     ? `${configPath}.bak.${options.backupStamp ?? timestamp()}`
     : undefined;
@@ -61,7 +63,7 @@ export async function buildConnectPlan(
     configPath,
     configFormat: registration.configFormat,
     serverName: SKILL_CENTRAL_MCP_SERVER_NAME,
-    desiredServer: DEFAULT_MCP_SERVER_CONFIG,
+    desiredServer,
     currentRegistered: registration.registered,
     configExists: registration.configExists,
     dryRun: !!options.dryRun,
@@ -79,7 +81,7 @@ export async function buildConnectPlan(
         kind: "preview",
         status: "applied",
         title: "Preview MCP config merge",
-        detail: `Set mcpServers.${SKILL_CENTRAL_MCP_SERVER_NAME} to ${DEFAULT_MCP_SERVER_CONFIG.command} ${(DEFAULT_MCP_SERVER_CONFIG.args ?? []).join(" ")}`,
+        detail: `Set mcpServers.${SKILL_CENTRAL_MCP_SERVER_NAME} to ${desiredServer.command} ${(desiredServer.args ?? []).join(" ")}`,
       },
       {
         kind: "backup",
@@ -111,7 +113,7 @@ export async function buildConnectPlan(
 
 export async function applyConnectPlan(plan: OneClickConnectPlan): Promise<OneClickConnectPlan> {
   const currentConfig = await readConfig(plan.configPath, plan.configFormat);
-  const nextConfig = mergeSkillCentralServerConfig(currentConfig, plan.configFormat);
+  const nextConfig = mergeSkillCentralServerConfig(currentConfig, plan.configFormat, plan.desiredServer);
   await mkdir(dirname(plan.configPath), { recursive: true });
   if (plan.configExists && plan.backupPath) {
     await writeFile(plan.backupPath, currentConfig, "utf-8");
@@ -154,7 +156,7 @@ export async function rollbackConnectPlan(plan: OneClickConnectPlan): Promise<On
     // that file restores the pre-connect state; writing "{}" would leave a
     // synthetic user config behind and hide what actually happened.
     const currentConfig = await readConfig(plan.configPath, plan.configFormat);
-    if (!isConnectCreatedConfig(currentConfig, plan.configFormat)) {
+    if (!isConnectCreatedConfig(currentConfig, plan.configFormat, plan.desiredServer)) {
       throw new Error(
         "Refusing rollback without backup: config contains data beyond the skill-central MCP entry.",
       );

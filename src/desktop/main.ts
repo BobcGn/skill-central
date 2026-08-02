@@ -31,6 +31,8 @@ import {
 import { startBoardServer, type BoardServerHandle } from "../web/server.js";
 import { createDesktopUpdater } from "./updater.js";
 import type { UpdateController } from "../update/types.js";
+import { startMcpServer } from "../mcp.js";
+import { desktopMcpServerConfig, isDesktopMcpMode } from "./mcp-launch.js";
 
 const DEFAULT_PORT = 5417;
 const MAX_PORT_TRIES = 10;
@@ -62,6 +64,7 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
     host,
     port,
     updater: desktopUpdater,
+    mcpServerConfig: desktopMcpServerConfig(app.isPackaged, process.execPath),
     githubOAuthClientId,
     tokenStore,
     authLogger: ({ operation, code }) => {
@@ -203,28 +206,35 @@ function desktopIconPath(): string | undefined {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
-app.setName("Skill Central");
-
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
-if (!hasSingleInstanceLock) {
-  app.quit();
+if (isDesktopMcpMode(process.argv, app.isPackaged)) {
+  startMcpServer().catch((err) => {
+    console.error("[skill-central] Fatal:", err);
+    process.exit(1);
+  });
 } else {
-  app.on("second-instance", () => {
-    requestShowMainWindow();
-  });
+  app.setName("Skill Central");
 
-  app.whenReady().then(async () => {
-    installApplicationMenu();
-    createTray();
-    await showMainWindow();
-  }).catch((err) => {
-    console.error(`[skill-central] Desktop startup failed: ${errorMessage(err)}`);
+  const hasSingleInstanceLock = app.requestSingleInstanceLock();
+  if (!hasSingleInstanceLock) {
     app.quit();
-  });
+  } else {
+    app.on("second-instance", () => {
+      requestShowMainWindow();
+    });
 
-  app.on("activate", () => {
-    requestShowMainWindow();
-  });
+    app.whenReady().then(async () => {
+      installApplicationMenu();
+      createTray();
+      await showMainWindow();
+    }).catch((err) => {
+      console.error(`[skill-central] Desktop startup failed: ${errorMessage(err)}`);
+      app.quit();
+    });
+
+    app.on("activate", () => {
+      requestShowMainWindow();
+    });
+  }
 }
 
 app.on("window-all-closed", () => {

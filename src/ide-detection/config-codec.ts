@@ -27,18 +27,22 @@ export function parseIdeMcpConfig(raw: string, format: IdeConfigFormat): ParsedI
   };
 }
 
-export function mergeSkillCentralServerConfig(raw: string, format: IdeConfigFormat): string {
+export function mergeSkillCentralServerConfig(
+  raw: string,
+  format: IdeConfigFormat,
+  serverConfig: McpServerConfig = DEFAULT_MCP_SERVER_CONFIG,
+): string {
   const parsed = parseIdeMcpConfig(raw, format);
   if (format === "json") {
     const mcpServers = isRecord(parsed.root.mcpServers) ? { ...parsed.root.mcpServers } : {};
-    mcpServers[SKILL_CENTRAL_MCP_SERVER_NAME] = DEFAULT_MCP_SERVER_CONFIG;
+    mcpServers[SKILL_CENTRAL_MCP_SERVER_NAME] = serverConfig;
     return stableJson({ ...parsed.root, mcpServers });
   }
 
   const withoutServer = stripCodexServerTables(raw);
   const serverToml = stringifyToml({
     mcp_servers: {
-      [SKILL_CENTRAL_MCP_SERVER_NAME]: DEFAULT_MCP_SERVER_CONFIG,
+      [SKILL_CENTRAL_MCP_SERVER_NAME]: serverConfig,
     },
   }).trim();
   const prefix = withoutServer.trimEnd();
@@ -60,9 +64,13 @@ export function removeSkillCentralServerConfig(raw: string, format: IdeConfigFor
   return next;
 }
 
-export function isConnectCreatedConfig(raw: string, format: IdeConfigFormat): boolean {
+export function isConnectCreatedConfig(
+  raw: string,
+  format: IdeConfigFormat,
+  serverConfig: McpServerConfig = DEFAULT_MCP_SERVER_CONFIG,
+): boolean {
   const parsed = parseIdeMcpConfig(raw, format);
-  if (!sameServer(parsed.server, DEFAULT_MCP_SERVER_CONFIG)) return false;
+  if (!sameServer(parsed.server, serverConfig)) return false;
   if (format === "toml") return stripCodexServerTables(raw).trim().length === 0;
 
   const keys = Object.keys(parsed.root);
