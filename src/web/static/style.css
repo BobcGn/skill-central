@@ -542,7 +542,7 @@ code { overflow-wrap: anywhere; color: var(--accent-strong); }
   .nav-item { display: flex; min-width: 0; min-height: 63px; height: 63px; flex-direction: column; justify-content: center; gap: 3px; padding: 4px; border-top: 2px solid transparent; border-left: 0; text-align: center; font-size: 10px; }
   .nav-item.active { border-top-color: var(--sidebar-accent); border-left-color: transparent; border-left-width: 0; }
   .nav-count { display: none; }
-  .sidebar-footer { margin: 0; padding: 0; border-top: 0; border-left: 1px solid var(--sidebar-border); }
+  .sidebar-footer { margin: 0; padding: 0; border-top: 0; border-left: 1px solid var(--sidebar-border); width: auto; }
   .profile-button { display: flex; width: 64px; height: 63px; min-height: 63px; justify-content: center; padding: 4px; }
   .profile-copy,
   .profile-settings { display: none; }
