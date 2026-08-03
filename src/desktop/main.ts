@@ -56,7 +56,7 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
   const githubOAuthClientId = resolveGitHubOAuthClientId({
     packaged: PACKAGED_GITHUB_OAUTH_CLIENT_ID,
   });
-  const mcpServerConfig = desktopMcpServerConfig(app.isPackaged, process.execPath);
+  const mcpServerConfig = desktopMcpServerConfig(app.isPackaged, process.execPath, app.getAppPath());
   // safeStorage is only queried after app.whenReady(). The store rejects Linux
   // and unavailable OS encryption rather than falling back to plaintext.
   const tokenStore = new SafeStorageTokenStore({
@@ -67,6 +67,7 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
     ? {
         command: mcpServerConfig.command,
         args: mcpServerConfig.args,
+        env: mcpServerConfig.env,
         autoStart: true,
       }
     : { autoStart: true });
@@ -217,6 +218,12 @@ function desktopIconPath(): string | undefined {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
+// Both branches must agree on the application name before Electron resolves
+// userData. Naming only the GUI branch let the MCP branch fall back to the
+// package name and create a second, scope-nested state directory
+// (`@bobcgn/skill-central`) next to the real one.
+app.setName("Skill Central");
+
 if (isDesktopMcpMode(process.argv, app.isPackaged)) {
   // macOS Dock 只应展示主应用一个图标。该 MCP 分支由本地 MCP Runtime
   // 子进程命中：它是同一个 App 可执行文件的第二个 Electron 实例，
@@ -230,8 +237,6 @@ if (isDesktopMcpMode(process.argv, app.isPackaged)) {
     process.exit(1);
   });
 } else {
-  app.setName("Skill Central");
-
   // Defensive check: warn when the app is launched from an unpacked build
   // copy (release-artifacts/…, win-unpacked/…) instead of the installed
   // location. Build scripts clean these copies, but an older or hand-copied

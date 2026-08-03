@@ -13,7 +13,10 @@
 // ============================================================================
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from "@modelcontextprotocol/sdk/client/stdio.js";
 import { detectIdeRegistration } from "../ide-detection/detect.js";
 import type { IdeDetectionOptions, IdeTarget, McpServerConfig } from "../ide-detection/types.js";
 import type { SkillEngine } from "../core/engine.js";
@@ -172,10 +175,13 @@ export async function checkIdeConnectionHealth(
 async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promise<ProbeResult> {
   const chunks: Buffer[] = [];
 
+  // An explicit `env` replaces the transport's inherited defaults instead of
+  // extending them, so a config that only pins one variable would otherwise
+  // strip PATH and SYSTEMROOT and make the server unlaunchable.
   const transport = new StdioClientTransport({
     command: server.command,
     args: server.args ?? [],
-    env: server.env,
+    env: server.env ? { ...getDefaultEnvironment(), ...server.env } : undefined,
     stderr: "pipe",
   });
   transport.stderr?.on("data", (chunk) =>

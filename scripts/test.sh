@@ -1927,6 +1927,27 @@ if (!stopped.stderrLines.some((line) => line.includes("runtime smoke"))) {
   throw new Error("LocalRuntimeManager did not capture diagnostic stderr");
 }
 
+// The packaged Windows launch entry only produces protocol traffic when its
+// environment reaches the child, and it must extend rather than replace the
+// inherited environment the runtime already depends on.
+const envManager = new LocalRuntimeManager({
+  command: process.execPath,
+  args: [
+    "-e",
+    "console.error(`env ${process.env.SC_RUNTIME_ENV_PROBE} ${Boolean(process.env.PATH)}`); setTimeout(() => {}, 10000);",
+  ],
+  env: { SC_RUNTIME_ENV_PROBE: "injected" },
+  maxLogLines: 5,
+});
+envManager.start();
+await new Promise((resolve) => setTimeout(resolve, 300));
+const envStopped = await envManager.stop();
+if (!envStopped.stderrLines.some((line) => line.includes("env injected true"))) {
+  throw new Error(
+    `LocalRuntimeManager env must be merged over the inherited environment: ${JSON.stringify(envStopped.stderrLines)}`,
+  );
+}
+
 const autoManager = new LocalRuntimeManager({
   command: process.execPath,
   args: ["-e", "setTimeout(() => {}, 10000);"],
@@ -2321,12 +2342,34 @@ if (!isDesktopMcpMode(["/Applications/Skill Central.app/Contents/MacOS/Skill Cen
 if (desktopCliArgs(["electron", "dist/desktop/main.js", "mcp"], false).join(" ") !== "mcp") {
   throw new Error("development desktop argv parsing changed");
 }
-const packagedMcp = desktopMcpServerConfig(true, "/Applications/Skill Central.app/Contents/MacOS/Skill Central");
-if (packagedMcp?.command !== "/Applications/Skill Central.app/Contents/MacOS/Skill Central" || packagedMcp.args?.[0] !== "mcp") {
+const macExec = "/Applications/Skill Central.app/Contents/MacOS/Skill Central";
+const macAppPath = "/Applications/Skill Central.app/Contents/Resources/app.asar";
+const packagedMcp = desktopMcpServerConfig(true, macExec, macAppPath, "darwin");
+if (packagedMcp?.command !== macExec || packagedMcp.args?.[0] !== "mcp") {
   throw new Error("packaged desktop MCP config is invalid");
 }
-if (desktopMcpServerConfig(false, "/usr/bin/electron") !== undefined) {
+if (packagedMcp.env !== undefined) {
+  throw new Error("macOS packaged MCP config should not pin an environment");
+}
+if (desktopMcpServerConfig(false, "/usr/bin/electron", "/src", "darwin") !== undefined) {
   throw new Error("development desktop should keep CLI MCP config");
+}
+
+// Windows Electron binaries are GUI-subsystem, so `<app>.exe mcp` never
+// delivers JSON-RPC on stdout. The packaged launch entry must run the same
+// executable as plain Node against the bundled CLI so responses survive.
+const winExec = "C:\\Program Files\\Skill Central\\Skill Central.exe";
+const winAppPath = "C:\\Program Files\\Skill Central\\resources\\app.asar";
+const winMcp = desktopMcpServerConfig(true, winExec, winAppPath, "win32");
+if (winMcp?.command !== winExec) {
+  throw new Error("windows packaged MCP config must launch the app executable");
+}
+if (winMcp.env?.ELECTRON_RUN_AS_NODE !== "1") {
+  throw new Error("windows packaged MCP config must run the executable as Node");
+}
+const expectedWinEntry = `${winAppPath}\\dist\\index.js`;
+if (winMcp.args?.length !== 2 || winMcp.args[0] !== expectedWinEntry || winMcp.args[1] !== "mcp") {
+  throw new Error(`windows packaged MCP args are invalid: ${JSON.stringify(winMcp.args)}`);
 }
 
 const desktopUpdaterSource = await readFile("dist/desktop/updater.js", "utf8");
