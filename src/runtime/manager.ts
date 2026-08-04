@@ -39,6 +39,8 @@ export interface LocalRuntimeManagerOptions {
   command?: string;
   args?: string[];
   cwd?: string;
+  /** Merged over the manager's own environment rather than replacing it. */
+  env?: Record<string, string>;
   maxLogLines?: number;
   autoStart?: boolean;
 }
@@ -78,6 +80,7 @@ export class LocalRuntimeManager {
     const args = this.options.args ?? [resolve(process.argv[1] ?? "dist/index.js"), "mcp"];
     const child = spawn(command, args, {
       cwd: this.options.cwd ?? process.cwd(),
+      env: this.options.env ? { ...process.env, ...this.options.env } : process.env,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
