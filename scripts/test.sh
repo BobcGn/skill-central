@@ -3300,6 +3300,47 @@ body: |
   Severity omitted on purpose; it must default to info.
 EOF
 
+# Governance fixtures live in the isolated CI rule directory. The repository's
+# real .rules/ directory is a personal asset and must not be required by CI.
+cat > "$RULES_CI_DIR/rule-reverse-output-governance.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id: reverse-output-governance
+name: Reverse Output Governance
+description: CI fixture for reverse output governance rule loading.
+severity: info
+tags:
+  - governance
+  - reverse-output
+body: |
+  Reverse output must promote durable Skills or Rules only after source, context,
+  placement classification, validation, verification, and a promote/defer/discard
+  decision are recorded.
+EOF
+
+cat > "$RULES_CI_DIR/rule-placement-boundaries.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id: rule-placement-boundaries
+name: Rule Placement Boundaries
+description: CI fixture for covenant versus IDE-native rule placement.
+severity: warn
+tags:
+  - governance
+  - boundaries
+body: |
+  Business domain versus runtime environment: shared policy belongs in the
+  Skill Central covenant, while local startup details belong in the IDE-native rule.
+
+  Strategic constraint versus tactical execution: What and Why belong in the
+  covenant; How to invoke a local tool belongs in the IDE-native rule.
+
+  Dynamic evolution versus relative stability: reusable lessons belong in Skills
+  or Rules; low-frequency bootstrap setup belongs in an IDE adapter.
+
+  AGENT.md and CLAUDE.md may add execution detail but must not redefine shared terms
+  and must not remove a gate. Every promotion must record placement classification
+  and reason before promotion.
+EOF
+
 # Malformed rules — each violates exactly one contract requirement.
 cat > "$RULES_CI_DIR/rule-missing-id.yaml" <<'EOF'
 schemaVersion: skillcentral.dev/rule/v1
@@ -3356,27 +3397,28 @@ node dist/index.js rules --dir "$RULES_CI_DIR" 2>/dev/null | grep -q "ci-legal-r
   && pass "rules 列出合法规则" \
   || fail "rules 未列出合法规则"
 
-node dist/index.js validate-rule .rules/00-governance/reverse-output-governance.yaml \
+node dist/index.js validate-rule "$RULES_CI_DIR/rule-reverse-output-governance.yaml" \
   && pass "反向输出治理规则可通过 validate-rule" \
   || fail "反向输出治理规则校验失败"
 
-node dist/index.js validate-rule .rules/00-governance/rule-placement-boundaries.yaml \
+node dist/index.js validate-rule "$RULES_CI_DIR/rule-placement-boundaries.yaml" \
   && pass "规则边界划分治理规则可通过 validate-rule" \
   || fail "规则边界划分治理规则校验失败"
 
-node dist/index.js rules 2>/dev/null | grep -q "reverse-output-governance" \
-  && pass "默认规则库包含反向输出治理规则" \
-  || fail "默认规则库未包含反向输出治理规则"
+node dist/index.js rules --dir "$RULES_CI_DIR" 2>/dev/null | grep -q "reverse-output-governance" \
+  && pass "CI 规则库包含反向输出治理规则" \
+  || fail "CI 规则库未包含反向输出治理规则"
 
-node dist/index.js rules 2>/dev/null | grep -q "rule-placement-boundaries" \
-  && pass "默认规则库包含规则边界划分治理规则" \
-  || fail "默认规则库未包含规则边界划分治理规则"
+node dist/index.js rules --dir "$RULES_CI_DIR" 2>/dev/null | grep -q "rule-placement-boundaries" \
+  && pass "CI 规则库包含规则边界划分治理规则" \
+  || fail "CI 规则库未包含规则边界划分治理规则"
 
-node --input-type=module <<'NODE'
+RULES_CI_DIR="$RULES_CI_DIR" node --input-type=module <<'NODE'
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { load } from "js-yaml";
 
-const raw = await readFile(".rules/00-governance/rule-placement-boundaries.yaml", "utf8");
+const raw = await readFile(path.join(process.env.RULES_CI_DIR, "rule-placement-boundaries.yaml"), "utf8");
 const rule = load(raw);
 const body = rule?.body;
 if (typeof body !== "string") throw new Error("rule placement body missing");
