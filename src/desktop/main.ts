@@ -10,6 +10,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   Menu,
   nativeImage,
   safeStorage,
@@ -17,8 +18,10 @@ import {
   Tray,
   type MenuItemConstructorOptions,
 } from "electron";
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,7 +35,7 @@ import { startBoardServer, type BoardServerHandle } from "../web/server.js";
 import { createDesktopUpdater } from "./updater.js";
 import type { UpdateController } from "../update/types.js";
 import { startMcpServer } from "../mcp.js";
-import { desktopMcpServerConfig, isDesktopMcpMode } from "./mcp-launch.js";
+import { desktopMcpServerConfig, isDesktopMcpMode, withProjectRootEnv } from "./mcp-launch.js";
 import { isUnpackedBuildLocation } from "./location.js";
 import { LocalRuntimeManager } from "../runtime/manager.js";
 
@@ -52,11 +55,12 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
   if (boardServer) return boardServer;
   const host = "127.0.0.1";
   const port = await findAvailablePort(host, DEFAULT_PORT);
+  const rootDir = await readDesktopWorkspace();
   desktopUpdater ??= createDesktopUpdater();
   const githubOAuthClientId = resolveGitHubOAuthClientId({
     packaged: PACKAGED_GITHUB_OAUTH_CLIENT_ID,
   });
-  const mcpServerConfig = desktopMcpServerConfig(app.isPackaged, process.execPath, app.getAppPath());
+  const mcpServerConfig = desktopMcpServerConfig(app.isPackaged, process.execPath, app.getAppPath(), process.platform, rootDir);
   // safeStorage is only queried after app.whenReady(). The store rejects Linux
   // and unavailable OS encryption rather than falling back to plaintext.
   const tokenStore = new SafeStorageTokenStore({
@@ -67,21 +71,24 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
     ? {
         command: mcpServerConfig.command,
         args: mcpServerConfig.args,
+        cwd: rootDir,
         env: mcpServerConfig.env,
         autoStart: true,
       }
-    : { autoStart: true });
+    : { cwd: rootDir, autoStart: true });
   const board = startBoardServer({
     host,
     port,
+    rootDir,
     updater: desktopUpdater,
     runtime,
-    mcpServerConfig,
+    mcpServerConfig: withProjectRootEnv(mcpServerConfig, rootDir),
     githubOAuthClientId,
     tokenStore,
     authLogger: ({ operation, code }) => {
       console.warn(`[skill-central] GitHub auth diagnostic: operation=${operation} code=${code}`);
     },
+    onWorkspaceChange: writeDesktopWorkspace,
   });
   boardServer = board;
   try {
@@ -92,6 +99,32 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
     board.server.close();
     throw err;
   }
+}
+
+async function readDesktopWorkspace(): Promise<string> {
+  const fallback = app.isPackaged ? homedir() : process.cwd();
+  try {
+    const parsed = JSON.parse(await readFile(desktopWorkspacePath(), "utf-8")) as { rootDir?: unknown };
+    return typeof parsed.rootDir === "string" && parsed.rootDir.trim()
+      ? path.resolve(parsed.rootDir)
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function writeDesktopWorkspace(rootDir: string): Promise<void> {
+  const filePath = desktopWorkspacePath();
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(
+    filePath,
+    `${JSON.stringify({ rootDir: path.resolve(rootDir), updatedAt: new Date().toISOString() }, null, 2)}\n`,
+    "utf-8",
+  );
+}
+
+function desktopWorkspacePath(): string {
+  return path.join(app.getPath("userData"), "workspace.json");
 }
 
 async function createMainWindow(): Promise<void> {
@@ -224,7 +257,9 @@ function desktopIconPath(): string | undefined {
 // (`@bobcgn/skill-central`) next to the real one.
 app.setName("Skill Central");
 
-if (isDesktopMcpMode(process.argv, app.isPackaged)) {
+const desktopMcpMode = isDesktopMcpMode(process.argv, app.isPackaged);
+
+if (desktopMcpMode) {
   // macOS Dock 只应展示主应用一个图标。该 MCP 分支由本地 MCP Runtime
   // 子进程命中：它是同一个 App 可执行文件的第二个 Electron 实例，
   // 默认 Regular 激活策略会让 Dock 额外生成一个图标（“双图标”现象）。
@@ -243,14 +278,19 @@ if (isDesktopMcpMode(process.argv, app.isPackaged)) {
   // bundle may still exist; running it next to the installed app creates
   // duplicate Dock entries and a confusing single-instance lock.
   if (isUnpackedBuildLocation(process.execPath)) {
-    console.warn(
-      "[skill-central] Running from an unpacked build location. Install the official package to " +
+    recordStartupDiagnostic(
+      "Running from an unpacked build location. Install the official package to " +
       "/Applications (macOS) or Program Files (Windows) so only one application instance exists.",
     );
   }
 
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
+    showStartupFailure(
+      "Skill Central is already running",
+      "Another Skill Central instance owns the desktop single-instance lock. " +
+      "Quit the installed application before launching this build.",
+    );
     app.quit();
   } else {
     app.on("second-instance", () => {
@@ -262,7 +302,7 @@ if (isDesktopMcpMode(process.argv, app.isPackaged)) {
       createTray();
       await showMainWindow();
     }).catch((err) => {
-      console.error(`[skill-central] Desktop startup failed: ${errorMessage(err)}`);
+      showStartupFailure("Skill Central failed to start", errorMessage(err));
       app.quit();
     });
 
@@ -270,6 +310,18 @@ if (isDesktopMcpMode(process.argv, app.isPackaged)) {
       requestShowMainWindow();
     });
   }
+}
+
+if (!desktopMcpMode) {
+  process.on("uncaughtException", (err) => {
+    showStartupFailure("Skill Central crashed during startup", errorMessage(err));
+    app.quit();
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    showStartupFailure("Skill Central startup promise failed", errorMessage(reason));
+    app.quit();
+  });
 }
 
 app.on("window-all-closed", () => {
@@ -330,12 +382,36 @@ function waitForServerListening(board: BoardServerHandle): Promise<void> {
 
 function requestShowMainWindow(): void {
   void showMainWindow().catch((err) => {
-    console.error(`[skill-central] Unable to show desktop window: ${errorMessage(err)}`);
+    showStartupFailure("Skill Central could not show its window", errorMessage(err));
   });
 }
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function showStartupFailure(title: string, message: string): void {
+  recordStartupDiagnostic(`${title}: ${message}`);
+  try {
+    dialog.showErrorBox(title, `${message}\n\nDiagnostics: ${startupLogPath()}`);
+  } catch {
+    // Very early Electron startup paths may not be able to show UI.
+  }
+}
+
+function recordStartupDiagnostic(message: string): void {
+  try {
+    const logPath = startupLogPath();
+    mkdirSync(path.dirname(logPath), { recursive: true });
+    appendFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`, "utf-8");
+  } catch {
+    // Startup diagnostics must never become the reason startup fails.
+  }
+  console.warn(`[skill-central] ${message}`);
+}
+
+function startupLogPath(): string {
+  return path.join(app.getPath("userData"), "startup.log");
 }
 
 function logSecureTokenStoreEvent(event: SecureTokenStoreEvent): void {

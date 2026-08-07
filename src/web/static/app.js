@@ -41,6 +41,8 @@ const state = {
     until: "",
   },
   editing: false,
+  workspace: null,
+  createAssetType: "skill",
 };
 
 const messages = {
@@ -51,6 +53,10 @@ const messages = {
     "nav.sync": "Sync",
     "nav.runtime": "Runtime",
     "workspace.label": "Workspace",
+    "workspace.change": "Change workspace",
+    "workspace.prompt": "Workspace folder path",
+    "workspace.changed": "Workspace changed",
+    "workspace.emptySuffix": "searched",
     "settings.account": "Personal settings",
     "settings.title": "Personal settings",
     "settings.theme": "Theme",
@@ -91,6 +97,11 @@ const messages = {
     "action.backups": "Backups",
     "action.save": "Save",
     "action.cancel": "Cancel",
+    "create.skill": "Add skill",
+    "create.rule": "Add rule",
+    "create.layer": "Layer",
+    "create.import": "Import YAML",
+    "create.saved": "Asset created",
     "ide.title": "IDE Connections",
     "ide.selected": "Selected target",
     "ide.health": "Check health",
@@ -161,6 +172,10 @@ const messages = {
     "nav.sync": "同步",
     "nav.runtime": "运行时",
     "workspace.label": "工作区",
+    "workspace.change": "切换工作区",
+    "workspace.prompt": "工作区目录路径",
+    "workspace.changed": "工作区已切换",
+    "workspace.emptySuffix": "搜索目录",
     "settings.account": "个人设置",
     "settings.title": "个人设置",
     "settings.theme": "主题",
@@ -201,6 +216,11 @@ const messages = {
     "action.backups": "备份",
     "action.save": "保存",
     "action.cancel": "取消",
+    "create.skill": "添加 Skill",
+    "create.rule": "添加 Rule",
+    "create.layer": "层级",
+    "create.import": "导入 YAML",
+    "create.saved": "资产已创建",
     "ide.title": "IDE 连接",
     "ide.selected": "当前目标",
     "ide.health": "健康检查",
@@ -314,6 +334,7 @@ function applyPreferences() {
   if (state.ruleDetail) renderRuleDetail(state.ruleDetail);
   if (state.githubStatus) renderGithubStatus(state.githubStatus);
   if (state.updateStatus) renderUpdateStatus(state.updateStatus);
+  renderWorkspace();
 }
 
 function navigate(view, persist = true) {
@@ -367,6 +388,19 @@ function renderHealth(health) {
   document.getElementById("rule-count").textContent = ruleCount;
   const brandVersion = document.getElementById("brand-version");
   if (brandVersion) brandVersion.textContent = health.version;
+  if (health.rootDir) {
+    state.workspace = { ...(state.workspace || {}), rootDir: health.rootDir };
+    renderWorkspace();
+  }
+}
+
+function renderWorkspace() {
+  const button = document.getElementById("btn-workspace");
+  if (!button) return;
+  const rootDir = state.workspace?.rootDir || "";
+  button.textContent = rootDir || t("workspace.change");
+  button.title = rootDir ? `${t("workspace.change")}: ${rootDir}` : t("workspace.change");
+  button.setAttribute("aria-label", t("workspace.change"));
 }
 
 function renderList() {
@@ -384,7 +418,9 @@ function renderList() {
   if (visibleSkills.length === 0) {
     const li = document.createElement("li");
     li.className = "list-empty";
-    li.textContent = skillAssets.length === 0 ? t("skills.noSkills") : t("skills.noResults");
+    li.textContent = skillAssets.length === 0
+      ? `${t("skills.noSkills")} · ${t("workspace.emptySuffix")}: ${state.workspace?.rootDir || ""}`
+      : t("skills.noResults");
     ul.appendChild(li);
     return;
   }
@@ -430,7 +466,7 @@ function renderRuleList() {
     const li = document.createElement("li");
     li.className = "list-empty";
     li.textContent = state.scopeAssets.every((asset) => asset.assetType !== "rule")
-      ? t("rules.noRules")
+      ? `${t("rules.noRules")} · ${t("workspace.emptySuffix")}: ${state.workspace?.rootDir || ""}`
       : t("rules.noResults");
     ul.appendChild(li);
     return;
@@ -873,6 +909,89 @@ function parseProjectIds(input) {
     .split(/[\n,]/)
     .map((value) => value.trim())
     .filter(Boolean))];
+}
+
+function openCreateAssetDialog(assetType) {
+  state.createAssetType = assetType === "rule" ? "rule" : "skill";
+  const dialog = document.getElementById("create-asset-dialog");
+  document.getElementById("create-asset-title").textContent = t(state.createAssetType === "skill" ? "create.skill" : "create.rule");
+  document.getElementById("create-layer-label").textContent = t("create.layer");
+  document.getElementById("create-import-label").textContent = t("create.import");
+  document.getElementById("create-asset-error").textContent = "";
+  document.getElementById("create-asset-yaml").value = createAssetTemplate(state.createAssetType);
+  renderCreateLayerOptions();
+  if (!dialog.open) dialog.showModal();
+}
+
+function renderCreateLayerOptions() {
+  const select = document.getElementById("create-skill-layer");
+  const label = document.getElementById("create-layer-label");
+  if (!select || !label) return;
+  const skillMode = state.createAssetType === "skill";
+  select.hidden = !skillMode;
+  label.hidden = !skillMode;
+  select.innerHTML = (state.workspace?.layers || [])
+    .filter((layer) => layer.id)
+    .map((layer) => `<option value="${escapeHtml(layer.id)}" ${layer.id === "02-workflows" ? "selected" : ""}>${escapeHtml(layer.id)} · ${escapeHtml(String(layer.priority))}</option>`)
+    .join("");
+}
+
+function createAssetTemplate(assetType) {
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+  if (assetType === "rule") {
+    return `schemaVersion: skillcentral.dev/rule/v1
+id: new-rule-${stamp}
+name: New Rule
+description: Describe the covenant this rule enforces
+severity: info
+tags: [governance]
+body: |
+  State the rule clearly and include the boundary it protects.
+`;
+  }
+  return `schemaVersion: skillcentral.dev/v1
+id: new-skill-${stamp}
+name: New Skill
+description: Describe when an IDE should use this skill
+type: prompt
+tags: [workflow]
+prompt: |
+  Write the reusable instruction here.
+`;
+}
+
+async function importCreateAssetFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    document.getElementById("create-asset-yaml").value = await file.text();
+    document.getElementById("create-asset-error").textContent = "";
+  } catch (err) {
+    document.getElementById("create-asset-error").textContent = err.message;
+  } finally {
+    event.target.value = "";
+  }
+}
+
+async function saveCreateAsset() {
+  const error = document.getElementById("create-asset-error");
+  error.textContent = "";
+  const rawYaml = document.getElementById("create-asset-yaml").value;
+  const assetType = state.createAssetType;
+  const layerId = document.getElementById("create-skill-layer")?.value || undefined;
+  try {
+    const result = await api(`/api/assets/${assetType}`, {
+      method: "POST",
+      body: JSON.stringify({ rawYaml, layerId: assetType === "skill" ? layerId : undefined }),
+    });
+    document.getElementById("create-asset-dialog").close();
+    await loadAll();
+    if (assetType === "skill") await selectSkill(result.id);
+    else selectRule(scopeAssetKey({ assetType: "rule", source: result.source }));
+    flash(t("create.saved"));
+  } catch (err) {
+    error.textContent = err.message;
+  }
 }
 
 async function loadIdeTargets() {
@@ -1693,12 +1812,14 @@ function openSettings() {
 
 async function loadAll() {
   try {
-    const [health, skills, rules, scopes] = await Promise.all([
+    const [health, workspace, skills, rules, scopes] = await Promise.all([
       api("/api/health"),
+      api("/api/workspace"),
       api("/api/skills"),
       api("/api/rules"),
       api("/api/assets/scopes"),
     ]);
+    state.workspace = workspace;
     state.skills = skills;
     state.rules = rules;
     state.scopeAssets = scopes.assets;
@@ -1714,6 +1835,32 @@ async function loadAll() {
     console.error(err);
   }
   await loadIdeTargets();
+}
+
+async function changeWorkspace() {
+  const current = state.workspace?.rootDir || "";
+  const rootDir = prompt(t("workspace.prompt"), current);
+  if (rootDir === null) return;
+  const trimmed = rootDir.trim();
+  if (!trimmed || trimmed === current) return;
+  try {
+    state.workspace = await api("/api/workspace", {
+      method: "POST",
+      body: JSON.stringify({ rootDir: trimmed }),
+    });
+    state.activeId = null;
+    state.activeSkillKey = null;
+    state.activeRuleId = null;
+    state.detail = null;
+    state.ruleDetail = null;
+    state.editing = false;
+    await loadAll();
+    renderDetail(null);
+    renderRuleDetail(null);
+    flash(t("workspace.changed"));
+  } catch (err) {
+    flash(`✗ ${err.message}`, true);
+  }
 }
 
 function flash(msg, isError) {
@@ -1761,6 +1908,18 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-runtime-start").addEventListener("click", startRuntime);
   document.getElementById("btn-runtime-stop").addEventListener("click", stopRuntime);
   document.getElementById("btn-compile-preview").addEventListener("click", showCompilePreview);
+  document.getElementById("btn-create-skill").addEventListener("click", () => openCreateAssetDialog("skill"));
+  document.getElementById("btn-create-rule").addEventListener("click", () => openCreateAssetDialog("rule"));
+  document.getElementById("create-import-file").addEventListener("change", importCreateAssetFile);
+  document.getElementById("btn-save-create-asset").addEventListener("click", saveCreateAsset);
+  for (const id of ["btn-close-create-asset", "btn-cancel-create-asset"]) {
+    document.getElementById(id).addEventListener("click", () => {
+      document.getElementById("create-asset-dialog").close();
+    });
+  }
+  document.getElementById("create-asset-dialog").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
   document.getElementById("btn-sync-status").addEventListener("click", showSyncStatus);
   document.getElementById("btn-sync-plan").addEventListener("click", showSyncPlan);
   document.getElementById("btn-sync-apply").addEventListener("click", applySync);
@@ -1846,6 +2005,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   document.getElementById("btn-settings").addEventListener("click", openSettings);
+  document.getElementById("btn-workspace").addEventListener("click", changeWorkspace);
   document.getElementById("btn-close-settings").addEventListener("click", () => {
     document.getElementById("settings-dialog").close();
   });

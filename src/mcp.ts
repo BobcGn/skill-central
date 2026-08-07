@@ -12,11 +12,17 @@ import { registerHandlers } from "./protocol/handler.js";
 import { loadConfig } from "./storage/config.js";
 import { VERSION } from "./version.js";
 
+export const PROJECT_ROOT_ENV = "SKILL_CENTRAL_PROJECT_ROOT";
+
+export interface StartMcpServerOptions {
+  projectRoot?: string;
+}
+
 /**
  * 启动 MCP Server 并绑定 Stdio 传输。
  * 此函数不会正常返回，进程会持续监听 stdin 上的 JSON-RPC 消息。
  */
-export async function startMcpServer(): Promise<void> {
+export async function startMcpServer(options: StartMcpServerOptions = {}): Promise<void> {
   // ── 抑制 console.log 等 stdout 输出 ─────────────────────────────────────
   // MCP Stdio 协议以 stdout 作为 JSON-RPC 传输通道。任何输出到 stdout 的数据
   // 都会破坏协议帧，导致 IDE 无法解析响应。所有调试信息一律走 stderr。
@@ -27,7 +33,8 @@ export async function startMcpServer(): Promise<void> {
   console.info = (...args: unknown[]) => console.error("[mcp:info]", ...args);
   console.debug = (...args: unknown[]) => console.error("[mcp:debug]", ...args);
 
-  const config = loadConfig();
+  const projectRoot = options.projectRoot ?? process.env[PROJECT_ROOT_ENV] ?? process.cwd();
+  const config = loadConfig(projectRoot);
 
   const server = new Server(
     { name: "skill-central", version: VERSION },
@@ -39,10 +46,10 @@ export async function startMcpServer(): Promise<void> {
   const engine = new SkillEngine();
   registerHandlers(server, engine, {
     config,
-    projectRoot: process.cwd(),
+    projectRoot,
   });
 
-  await engine.reload(config.layers);
+  await engine.reload(config.layers, { projectRoot });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

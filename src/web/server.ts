@@ -30,7 +30,7 @@
 //   GET  /api/sync/backup-file
 // ============================================================================
 
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -77,6 +77,7 @@ import { validateSkill } from "../storage/parser.js";
 import {
   DEFAULT_RULES_DIR,
   readAllRuleEntries,
+  validateRule,
   type LoadedRule,
 } from "../storage/rule-reader.js";
 import {
@@ -115,6 +116,7 @@ import {
   UnsupportedUpdateController,
   type UpdateController,
 } from "../update/types.js";
+import { PROJECT_ROOT_ENV } from "../mcp.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -137,17 +139,20 @@ export interface BoardDeps {
   mcpServerConfig?: McpServerConfig;
   /** Override the default .rules directory for embedded consumers and tests. */
   rulesDir?: string;
+  onWorkspaceChange?: (rootDir: string) => void | Promise<void>;
 }
 
 export interface BoardOptions {
   host?: string;
   port?: number;
+  rootDir?: string;
   updater?: UpdateController;
   runtime?: RuntimeController;
   mcpServerConfig?: McpServerConfig;
   githubOAuthClientId?: string;
   tokenStore?: TokenStore;
   authLogger?: (event: BoardAuthLogEvent) => void;
+  onWorkspaceChange?: (rootDir: string) => void | Promise<void>;
 }
 
 export interface BoardServerHandle {
@@ -163,6 +168,10 @@ export interface RuntimeController {
   stop(): Promise<RuntimeSnapshot>;
 }
 
+interface ConfigurableRuntimeController extends RuntimeController {
+  configure(options: { command?: string; args?: string[]; cwd?: string; env?: Record<string, string> }, restart?: boolean): Promise<RuntimeSnapshot>;
+}
+
 export interface BoardGitHubClient {
   requestDeviceCode(): Promise<GitHubDeviceCode>;
   pollForToken(deviceCode: string): Promise<GitHubTokenResponse | GitHubDeviceFlowPending>;
@@ -172,6 +181,11 @@ export interface BoardGitHubClient {
 export interface BoardAuthLogEvent {
   operation: "status" | "device" | "poll" | "profile" | "logout";
   code: string;
+}
+
+interface WorkspaceStatus {
+  rootDir: string;
+  layers: Array<{ id: string; path: string; priority: number; scope?: string }>;
 }
 
 const SYNC_APPLY_CONFIRMATION = "APPLY SYNC";
@@ -402,7 +416,7 @@ async function buildRuleDto(
  */
 export function createBoardApp(deps: BoardDeps): Hono {
   const app = new Hono();
-  const rulesDir = path.resolve(deps.rootDir, deps.rulesDir ?? DEFAULT_RULES_DIR);
+  const rulesDir = () => path.resolve(deps.rootDir, deps.rulesDir ?? DEFAULT_RULES_DIR);
   const runtime = deps.runtime ?? createRuntimeController(deps.mcpServerConfig);
   const updater = deps.updater ?? new UnsupportedUpdateController(
     deps.version,
@@ -435,8 +449,43 @@ export function createBoardApp(deps: BoardDeps): Hono {
 
   // ── /api/health ────────────────────────────────────────────────────────
   app.get("/api/health", (c) =>
-    c.json({ ok: true, version: deps.version, skills: deps.engine.querySkills().skills.length }),
+    c.json({ ok: true, version: deps.version, rootDir: deps.rootDir, skills: deps.engine.querySkills().skills.length }),
   );
+
+  app.get("/api/workspace", (c) => c.json(workspaceStatus(deps)));
+
+  app.post("/api/workspace", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin workspace request rejected." }, 403);
+    }
+    let body: { rootDir?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (typeof body.rootDir !== "string" || body.rootDir.trim().length === 0) {
+      return c.json({ error: "rootDir must be a non-empty string" }, 400);
+    }
+
+    const nextRoot = path.resolve(body.rootDir);
+    try {
+      const nextRootStat = await stat(nextRoot);
+      if (!nextRootStat.isDirectory()) {
+        return c.json({ error: `workspace is not a directory: ${nextRoot}` }, 400);
+      }
+      const nextConfig = loadConfig(nextRoot);
+      await deps.engine.reload(nextConfig.layers, { projectRoot: nextRoot });
+      deps.rootDir = nextRoot;
+      deps.config = nextConfig;
+      deps.mcpServerConfig = withProjectRootEnv(deps.mcpServerConfig, nextRoot);
+      await configureRuntimeForWorkspace(runtime, deps.mcpServerConfig, nextRoot);
+      await deps.onWorkspaceChange?.(nextRoot);
+      return c.json(workspaceStatus(deps));
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
 
   // ── Desktop updates ──────────────────────────────────────────────────
   app.get("/api/update/status", (c) => c.json(updater.getSnapshot()));
@@ -675,7 +724,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
 
   app.get("/api/rules", async (c) => {
     const identity = await resolveProjectIdentity(deps.rootDir);
-    const entries = await readAllRuleEntries([rulesDir]);
+    const entries = await readAllRuleEntries([rulesDir()]);
     const dtos = await Promise.all(entries.map((entry) =>
       buildRuleDto(entry, deps.rootDir, identity.aliases)
     ));
@@ -686,7 +735,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
   app.get("/api/assets/scopes", async (c) => {
     const identity = await resolveProjectIdentity(deps.rootDir);
     const skillEntries = await readAllLayers(deps.config.layers);
-    const ruleEntries = await readAllRuleEntries([rulesDir]);
+    const ruleEntries = await readAllRuleEntries([rulesDir()]);
     const skills = await Promise.all(skillEntries.map(async ({ schema, layer, filePath }) => {
       const source = path.resolve(deps.rootDir, filePath);
       const scopeFile = await readAssetScopeFile(source);
@@ -727,6 +776,86 @@ export function createBoardApp(deps: BoardDeps): Hono {
       || a.source.localeCompare(b.source)
     );
     return c.json({ project: identity, assets });
+  });
+
+  app.post("/api/assets/:assetType", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin asset creation request rejected." }, 403);
+    }
+    const assetType = c.req.param("assetType");
+    if (assetType !== "skill" && assetType !== "rule") {
+      return c.json({ error: "assetType must be skill or rule" }, 400);
+    }
+    let body: { rawYaml?: string; layerId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (typeof body.rawYaml !== "string" || body.rawYaml.trim().length === 0) {
+      return c.json({ error: "rawYaml must be a non-empty string" }, 400);
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = parseYaml(body.rawYaml);
+    } catch (err) {
+      return c.json({ error: `YAML parse error: ${errorMessage(err)}` }, 400);
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return c.json({ error: "YAML did not parse to an object" }, 400);
+    }
+
+    const schemaObj = parsed as Record<string, unknown>;
+    const id = typeof schemaObj.id === "string" ? schemaObj.id : "";
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) {
+      return c.json({ error: "invalid or missing id; use kebab-case" }, 400);
+    }
+
+    if (assetType === "skill") {
+      const layer = resolveWritableSkillLayer(deps.config, body.layerId);
+      if (!layer) {
+        return c.json({ error: "no writable skill layer found for creation" }, 400);
+      }
+      const targetPath = path.join(layer.path, `${id}.yaml`);
+      if (existsSync(targetPath)) {
+        return c.json({ error: `asset already exists: ${targetPath}` }, 409);
+      }
+      const validated = validateSkill(schemaObj, targetPath);
+      if (!validated) {
+        return c.json({ error: "schema validation failed" }, 400);
+      }
+      await mkdir(path.dirname(targetPath), { recursive: true });
+      await writeFile(targetPath, body.rawYaml, "utf-8");
+      await deps.engine.reload(deps.config.layers, { projectRoot: deps.rootDir });
+      const resolved = deps.engine.getSkill(id);
+      return c.json({
+        ok: true,
+        assetType,
+        id,
+        source: targetPath,
+        skill: resolved ? await buildSkillDto(resolved, deps.config, deps.rootDir) : undefined,
+      }, 201);
+    }
+
+    const targetPath = path.join(rulesDir(), `${id}.yaml`);
+    if (existsSync(targetPath)) {
+      return c.json({ error: `asset already exists: ${targetPath}` }, 409);
+    }
+    const validated = validateRule(schemaObj, targetPath);
+    if (!validated) {
+      return c.json({ error: "rule validation failed" }, 400);
+    }
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, body.rawYaml, "utf-8");
+    const identity = await resolveProjectIdentity(deps.rootDir);
+    return c.json({
+      ok: true,
+      assetType,
+      id,
+      source: targetPath,
+      rule: await buildRuleDto({ rule: validated, filePath: targetPath }, deps.rootDir, identity.aliases),
+    }, 201);
   });
 
   app.put("/api/assets/:assetType/:id/scope", async (c) => {
@@ -771,7 +900,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       id,
       requestedSource,
       deps,
-      rulesDir,
+      rulesDir(),
     );
     if (!allowedSource) {
       return c.json({ error: "source is not a discovered asset matching this type and id" }, 404);
@@ -1749,6 +1878,64 @@ async function resolveEditableAssetSource(
     .find((source) => source === requestedSource);
 }
 
+function workspaceStatus(deps: BoardDeps): WorkspaceStatus {
+  return {
+    rootDir: deps.rootDir,
+    layers: deps.config.layers.map((layer) => ({
+      id: layer.id,
+      path: layer.path,
+      priority: layer.priority,
+      scope: layer.scope,
+    })),
+  };
+}
+
+function resolveWritableSkillLayer(config: SkillCentralConfig, requestedLayerId?: string) {
+  if (requestedLayerId) {
+    return config.layers.find((layer) =>
+      layer.writable !== false && (layer.id === requestedLayerId || layer.name === requestedLayerId)
+    );
+  }
+  return config.layers.find((layer) => layer.writable !== false && layer.id === "02-workflows")
+    ?? config.layers.find((layer) => layer.writable !== false);
+}
+
+function withProjectRootEnv(
+  server: McpServerConfig | undefined,
+  projectRoot: string,
+): McpServerConfig | undefined {
+  if (!server) return undefined;
+  return {
+    ...server,
+    env: {
+      ...(server.env ?? {}),
+      [PROJECT_ROOT_ENV]: projectRoot,
+    },
+  };
+}
+
+async function configureRuntimeForWorkspace(
+  runtime: RuntimeController,
+  mcpServerConfig: McpServerConfig | undefined,
+  rootDir: string,
+): Promise<void> {
+  if (!isConfigurableRuntime(runtime)) return;
+  await runtime.configure(
+    mcpServerConfig
+      ? {
+          command: mcpServerConfig.command,
+          args: mcpServerConfig.args,
+          cwd: rootDir,
+          env: mcpServerConfig.env,
+        }
+      : { cwd: rootDir },
+  );
+}
+
+function isConfigurableRuntime(runtime: RuntimeController): runtime is ConfigurableRuntimeController {
+  return typeof (runtime as Partial<ConfigurableRuntimeController>).configure === "function";
+}
+
 // ── Server bootstrap ───────────────────────────────────────────────────────
 
 /**
@@ -1756,16 +1943,17 @@ async function resolveEditableAssetSource(
  * close it during application shutdown.
  */
 export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
-  const config = loadConfig();
+  const rootDir = path.resolve(opts.rootDir ?? process.cwd());
+  const config = loadConfig(rootDir);
   const engine = new SkillEngine();
   const version = VERSION;
-  const rootDir = process.cwd();
+  const mcpServerConfig = withProjectRootEnv(opts.mcpServerConfig, rootDir);
 
   // Block on initial load so /api/skills returns immediately.
   // (engine.reload is sync-ish at startup; Hono handlers are async so it's fine.)
   void engine.reload(config.layers, { projectRoot: rootDir });
 
-  const runtime = opts.runtime ?? createRuntimeController(opts.mcpServerConfig);
+  const runtime = opts.runtime ?? createRuntimeController(mcpServerConfig, rootDir);
   const app = createBoardApp({
     config,
     engine,
@@ -1773,10 +1961,11 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
     version,
     runtime,
     updater: opts.updater,
-    mcpServerConfig: opts.mcpServerConfig,
+    mcpServerConfig,
     githubOAuthClientId: opts.githubOAuthClientId,
     tokenStore: opts.tokenStore,
     authLogger: opts.authLogger,
+    onWorkspaceChange: opts.onWorkspaceChange,
   });
 
   const host = opts.host ?? "127.0.0.1";
@@ -1787,10 +1976,10 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
   return { port, host, server, runtime };
 }
 
-function createRuntimeController(mcpServerConfig?: McpServerConfig): RuntimeController {
+function createRuntimeController(mcpServerConfig?: McpServerConfig, rootDir?: string): RuntimeController {
   return new LocalRuntimeManager(
     mcpServerConfig
-      ? { command: mcpServerConfig.command, args: mcpServerConfig.args }
-      : {},
+      ? { command: mcpServerConfig.command, args: mcpServerConfig.args, env: mcpServerConfig.env, cwd: rootDir }
+      : { cwd: rootDir },
   );
 }

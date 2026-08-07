@@ -307,6 +307,22 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 }
 
 .workspace-header h1 { margin: 2px 0 0; font: 700 21px var(--sans); }
+.workspace-path {
+  display: block;
+  max-width: min(680px, calc(100vw - 430px));
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: 11px var(--mono);
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-path:hover { color: var(--accent-strong); }
 .health-status { display: flex; align-items: center; gap: 8px; color: var(--muted); font: 11px var(--mono); }
 .status-dot { display: inline-block; width: 7px; height: 7px; background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 14%, transparent); }
 .status-dot.neutral { background: var(--muted); box-shadow: none; }
@@ -506,6 +522,11 @@ code { overflow-wrap: anywhere; color: var(--accent-strong); }
 .update-progress { height: 5px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .update-progress > div { width: 0; height: 100%; background: var(--accent); transition: width 180ms ease; }
 .scope-dialog { width: min(620px, calc(100vw - 28px)); }
+.create-asset-dialog { width: min(780px, calc(100vw - 28px)); }
+.create-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.file-button { position: relative; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
+.file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+#create-asset-yaml { width: 100%; min-height: 360px; resize: vertical; border: 1px solid var(--border-strong); border-radius: 4px; padding: 14px; background: var(--surface-2); color: var(--text); font: 12px/1.55 var(--mono); }
 .scope-asset-heading { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 14px; }
 .scope-asset-heading code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scope-mode { width: fit-content; }
@@ -549,6 +570,7 @@ code { overflow-wrap: anywhere; color: var(--accent-strong); }
   .workspace-shell { margin-left: 0; padding-bottom: 64px; }
   .workspace-header { min-height: 66px; padding: 10px 18px; }
   .workspace-header h1 { font-size: 18px; }
+  .workspace-path { max-width: calc(100vw - 140px); }
   .workspace-content { padding: 16px; }
   .skills-workspace { min-height: calc(100vh - 163px); grid-template-columns: minmax(205px, 240px) minmax(0, 1fr); }
   .skill-stage { padding: 18px; }
@@ -576,6 +598,7 @@ code { overflow-wrap: anywhere; color: var(--accent-strong); }
   .runtime-strip { align-items: flex-start; flex-direction: column; }
   .settings-row { grid-template-columns: 1fr; }
   .scope-current-project { align-items: stretch; flex-direction: column; }
+  .create-toolbar { grid-template-columns: 1fr; }
   .segmented-control { width: 100%; grid-auto-columns: 1fr; }
   .sync-conflict { grid-template-columns: 1fr; }
   .flash { right: 12px; bottom: 76px; }

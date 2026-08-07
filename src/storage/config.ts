@@ -62,7 +62,7 @@ export function loadConfig(projectRoot?: string): SkillCentralConfig {
     layers.push(...DEFAULT_LEGACY_LAYERS.map((layer) => ({ ...layer, sync: { ...layer.sync } })));
   }
 
-  return { layers, layerPresets };
+  return { layers: resolveLayerPaths(layers, root), layerPresets };
 }
 
 // ── Internals ──────────────────────────────────────────────────────────────
@@ -117,6 +117,13 @@ function mergeLayers(target: SkillLayer[], incoming: SkillLayer[]): void {
 
 function warnConfig(filePath: string, fieldPath: string, reason: string): void {
   console.warn(`[skill-central] ${filePath}: ${fieldPath}: ${reason}`);
+}
+
+function resolveLayerPaths(layers: SkillLayer[], root: string): SkillLayer[] {
+  return layers.map((layer) => ({
+    ...layer,
+    path: path.isAbsolute(layer.path) ? layer.path : path.resolve(root, layer.path),
+  }));
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -50,7 +50,7 @@ export class LocalRuntimeManager {
   private snapshot: RuntimeSnapshot;
 
   constructor(
-    private readonly options: LocalRuntimeManagerOptions = {},
+    private options: LocalRuntimeManagerOptions = {},
   ) {
     this.snapshot = {
       status: "stopped",
@@ -63,6 +63,22 @@ export class LocalRuntimeManager {
     if (options.autoStart) {
       this.start();
     }
+  }
+
+  async configure(options: LocalRuntimeManagerOptions, restart = true): Promise<RuntimeSnapshot> {
+    const wasRunning = this.snapshot.status === "running";
+    if (this.child) await this.stop();
+    this.options = { ...this.options, ...options };
+    this.snapshot = {
+      status: "stopped",
+      transport: "stdio",
+      command: this.options.command ?? process.execPath,
+      args: this.options.args ?? [resolve(process.argv[1] ?? "dist/index.js"), "mcp"],
+      stoppedAt: new Date().toISOString(),
+      stdoutLines: [],
+      stderrLines: [],
+    };
+    return wasRunning && restart ? this.start() : this.getSnapshot();
   }
 
   getSnapshot(): RuntimeSnapshot {
