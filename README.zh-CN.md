@@ -6,7 +6,11 @@
 
 > 当前 Release Candidate：`1.0.0-rc.3`。它会作为公开 Prerelease 用于真实桌面、Homebrew、IDE、更新、同步和反向输出验收，通过后再进入 `1.0.0` 正式发布。请为重要的 Skill Registry 保留备份，并在执行同步或 IDE 连接前检查计划内容。
 
-Skill Central 为 Codex、Claude、Trae、Cursor、Windsurf 和 Cline 提供共享 Skill 库，包含桌面应用、本地 Web Board、CLI、MCP Server、事务化 IDE 配置、GitHub Registry 同步以及 Workflow/Session 能力。
+AI 编码约定经常被复制到 Codex、Claude、Cursor、Windsurf、Cline 等工具中，每个工具都有自己的配置文件和提示词格式。Skill Central 让你只编写一次可复用 Skill 和公约 Rule，把它们放在有治理边界的本地层级中，再通过 MCP 暴露给每个已连接的 IDE。
+
+IDE 连接后，可以从同一个本地 Server 发现 Skill Central 的 prompts 和 tools。在本仓库中，这意味着 IDE 能看到项目 Skill，以及 reverse output、workflow 等内置控制工具。
+
+Skill Central 包含桌面应用、本地 Web Board、CLI、MCP Server、事务化 IDE 配置、GitHub Registry 同步以及 Workflow/Session 能力。
 
 ## 主要能力
 
@@ -58,6 +62,16 @@ Homebrew 6 在加载第三方 Tap 前要求显式信任。执行 `brew trust` �
 ### Windows
 
 从 [GitHub Releases](https://github.com/BobcGn/skill-central/releases) 下载 NSIS `.exe`。NSIS 安装版本可以在应用中接收后续预发布更新，并在安装完成后重启。
+
+当前 Windows Release Candidate 尚未使用 Authenticode 签名。首次运行时 SmartScreen 可能显示“无法识别的应用”警告；在项目加入 Windows 代码签名前，这是预期行为。运行安装包前，请先确认它来自官方 `BobcGn/skill-central` Release。
+
+每个 Release 会发布包含 NSIS 安装包 base64 SHA-512 摘要的 `latest.yml`。可在 PowerShell 中计算下载文件并与该值比对：
+
+```powershell
+$path = ".\Skill-Central-1.0.0-rc.3-win-x64.exe"
+$h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
+[Convert]::ToBase64String($h)
+```
 
 Release 仍提供 `.msi` 和 `.zip` 用于手动部署，但 NSIS `.exe` 是受支持的自动更新入口。
 
@@ -176,21 +190,35 @@ skill-central session <action>     检查 Session 和 Blackboard Topic
 
 ## Skill 格式
 
-Skill 使用 YAML。最小 Prompt Skill 示例：
+Skill 使用 YAML。本仓库包含一个完整 Tool Skill：`.skills/02-workflows/commit-conventions.yaml`：
 
 ```yaml
-schemaVersion: skillcentral.dev/v1
-id: review-pr
-name: PR Review
-description: Review changes against project conventions
-type: prompt
-tags: [review, workflow]
+id: commit-conventions
+name: Commit Conventions
+description: Generate or validate git commit messages following Conventional Commits format
+type: tool
+tags: [git, workflow, commit]
+arguments:
+  - name: type
+    description: Commit type (feat, fix, chore, docs, refactor, test, style)
+    required: true
+  - name: scope
+    description: Scope of the change
+    required: false
+  - name: summary
+    description: Short imperative description of the change
+    required: true
 prompt: |
-  Review the current change. Prioritize correctness, regressions,
-  security boundaries, and missing tests.
+  Generate a Conventional Commit message with the following structure:
+
+  {{type}}({{scope}}): {{summary}}
+
+  Rules:
+  - type must be one of: feat, fix, chore, docs, refactor, test, style
+  - summary must be lowercase, imperative mood, no period at end
 ```
 
-各层级有明确优先级。ID 冲突时，高优先级的有效 Skill 生效，同时完整解析链仍可检查。
+默认层级为 `01-global`（优先级 10）、`02-workflows`（20）、`03-domains`（30）和 `04-tech-stack`（40）。ID 冲突时，高优先级的有效 Skill 生效，同时完整解析链仍可检查。
 
 ## GitHub 同步
 

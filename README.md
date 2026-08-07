@@ -6,7 +6,11 @@ Local-first MCP hub for distributing reusable AI skills across IDEs.
 
 > Current release candidate: `1.0.0-rc.3`. It is published as a public prerelease for real desktop, Homebrew, IDE, update, sync, and reverse-output validation before `1.0.0`. Keep backups of important skill registries and review every sync or IDE connection plan before applying it.
 
-Skill Central gives Codex, Claude, Trae, Cursor, Windsurf, and Cline a shared skill library. It includes a desktop application, a browser-based local board, a CLI, an MCP server, transactional IDE configuration, GitHub registry sync, and workflow/session primitives.
+AI coding conventions often end up copied across Codex, Claude, Cursor, Windsurf, Cline, and other tools, each with its own config file and prompt format. Skill Central lets you write reusable Skills and covenant Rules once, keep them in governed local layers, and expose the same source through every MCP-capable IDE you connect.
+
+After an IDE is connected, it sees Skill Central prompts and tools through MCP. In this repository, that means the IDE can discover the project Skills plus built-in control tools such as reverse output and workflow commands from one local server.
+
+Skill Central includes a desktop application, a browser-based local board, a CLI, an MCP server, transactional IDE configuration, GitHub registry sync, and workflow/session primitives.
 
 ## Highlights
 
@@ -58,6 +62,16 @@ After `1.0.0-alpha.2` is installed, closing the red window button leaves one loc
 ### Windows
 
 Download the NSIS `.exe` from the [GitHub Releases](https://github.com/BobcGn/skill-central/releases) page. The NSIS installation receives later prereleases through the in-app updater and restarts after the update is installed.
+
+Current Windows release candidates are not Authenticode-signed. SmartScreen can show an unrecognized-app warning on first run; this is expected until the project adds Windows code signing. Before running the installer, verify that it came from the official `BobcGn/skill-central` Release.
+
+Each release publishes a `latest.yml` file with a base64 SHA-512 digest for the NSIS installer. You can compare the downloaded file against that value in PowerShell:
+
+```powershell
+$path = ".\Skill-Central-1.0.0-rc.3-win-x64.exe"
+$h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
+[Convert]::ToBase64String($h)
+```
 
 The `.msi` and `.zip` assets remain available for manual deployment, but the NSIS `.exe` is the supported automatic-update path.
 
@@ -177,21 +191,35 @@ Run `skill-central <command> --help` for the current flags.
 
 ## Skill Format
 
-Skills are YAML documents. A minimal prompt skill looks like this:
+Skills are YAML documents. This repository includes a complete tool skill at `.skills/02-workflows/commit-conventions.yaml`:
 
 ```yaml
-schemaVersion: skillcentral.dev/v1
-id: review-pr
-name: PR Review
-description: Review changes against project conventions
-type: prompt
-tags: [review, workflow]
+id: commit-conventions
+name: Commit Conventions
+description: Generate or validate git commit messages following Conventional Commits format
+type: tool
+tags: [git, workflow, commit]
+arguments:
+  - name: type
+    description: Commit type (feat, fix, chore, docs, refactor, test, style)
+    required: true
+  - name: scope
+    description: Scope of the change
+    required: false
+  - name: summary
+    description: Short imperative description of the change
+    required: true
 prompt: |
-  Review the current change. Prioritize correctness, regressions,
-  security boundaries, and missing tests.
+  Generate a Conventional Commit message with the following structure:
+
+  {{type}}({{scope}}): {{summary}}
+
+  Rules:
+  - type must be one of: feat, fix, chore, docs, refactor, test, style
+  - summary must be lowercase, imperative mood, no period at end
 ```
 
-Layers have explicit priorities. When IDs collide, the higher-priority valid skill becomes effective while the complete resolution chain remains inspectable.
+The default layers are `01-global` (priority 10), `02-workflows` (20), `03-domains` (30), and `04-tech-stack` (40). When IDs collide, the higher-priority valid skill becomes effective while the complete resolution chain remains inspectable.
 
 ## GitHub Sync
 
