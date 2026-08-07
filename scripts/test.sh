@@ -548,7 +548,7 @@ cat > "$lock_path" <<'JSON'
 }
 JSON
 
-HOME="$SC_TEST_HOME" node --input-type=module <<'NODE'
+HOME="$SC_TEST_HOME" USERPROFILE="$SC_TEST_HOME" node --input-type=module <<'NODE'
 import { readFile } from "node:fs/promises";
 import { readLock, writeLock, findById } from "./dist/commands/lockfile.js";
 
@@ -1539,6 +1539,7 @@ cat > "$web_app_state_dir/audit/sync-apply.2026-07-29T00-00-02-000Z.json" <<'JSO
 JSON
 
 node --input-type=module <<'NODE'
+import { mkdir, writeFile } from "node:fs/promises";
 import { createBoardApp, startBoardServer } from "./dist/web/server.js";
 import { SkillEngine } from "./dist/core/engine.js";
 import { loadConfig } from "./dist/storage/config.js";
@@ -1632,6 +1633,140 @@ const app = createBoardApp({
   githubClientFactory,
   updater,
 });
+
+const workspaceRoot = `${process.cwd()}/.skill-central-web-ci/workspace-root`;
+await mkdir(`${workspaceRoot}/.skills/02-workflows`, { recursive: true });
+await writeFile(`${workspaceRoot}/skill-central.yaml`, `layers:
+  - id: 02-workflows
+    name: workflows
+    path: .skills/02-workflows
+    priority: 20
+`, "utf-8");
+await writeFile(`${workspaceRoot}/.skills/02-workflows/workspace-loaded.yaml`, `schemaVersion: skillcentral.dev/v1
+id: workspace-loaded
+name: Workspace Loaded
+description: Loaded from selected workspace
+type: prompt
+prompt: "workspace root"
+`, "utf-8");
+const configuredRuntimeCalls = [];
+const configurableRuntime = {
+  getSnapshot() {
+    return {
+      status: "stopped",
+      transport: "stdio",
+      command: "desktop-skill-central",
+      args: ["mcp"],
+      stdoutLines: [],
+      stderrLines: [],
+    };
+  },
+  start() { return this.getSnapshot(); },
+  async stop() { return this.getSnapshot(); },
+  async configure(options) {
+    configuredRuntimeCalls.push(options);
+    return this.getSnapshot();
+  },
+};
+let persistedWorkspace;
+const workspaceApp = createBoardApp({
+  config,
+  engine: new SkillEngine(),
+  rootDir: process.cwd(),
+  version: "test",
+  runtime: configurableRuntime,
+  mcpServerConfig: { command: "desktop-skill-central", args: ["mcp"], env: { EXISTING_ENV: "1" } },
+  onWorkspaceChange: (rootDir) => { persistedWorkspace = rootDir; },
+});
+const workspaceBefore = await (await workspaceApp.request("/api/workspace")).json();
+if (workspaceBefore.rootDir !== process.cwd()) {
+  throw new Error(`workspace API exposed wrong initial root: ${workspaceBefore.rootDir}`);
+}
+const workspaceSwitch = await workspaceApp.request("/api/workspace", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ rootDir: workspaceRoot }),
+});
+if (workspaceSwitch.status !== 200) {
+  throw new Error(`workspace switch failed: ${workspaceSwitch.status} ${await workspaceSwitch.text()}`);
+}
+const workspaceAfter = await workspaceSwitch.json();
+if (workspaceAfter.rootDir !== workspaceRoot || persistedWorkspace !== workspaceRoot) {
+  throw new Error(`workspace switch did not persist selected root: ${JSON.stringify(workspaceAfter)}`);
+}
+const workspaceSkills = await (await workspaceApp.request("/api/skills")).json();
+if (!workspaceSkills.some((skill) => skill.id === "workspace-loaded")) {
+  throw new Error("workspace switch did not reload skills from selected root");
+}
+const boardCreatedSkillYaml = `schemaVersion: skillcentral.dev/v1
+id: board-created-skill
+name: Board Created Skill
+description: Created through the Board API
+type: prompt
+tags: [workflow]
+prompt: "created by board"
+`;
+const createdSkillRes = await workspaceApp.request("/api/assets/skill", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    layerId: "02-workflows",
+    rawYaml: boardCreatedSkillYaml,
+  }),
+});
+if (createdSkillRes.status !== 201) {
+  throw new Error(`Board skill creation failed: ${createdSkillRes.status} ${await createdSkillRes.text()}`);
+}
+const createdSkill = await createdSkillRes.json();
+if (!createdSkill.source.endsWith("board-created-skill.yaml")) {
+  throw new Error(`Board skill creation returned wrong source: ${JSON.stringify(createdSkill)}`);
+}
+const duplicateSkill = await workspaceApp.request("/api/assets/skill", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ layerId: "02-workflows", rawYaml: boardCreatedSkillYaml }),
+});
+if (duplicateSkill.status !== 409) {
+  throw new Error("Board skill creation should reject duplicate ids");
+}
+const createdRuleRes = await workspaceApp.request("/api/assets/rule", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    rawYaml: `schemaVersion: skillcentral.dev/rule/v1
+id: board-created-rule
+name: Board Created Rule
+description: Created through the Board API
+severity: warn
+tags: [governance]
+body: |
+  Keep Board-created rule assets separate from Skill assets.
+`,
+  }),
+});
+if (createdRuleRes.status !== 201) {
+  throw new Error(`Board rule creation failed: ${createdRuleRes.status} ${await createdRuleRes.text()}`);
+}
+const createdRule = await createdRuleRes.json();
+if (!createdRule.source.endsWith("board-created-rule.yaml")) {
+  throw new Error(`Board rule creation returned wrong source: ${JSON.stringify(createdRule)}`);
+}
+const workspaceHealth = await (await workspaceApp.request("/api/health")).json();
+if (workspaceHealth.rootDir !== workspaceRoot) {
+  throw new Error("health endpoint did not expose selected workspace root");
+}
+const runtimeWorkspace = configuredRuntimeCalls.at(-1);
+if (runtimeWorkspace?.cwd !== workspaceRoot || runtimeWorkspace.env?.SKILL_CENTRAL_PROJECT_ROOT !== workspaceRoot || runtimeWorkspace.env?.EXISTING_ENV !== "1") {
+  throw new Error(`workspace switch did not reconfigure runtime cwd/env: ${JSON.stringify(runtimeWorkspace)}`);
+}
+const crossOriginWorkspace = await workspaceApp.request("http://localhost/api/workspace", {
+  method: "POST",
+  headers: { origin: "https://attacker.example", "content-type": "application/json" },
+  body: JSON.stringify({ rootDir: process.cwd() }),
+});
+if (crossOriginWorkspace.status !== 403) {
+  throw new Error("workspace switch did not reject a cross-origin request");
+}
 
 const updateStatus = await (await app.request("/api/update/status")).json();
 if (!updateStatus.supported || updateStatus.status !== "idle") {
@@ -1977,7 +2112,8 @@ await mcpManager.stop();
 
 const syncStatusRes = await app.request("/api/sync/status?appStateDir=.skill-central-web-ci/app-state");
 const syncStatus = await syncStatusRes.json();
-if (!syncStatus.localFirst || !syncStatus.appState.paths.audit.endsWith(".skill-central-web-ci/app-state/audit")) {
+const normalizedAuditPath = syncStatus.appState.paths.audit.replace(/\\/g, "/");
+if (!syncStatus.localFirst || !normalizedAuditPath.endsWith(".skill-central-web-ci/app-state/audit")) {
   throw new Error("web sync status did not expose app state boundary");
 }
 if (!syncStatus.layers.some((layer) => layer.id === "01-global" && layer.syncEnabled)) {
@@ -2344,12 +2480,13 @@ if (desktopCliArgs(["electron", "dist/desktop/main.js", "mcp"], false).join(" ")
 }
 const macExec = "/Applications/Skill Central.app/Contents/MacOS/Skill Central";
 const macAppPath = "/Applications/Skill Central.app/Contents/Resources/app.asar";
-const packagedMcp = desktopMcpServerConfig(true, macExec, macAppPath, "darwin");
+const macProjectRoot = "/Users/alice/project";
+const packagedMcp = desktopMcpServerConfig(true, macExec, macAppPath, "darwin", macProjectRoot);
 if (packagedMcp?.command !== macExec || packagedMcp.args?.[0] !== "mcp") {
   throw new Error("packaged desktop MCP config is invalid");
 }
-if (packagedMcp.env !== undefined) {
-  throw new Error("macOS packaged MCP config should not pin an environment");
+if (packagedMcp.env?.SKILL_CENTRAL_PROJECT_ROOT !== macProjectRoot) {
+  throw new Error("macOS packaged MCP config should pin the selected workspace root");
 }
 if (desktopMcpServerConfig(false, "/usr/bin/electron", "/src", "darwin") !== undefined) {
   throw new Error("development desktop should keep CLI MCP config");
@@ -2360,12 +2497,16 @@ if (desktopMcpServerConfig(false, "/usr/bin/electron", "/src", "darwin") !== und
 // executable as plain Node against the bundled CLI so responses survive.
 const winExec = "C:\\Program Files\\Skill Central\\Skill Central.exe";
 const winAppPath = "C:\\Program Files\\Skill Central\\resources\\app.asar";
-const winMcp = desktopMcpServerConfig(true, winExec, winAppPath, "win32");
+const winProjectRoot = "C:\\Users\\alice\\project";
+const winMcp = desktopMcpServerConfig(true, winExec, winAppPath, "win32", winProjectRoot);
 if (winMcp?.command !== winExec) {
   throw new Error("windows packaged MCP config must launch the app executable");
 }
 if (winMcp.env?.ELECTRON_RUN_AS_NODE !== "1") {
   throw new Error("windows packaged MCP config must run the executable as Node");
+}
+if (winMcp.env?.SKILL_CENTRAL_PROJECT_ROOT !== winProjectRoot) {
+  throw new Error("windows packaged MCP config should pin the selected workspace root");
 }
 const expectedWinEntry = `${winAppPath}\\dist\\index.js`;
 if (winMcp.args?.length !== 2 || winMcp.args[0] !== expectedWinEntry || winMcp.args[1] !== "mcp") {
@@ -2381,6 +2522,10 @@ if (!desktopUpdaterSource.includes('provider: "github"')) {
 }
 if (!desktopUpdaterSource.includes("classifyUpdateError")) {
   throw new Error("desktop updater must classify raw errors before exposing them");
+}
+const desktopMainSource = await readFile("dist/desktop/main.js", "utf8");
+if (!desktopMainSource.includes("startup.log") || !desktopMainSource.includes("showErrorBox")) {
+  throw new Error("desktop startup failures must write a log file and show a visible error dialog");
 }
 
 const calls = [];
@@ -2502,15 +2647,17 @@ if (staleInstall.status !== "error" || !staleInstall.message?.includes("without 
   throw new Error(`stale Homebrew install should fail verification: ${JSON.stringify(staleInstall)}`);
 }
 
-const fakeBrew = `${process.env.PATH.split(":")[0]}/brew-outdated-fixture`;
-const outdatedFixture = new BrewCaskUpdater({
-  currentVersion: "1.0.0-alpha.0",
-  restart: () => {},
-  brewCandidates: [fakeBrew],
-});
-const exitOneOutdated = await outdatedFixture.check();
-if (exitOneOutdated.status !== "available" || exitOneOutdated.availableVersion !== "1.0.0-alpha.1") {
-  throw new Error(`brew outdated exit 1 should mean update available: ${JSON.stringify(exitOneOutdated)}`);
+if (process.platform === "darwin") {
+  const fakeBrew = `${process.env.PATH.split(":")[0]}/brew-outdated-fixture`;
+  const outdatedFixture = new BrewCaskUpdater({
+    currentVersion: "1.0.0-alpha.0",
+    restart: () => {},
+    brewCandidates: [fakeBrew],
+  });
+  const exitOneOutdated = await outdatedFixture.check();
+  if (exitOneOutdated.status !== "available" || exitOneOutdated.availableVersion !== "1.0.0-alpha.1") {
+    throw new Error(`brew outdated exit 1 should mean update available: ${JSON.stringify(exitOneOutdated)}`);
+  }
 }
 NODE
 pass "Homebrew Cask 更新器校验 Tap 信任、固定 SHA 与安装版本"
