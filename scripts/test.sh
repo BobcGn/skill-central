@@ -1344,6 +1344,120 @@ try {
 NODE
 pass "connect 支持桌面安装包注入绝对 MCP 启动入口并正确回退"
 
+drift_config="$connect_dir/drift-cursor-mcp.json"
+cat > "$drift_config" <<'JSON'
+{
+  "mcpServers": {
+    "existing-server": {
+      "command": "existing",
+      "args": ["serve"]
+    },
+    "skill-central": {
+      "command": "old-skill-central",
+      "args": ["old-mcp"]
+    }
+  }
+}
+JSON
+
+drift_plan=$(node dist/index.js connect --target cursor --config-path "$drift_config" --dry-run --json)
+DRIFT_PLAN_JSON="$drift_plan" node --input-type=module <<'NODE'
+const plan = JSON.parse(process.env.DRIFT_PLAN_JSON);
+if (!plan.currentRegistered) throw new Error("drift fixture should start registered");
+if (!plan.serverDrift) throw new Error("drift fixture should report serverDrift");
+if (plan.currentServer?.command !== "old-skill-central") {
+  throw new Error(`unexpected current server: ${plan.currentServer?.command}`);
+}
+NODE
+register_drift_output=$(node dist/index.js register cursor --config-path "$drift_config")
+DRIFT_CONFIG_PATH="$drift_config" node --input-type=module <<'NODE'
+import { readFile } from "node:fs/promises";
+const raw = JSON.parse(await readFile(process.env.DRIFT_CONFIG_PATH, "utf8"));
+const skillCentral = raw.mcpServers["skill-central"];
+if (skillCentral.command !== "skill-central") {
+  throw new Error(`register did not refresh command: ${skillCentral.command}`);
+}
+if (JSON.stringify(skillCentral.args) !== JSON.stringify(["mcp"])) {
+  throw new Error(`register did not refresh args: ${JSON.stringify(skillCentral.args)}`);
+}
+if (raw.mcpServers["existing-server"].command !== "existing") {
+  throw new Error("register should preserve existing MCP servers");
+}
+NODE
+printf '%s' "$register_drift_output" | grep -q "Refreshed drifted skill-central registration" \
+  && pass "register 会刷新已注册但漂移的 MCP 配置" \
+  || fail "register 未报告漂移刷新"
+
+reconciler_ready_config="$connect_dir/reconciler-ready-cursor.json"
+reconciler_drift_config="$connect_dir/reconciler-drift-claude.json"
+cat > "$reconciler_ready_config" <<'JSON'
+{
+  "mcpServers": {
+    "skill-central": {
+      "command": "skill-central",
+      "args": ["mcp"]
+    }
+  }
+}
+JSON
+cat > "$reconciler_drift_config" <<'JSON'
+{
+  "mcpServers": {
+    "existing-server": {
+      "command": "existing",
+      "args": ["serve"]
+    },
+    "skill-central": {
+      "command": "legacy",
+      "args": ["mcp-old"]
+    }
+  }
+}
+JSON
+
+RECONCILER_READY_CONFIG="$reconciler_ready_config" RECONCILER_DRIFT_CONFIG="$reconciler_drift_config" node --input-type=module <<'NODE'
+import { SkillEngine } from "./dist/core/engine.js";
+import { loadConfig } from "./dist/storage/config.js";
+import { reconcileStartupConnections } from "./dist/startup/reconciler.js";
+import { readFile } from "node:fs/promises";
+
+const engine = new SkillEngine();
+const config = loadConfig(process.cwd());
+await engine.reload(config.layers, { projectRoot: process.cwd() });
+
+let report = await reconcileStartupConnections(engine, {
+  targets: ["cursor", "claude"],
+  configPaths: {
+    cursor: process.env.RECONCILER_READY_CONFIG,
+    claude: process.env.RECONCILER_DRIFT_CONFIG,
+  },
+});
+const cursor = report.targets.find((entry) => entry.target === "cursor");
+const claude = report.targets.find((entry) => entry.target === "claude");
+if (cursor?.status !== "ready") throw new Error(`expected cursor ready, got ${cursor?.status}`);
+if (claude?.status !== "drift") throw new Error(`expected claude drift, got ${claude?.status}`);
+let driftRaw = JSON.parse(await readFile(process.env.RECONCILER_DRIFT_CONFIG, "utf8"));
+if (driftRaw.mcpServers["skill-central"].command !== "legacy") {
+  throw new Error("reconciler should not write drift by default");
+}
+
+report = await reconcileStartupConnections(engine, {
+  targets: ["claude"],
+  configPaths: { claude: process.env.RECONCILER_DRIFT_CONFIG },
+  applyDrift: true,
+});
+const refreshed = report.targets[0];
+if (refreshed.status !== "refreshed") throw new Error(`expected refreshed, got ${refreshed.status}`);
+driftRaw = JSON.parse(await readFile(process.env.RECONCILER_DRIFT_CONFIG, "utf8"));
+if (driftRaw.mcpServers["skill-central"].command !== "skill-central") {
+  throw new Error("reconciler did not refresh drifted command");
+}
+if (driftRaw.mcpServers["existing-server"].command !== "existing") {
+  throw new Error("reconciler should preserve existing MCP servers");
+}
+NODE
+pass "Startup Reconciler 默认只报告漂移，显式 applyDrift 才刷新"
+
 malformed_config="$connect_dir/malformed-cursor-mcp.json"
 printf '{ invalid json\n' > "$malformed_config"
 set +e
@@ -1539,7 +1653,7 @@ cat > "$web_app_state_dir/audit/sync-apply.2026-07-29T00-00-02-000Z.json" <<'JSO
 JSON
 
 node --input-type=module <<'NODE'
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createBoardApp, startBoardServer } from "./dist/web/server.js";
 import { SkillEngine } from "./dist/core/engine.js";
 import { loadConfig } from "./dist/storage/config.js";
@@ -2004,6 +2118,77 @@ if (!rolledBack.steps.some((step) => step.kind === "rollback" && step.status ===
   throw new Error("web connect rollback did not mark rollback applied");
 }
 
+const recognitionConfigPath = ".skill-central-web-ci/startup-recognition-cursor.json";
+await writeFile(recognitionConfigPath, JSON.stringify({
+  mcpServers: {
+    "existing-server": {
+      command: "existing",
+      args: ["serve"],
+    },
+    "skill-central": {
+      command: "legacy",
+      args: ["mcp-old"],
+    },
+  },
+}, null, 2) + "\n");
+const recognitionPlanRes = await app.request("/api/startup-recognition", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    targets: ["cursor"],
+    configPaths: { cursor: recognitionConfigPath },
+    appStateDir: ".skill-central-web-ci/app-state",
+  }),
+});
+const recognitionPlan = await recognitionPlanRes.json();
+if (recognitionPlan.targets[0]?.status !== "drift") {
+  throw new Error(`expected startup recognition drift, got ${recognitionPlan.targets[0]?.status}`);
+}
+if (!recognitionPlan.audit?.auditPath || recognitionPlan.audit.record.counts.drift !== 1) {
+  throw new Error("startup recognition should write a compact audit record by default");
+}
+let recognitionRaw = JSON.parse(await readFile(recognitionConfigPath, "utf8"));
+if (recognitionRaw.mcpServers["skill-central"].command !== "legacy") {
+  throw new Error("startup recognition should not write drift by default");
+}
+const recognitionLatestPlanRes = await app.request("/api/startup-recognition/latest?appStateDir=.skill-central-web-ci/app-state");
+const recognitionLatestPlan = await recognitionLatestPlanRes.json();
+if (recognitionLatestPlan.record?.counts?.drift !== 1) {
+  throw new Error("startup recognition latest endpoint did not return the drift audit");
+}
+const recognitionApplyRes = await app.request("/api/startup-recognition", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    targets: ["cursor"],
+    configPaths: { cursor: recognitionConfigPath },
+    applyDrift: true,
+    appStateDir: ".skill-central-web-ci/app-state",
+  }),
+});
+const recognitionApply = await recognitionApplyRes.json();
+if (recognitionApply.targets[0]?.status !== "refreshed") {
+  throw new Error(`expected startup recognition refreshed, got ${recognitionApply.targets[0]?.status}`);
+}
+if (!recognitionApply.audit?.auditPath || recognitionApply.audit.record.counts.refreshed !== 1) {
+  throw new Error("startup recognition apply should write a refreshed audit");
+}
+recognitionRaw = JSON.parse(await readFile(recognitionConfigPath, "utf8"));
+if (recognitionRaw.mcpServers["skill-central"].command !== "skill-central") {
+  throw new Error("startup recognition did not refresh skill-central command");
+}
+if (recognitionRaw.mcpServers["existing-server"].command !== "existing") {
+  throw new Error("startup recognition should preserve existing MCP servers");
+}
+const recognitionLatestApplyRes = await app.request("/api/startup-recognition/latest?appStateDir=.skill-central-web-ci/app-state");
+const recognitionLatestApply = await recognitionLatestApplyRes.json();
+if (recognitionLatestApply.record?.counts?.refreshed !== 1) {
+  throw new Error("startup recognition latest endpoint did not return the refreshed audit");
+}
+if (JSON.stringify(recognitionLatestApply).includes("process.env")) {
+  throw new Error("startup recognition audit should not persist environment dumps");
+}
+
 const runtimeStatusRes = await app.request("/api/runtime/status");
 const runtimeStatus = await runtimeStatusRes.json();
 if (runtimeStatus.status !== "stopped") {
@@ -2386,6 +2571,12 @@ if grep -q "skill-central" "$web_config"; then
   fail "Web connect rollback 后不应保留 skill-central 配置"
 fi
 pass "Web connect plan/apply/rollback 写入边界可验证"
+
+grep -q "startup-recognition-card" src/web/static/index.html \
+  && grep -q "/api/startup-recognition/latest" src/web/static/app.js \
+  && grep -q "startup-recognition-card" src/web/static/style.css \
+  && pass "Web Board 暴露启动识别 latest 摘要入口" \
+  || fail "Web Board 缺少启动识别 latest 摘要入口"
 
 rm -rf "$web_dir"
 rm -rf .skills/web-sync-ci
