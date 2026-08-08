@@ -75,6 +75,13 @@ skill-central register claude
 skill-central register trae
 ```
 
+如果 `skill-central` 已经注册但 entry 与当前期望启动命令不同，`register` 会刷新该 entry，
+而不是静默跳过。受支持 IDE 将配置存放在非标准位置时，可以指定路径：
+
+```bash
+skill-central register codex --config-path <path>
+```
+
 搜索已存在的已知配置并注册检测到的目标：
 
 ```bash
@@ -94,7 +101,8 @@ skill-central connect --target codex --verify
 skill-central doctor --ide codex --verify
 ```
 
-受支持 IDE 将配置存放在非标准位置时，使用 `--config-path <path>`。
+受支持 IDE 将配置存放在非标准位置时，`register`、`connect` 和 `doctor` 均可使用
+`--config-path <path>`。
 
 ## 连接事务
 

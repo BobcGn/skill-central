@@ -81,6 +81,14 @@ skill-central register claude
 skill-central register trae
 ```
 
+If `skill-central` is already registered but its entry differs from the desired
+launch command, `register` refreshes that entry instead of silently skipping it.
+Use an explicit path for nonstandard locations:
+
+```bash
+skill-central register codex --config-path <path>
+```
+
 Search existing known configurations and register detected targets:
 
 ```bash
@@ -100,7 +108,8 @@ skill-central connect --target codex --verify
 skill-central doctor --ide codex --verify
 ```
 
-Use `--config-path <path>` when a supported IDE stores its configuration in a nonstandard location.
+Use `--config-path <path>` with `register`, `connect`, and `doctor` when a
+supported IDE stores its configuration in a nonstandard location.
 
 ## Connection Transaction
 

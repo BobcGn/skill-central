@@ -164,6 +164,21 @@ macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release
 
 Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI 与 ZIP 属于手动部署格式，不得假设它们拥有 NSIS 更新行为。本轮变更尚未在 Windows 验证，对外说明时必须明确该状态。
 
+## 1.0.0 启动识别发布矩阵
+
+正式版必须同时验证“应用已启动”“MCP stdio 可握手”“目标 Agent 配置已注册/刷新”和“当前会话已发现工具”四层状态。前三层可由 Skill Central 自动检查并写入 app-state audit；第四层必须按 Agent 行为记录真实 smoke 结果，不能把配置存在误报为当前会话已经可调用。
+
+| 维度 | release 1.0.0 要求 | 当前自动化证据 | 真实候选包验收 |
+| --- | --- | --- | --- |
+| macOS 桌面 | Board 启动后异步执行 startup recognition，latest audit 可见 | `npm run lint`、`npm test` 覆盖 Reconciler、API、Board 摘要入口 | arm64 与可用 x64 安装包首次启动，确认 audit 生成且不新增重复进程 |
+| Windows 桌面 | NSIS 安装后启动 Board，MCP 命令路径可被目标 Agent 执行 | 路径/格式逻辑通过单元与集成测试间接覆盖 | 真实 Windows x64 安装、启动、退出、更新和至少 Codex/Cursor 注册验证 |
+| Linux / 开发运行 | CLI/源码运行下仍可生成一致 connect plan 与 audit | CLI `register`、`connect`、`doctor --ide` 和 Web API 测试 | 若发布 Linux 桌面包，必须补真实安装 smoke；否则文档标记为 CLI/dev 支持 |
+| Codex | 配置注册不等于当前任务已发现 MCP；需要新任务或 discovery 路径 | docs/UI 区分注册状态与会话发现状态 | 新建 Codex 任务确认 `skill-central` MCP 工具可发现，旧任务给出刷新建议 |
+| Claude / Claude Code | JSON 配置保留既有 server，漂移刷新有备份 | connect transaction 与 startup recognition 测试覆盖保留 server | 真实客户端重启后识别 `skill-central` server |
+| Cursor / Windsurf / Trae / Cline | 目标配置格式正确，错误目标不影响其他目标报告 | `SUPPORTED_IDES`、config codec、Web API 单 target 错误隔离测试 | 至少 Cursor 必验；其余按可用客户端记录已验证或明确未验证 |
+
+每次候选包 smoke 后，应把 latest startup recognition audit 路径、目标状态计数、手动 Agent 发现结果和失败修复建议记录到发布笔记或维护者验收日志。审计文件不得包含环境变量、Access Token、Device Code、Authorization Header 或长 stderr dump。
+
 ## GitHub OAuth 发布配置
 
 正式桌面包需要项目自己的 GitHub OAuth App。维护者在 GitHub 的 **Settings → Developer settings → OAuth Apps → New OAuth App** 创建应用：Application Name 使用 `Skill Central`，Homepage URL 使用 `https://github.com/BobcGn/skill-central`；注册表单要求的 Authorization Callback URL 可使用同一项目 URL，Device Flow 不会使用该回调。创建后在 OAuth App 设置中启用 **Enable Device Flow**。
@@ -175,7 +190,7 @@ Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI
 
 Release Workflow 会校验该变量并写入桌面包的 Package Metadata；变量缺失或格式无效时拒绝构建。配置完成后仍必须用真实 release candidate 安装包执行一次登录、用户信息读取和登出测试。
 
-## Alpha Release Gate 检查表
+## 1.0.0 Release Gate 检查表
 
 1. 落地全部中英文安装、迁移、更新、安全和生命周期文档。
 2. 在实现与文档准备好生成候选包之前，Package Metadata 保持为当前已发布版本。
@@ -189,7 +204,8 @@ Release Workflow 会校验该变量并写入桌面包的 Package Metadata；变�
 10. 将 Windows 标记为已验证或明确未验证，不得用 macOS 结果推断 Windows 成功。
 11. 创建由项目维护者控制且启用 Device Flow 的 GitHub OAuth App，将其公共 Client ID 配置为 Repository Variable `SKILL_CENTRAL_GITHUB_CLIENT_ID`；不得配置 Client Secret。
 12. 使用注入该 Client ID 的真实桌面候选包完成 GitHub 登录、用户信息读取、应用重启与登出；确认普通用户无需填写 Client ID，重启后仍保持登录，密文不含 Token 明文，登出删除密文，旧明文凭据被清除且不迁移，API 响应和日志中没有 Access Token、Device Code、Authorization Header、密文或原始原生异常。
-13. 审查最终 Diff，确认没有追踪私有 `docs/dev/` 或 `logs/` 内容；得到维护者确认后，才可修改 Version 或创建 Tag。
+13. 按“1.0.0 启动识别发布矩阵”完成多平台/多 Agent smoke：记录 latest audit、目标状态计数和当前会话 discovery 结果；未验证平台或 Agent 必须明确标记，不得推断。
+14. 审查最终 Diff，确认没有追踪私有 `docs/dev/` 或 `logs/` 内容；得到维护者确认后，才可修改 Version 或创建 Tag。
 
 ## 回退与失败发布
 

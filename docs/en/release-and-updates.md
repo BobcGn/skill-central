@@ -166,6 +166,21 @@ stack context — never reach the client UI; they stay in the desktop diagnostic
 
 On Windows, packaged NSIS builds also use `electron-updater` with GitHub. MSI and ZIP are manual deployment formats and are not assumed to have NSIS update behavior. Windows remains unverified for these changes and must be tested separately before claiming support.
 
+## 1.0.0 Startup Recognition Release Matrix
+
+The final release must validate four separate layers: the app started, MCP stdio can handshake, the target Agent config is registered or refreshed, and the current session discovered the tool surface. Skill Central can automate and audit the first three layers. The fourth layer must be recorded with real Agent smoke results; a present config must not be reported as proof that an already-running session can call the tools.
+
+| Dimension | Release 1.0.0 requirement | Current automated evidence | Real candidate-package gate |
+| --- | --- | --- | --- |
+| macOS desktop | Run startup recognition asynchronously after Board startup and expose the latest audit | `npm run lint` and `npm test` cover the reconciler, API, and Board summary entry | First launch on arm64 and available x64 packages confirms audit creation and no duplicate process |
+| Windows desktop | After NSIS install, Board starts and the MCP command path is executable by target Agents | Path and format logic are indirectly covered by unit/integration tests | Real Windows x64 install, launch, quit, update, and at least Codex/Cursor registration checks |
+| Linux / development run | CLI/source runs still produce consistent connect plans and audits | CLI `register`, `connect`, `doctor --ide`, and Web API tests | If a Linux desktop package is shipped, add real install smoke; otherwise document CLI/dev support only |
+| Codex | Registered config is not the same as current-task MCP discovery; a new task or discovery path may be needed | Docs/UI distinguish config registration from session discovery | New Codex task discovers `skill-central` MCP tools; old task receives refresh guidance |
+| Claude / Claude Code | JSON config preserves existing servers and backs up drift refreshes | Connect transaction and startup recognition tests cover server preservation | Real client restart recognizes the `skill-central` server |
+| Cursor / Windsurf / Trae / Cline | Target config format is correct and one target failure does not hide other reports | `SUPPORTED_IDES`, config codecs, and Web API single-target isolation tests | Cursor is required; others must be recorded as verified or explicitly unverified according to available clients |
+
+After each candidate smoke run, record the latest startup recognition audit path, target status counts, manual Agent discovery result, and any repair guidance in release notes or maintainer validation logs. Audit files must not contain environment variables, access tokens, device codes, authorization headers, or long stderr dumps.
+
 ## GitHub OAuth Release Configuration
 
 Official desktop packages require a project-owned GitHub OAuth App. A maintainer creates it under GitHub **Settings → Developer settings → OAuth Apps → New OAuth App**. Use `Skill Central` as the application name and `https://github.com/BobcGn/skill-central` as the homepage. The registration form requires an Authorization Callback URL; the same project URL is suitable because Device Flow does not use that callback. After creation, enable **Enable Device Flow** in the OAuth App settings.
@@ -177,7 +192,7 @@ Record only the public Client ID shown on the page. Do not generate, copy, or co
 
 The Release workflow validates this variable and writes it into desktop package metadata; a missing or malformed value blocks packaging. After configuration, a real release-candidate package must still pass login, user-profile lookup, and logout testing.
 
-## Alpha Release Gate Checklist
+## 1.0.0 Release Gate Checklist
 
 1. Land all English and Chinese installation, migration, update, security, and lifecycle documentation.
 2. Keep package metadata at the current released version until implementation and documentation are ready for candidate packaging.
@@ -191,7 +206,8 @@ The Release workflow validates this variable and writes it into desktop package 
 10. Record Windows as verified or explicitly unverified; do not infer Windows success from macOS.
 11. Create a maintainer-controlled GitHub OAuth App with Device Flow enabled and set its public Client ID as the `SKILL_CENTRAL_GITHUB_CLIENT_ID` repository variable. Do not configure a client secret.
 12. Use a real desktop candidate containing that Client ID to complete GitHub login, user-profile lookup, application restart, and logout. Confirm that users do not enter a Client ID, login survives restart, ciphertext contains no plaintext token, logout removes ciphertext, legacy plaintext credentials are deleted without migration, and API responses and logs contain no access token, device code, authorization header, ciphertext, or raw native exception.
-13. Review the final diff, confirm no private `docs/dev/` or `logs/` material is tracked, then obtain maintainer approval before changing versions or tagging.
+13. Complete the multi-platform/multi-Agent smoke checks in the "1.0.0 Startup Recognition Release Matrix": record the latest audit, target status counts, and current-session discovery result. Mark unverified platforms or Agents explicitly; do not infer them from other environments.
+14. Review the final diff, confirm no private `docs/dev/` or `logs/` material is tracked, then obtain maintainer approval before changing versions or tagging.
 
 ## Rollback and Failed Releases
 
