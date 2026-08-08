@@ -70,13 +70,20 @@ export function isConnectCreatedConfig(
   serverConfig: McpServerConfig = DEFAULT_MCP_SERVER_CONFIG,
 ): boolean {
   const parsed = parseIdeMcpConfig(raw, format);
-  if (!sameServer(parsed.server, serverConfig)) return false;
+  if (!sameMcpServerConfig(parsed.server, serverConfig)) return false;
   if (format === "toml") return stripCodexServerTables(raw).trim().length === 0;
 
   const keys = Object.keys(parsed.root);
   if (keys.length !== 1 || keys[0] !== "mcpServers" || !isRecord(parsed.root.mcpServers)) return false;
   const names = Object.keys(parsed.root.mcpServers);
   return names.length === 1 && names[0] === SKILL_CENTRAL_MCP_SERVER_NAME;
+}
+
+export function sameMcpServerConfig(a: McpServerConfig | undefined, b: McpServerConfig): boolean {
+  return !!a
+    && a.command === b.command
+    && JSON.stringify(a.args ?? []) === JSON.stringify(b.args ?? [])
+    && JSON.stringify(a.env ?? {}) === JSON.stringify(b.env ?? {});
 }
 
 export function emptyIdeConfig(format: IdeConfigFormat): string {
@@ -129,13 +136,6 @@ function tomlTableName(line: string): string | undefined {
   const match = line.match(/^\s*\[([^\[\]]+)]\s*(?:#.*)?(?:\r?\n)?$/);
   if (!match) return undefined;
   return match[1].replace(/[\s"']/g, "");
-}
-
-function sameServer(a: McpServerConfig | undefined, b: McpServerConfig): boolean {
-  return !!a
-    && a.command === b.command
-    && JSON.stringify(a.args ?? []) === JSON.stringify(b.args ?? [])
-    && JSON.stringify(a.env ?? {}) === JSON.stringify(b.env ?? {});
 }
 
 function stableJson(value: unknown): string {

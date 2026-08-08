@@ -93,11 +93,31 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
   boardServer = board;
   try {
     await waitForServerListening(board);
+    void runDesktopStartupRecognition(board);
     return board;
   } catch (err) {
     if (boardServer === board) boardServer = undefined;
     board.server.close();
     throw err;
+  }
+}
+
+async function runDesktopStartupRecognition(board: BoardServerHandle): Promise<void> {
+  // Desktop startup recognition is intentionally asynchronous: it records
+  // evidence and refreshes already-registered drift without delaying the
+  // visible window. The reconciler will not create missing IDE config files.
+  try {
+    const response = await fetch(`http://${board.host}:${board.port}/api/startup-recognition`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ applyDrift: true, verify: true }),
+    });
+    if (!response.ok) {
+      console.warn(`[skill-central] startup recognition failed: HTTP ${response.status}`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[skill-central] startup recognition failed: ${message}`);
   }
 }
 

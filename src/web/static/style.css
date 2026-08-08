@@ -431,6 +431,10 @@ code { overflow-wrap: anywhere; color: var(--accent-strong); }
 .ide-guide { margin: 0 0 18px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--surface) 96%, transparent); color: var(--muted); font: 13px/1.6 var(--sans); }
 .ide-guide p { margin: 0; }
 .ide-guide p + p { margin-top: 8px; }
+.startup-recognition-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 18px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--accent-soft) 26%, var(--surface)); }
+.startup-recognition-card > div { min-width: 0; display: grid; gap: 5px; }
+.startup-recognition-card strong { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.startup-recognition-card p { margin: 0; overflow: hidden; color: var(--muted); font: 11px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .ide-card { display: grid; min-width: 0; min-height: 132px; grid-template-rows: auto 1fr auto; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; text-align: left; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 .ide-card:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 18%, var(--surface)); transform: translateY(-0.5px); }

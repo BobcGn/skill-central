@@ -319,9 +319,11 @@ program
   .command("register [ide]")
   .description("Automatically register skill-central into IDE MCP configurations (codex, claude, trae, cursor, windsurf, cline). Omitting [ide] auto-detects existing configs.")
   .option("--remove", "Remove the skill-central registration from the IDE config")
+  .option("--config-path <path>", "Override IDE MCP config path")
   .action((ide: string | undefined, opts) => {
     cmdRegister(ide, {
       remove: opts.remove,
+      configPath: opts.configPath,
     }).catch((err) => {
       console.error("[skill-central] Register error:", err.message ?? err);
       process.exit(1);

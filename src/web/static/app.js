@@ -21,6 +21,7 @@ const state = {
   scopeAsset: null,
   scopeMode: "global",
   ideTargets: [],
+  startupRecognition: null,
   activeIde: readPreference("skill-central.ide", "codex"),
   activeView: readPreference("skill-central.view", "skills"),
   theme: readPreference("skill-central.theme", "system"),
@@ -119,6 +120,13 @@ const messages = {
     "ide.applying": "Applying {target} connect plan...",
     "ide.rollingBack": "Rolling back {target} connect plan...",
     "ide.noPlan": "Build or apply a connect plan before rollback.",
+    "ide.startupTitle": "Startup recognition",
+    "ide.startupEmpty": "No startup recognition audit yet",
+    "ide.startupHint": "Open the desktop app or refresh recognition to record evidence.",
+    "ide.startupRefresh": "Refresh recognition",
+    "ide.startupRefreshing": "Refreshing startup recognition...",
+    "ide.startupUpdated": "Last checked {time} · {summary}",
+    "ide.startupAudit": "audit: {path}",
     "sync.title": "Registry Sync",
     "sync.path": "Registry checkout",
     "sync.direction": "Direction",
@@ -238,6 +246,13 @@ const messages = {
     "ide.applying": "正在应用 {target} 连接计划...",
     "ide.rollingBack": "正在回退 {target} 连接计划...",
     "ide.noPlan": "请先生成或应用连接计划。",
+    "ide.startupTitle": "启动识别",
+    "ide.startupEmpty": "暂无启动识别审计",
+    "ide.startupHint": "打开桌面应用或手动刷新识别以记录证据。",
+    "ide.startupRefresh": "刷新识别",
+    "ide.startupRefreshing": "正在刷新启动识别...",
+    "ide.startupUpdated": "最近检查 {time} · {summary}",
+    "ide.startupAudit": "审计：{path}",
     "sync.title": "Registry 同步",
     "sync.path": "Registry 本地目录",
     "sync.direction": "同步方向",
@@ -334,6 +349,7 @@ function applyPreferences() {
   if (state.ruleDetail) renderRuleDetail(state.ruleDetail);
   if (state.githubStatus) renderGithubStatus(state.githubStatus);
   if (state.updateStatus) renderUpdateStatus(state.updateStatus);
+  renderStartupRecognition();
   renderWorkspace();
 }
 
@@ -996,7 +1012,11 @@ async function saveCreateAsset() {
 
 async function loadIdeTargets() {
   try {
-    state.ideTargets = await api("/api/ide-targets");
+    const [ideTargets] = await Promise.all([
+      api("/api/ide-targets"),
+      loadStartupRecognition(),
+    ]);
+    state.ideTargets = ideTargets;
     if (!state.ideTargets.some((target) => target.target === state.activeIde)) {
       state.activeIde = state.ideTargets[0]?.target || "codex";
     }
@@ -1005,6 +1025,16 @@ async function loadIdeTargets() {
     const container = document.getElementById("ide-targets");
     if (container) container.innerHTML = `<div class="error">${escapeHtml(err.message)}</div>`;
   }
+}
+
+async function loadStartupRecognition() {
+  try {
+    state.startupRecognition = await api("/api/startup-recognition/latest");
+  } catch (err) {
+    state.startupRecognition = { error: err.message };
+  }
+  renderStartupRecognition();
+  return state.startupRecognition;
 }
 
 function renderIdeTargets() {
@@ -1034,6 +1064,53 @@ function renderIdeTargets() {
   if (active) {
     document.getElementById("active-ide-label").textContent = active.label;
     document.getElementById("active-ide-path").textContent = active.configPath;
+  }
+}
+
+function renderStartupRecognition() {
+  const summary = document.getElementById("startup-recognition-summary");
+  const detail = document.getElementById("startup-recognition-detail");
+  if (!summary || !detail) return;
+  const latest = state.startupRecognition;
+  if (!latest || latest.error) {
+    summary.textContent = latest?.error || t("ide.startupEmpty");
+    detail.textContent = t("ide.startupHint");
+    return;
+  }
+  const record = latest.record || latest.audit?.record;
+  if (!record) {
+    summary.textContent = t("ide.startupEmpty");
+    detail.textContent = t("ide.startupHint");
+    return;
+  }
+  const auditPath = latest.auditPath || latest.audit?.auditPath;
+  const counts = Object.entries(record.counts || {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([status, count]) => `${status}: ${count}`)
+    .join(", ");
+  const checkedAt = new Date(record.checkedAt || record.auditedAt).toLocaleString();
+  summary.textContent = t("ide.startupUpdated", {
+    time: checkedAt,
+    summary: counts || "0",
+  });
+  detail.textContent = auditPath
+    ? t("ide.startupAudit", { path: auditPath })
+    : t("ide.startupHint");
+}
+
+async function refreshStartupRecognition() {
+  const summary = document.getElementById("startup-recognition-summary");
+  if (summary) summary.textContent = t("ide.startupRefreshing");
+  try {
+    state.startupRecognition = await api("/api/startup-recognition", {
+      method: "POST",
+      body: JSON.stringify({ applyDrift: true, verify: true }),
+    });
+    renderStartupRecognition();
+    await loadIdeTargets();
+  } catch (err) {
+    state.startupRecognition = { error: err.message };
+    renderStartupRecognition();
   }
 }
 
@@ -1904,6 +1981,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-connect-plan").addEventListener("click", showConnectPlan);
   document.getElementById("btn-connect-apply").addEventListener("click", applyConnect);
   document.getElementById("btn-connect-rollback").addEventListener("click", rollbackConnect);
+  document.getElementById("btn-startup-recognition").addEventListener("click", refreshStartupRecognition);
   document.getElementById("btn-runtime-status").addEventListener("click", showRuntimeStatus);
   document.getElementById("btn-runtime-start").addEventListener("click", startRuntime);
   document.getElementById("btn-runtime-stop").addEventListener("click", stopRuntime);

@@ -18,6 +18,7 @@ import {
   emptyIdeConfig,
   isConnectCreatedConfig,
   mergeSkillCentralServerConfig,
+  sameMcpServerConfig,
 } from "../ide-detection/config-codec.js";
 import { detectIdeRegistration } from "../ide-detection/detect.js";
 import {
@@ -52,6 +53,8 @@ export async function buildConnectPlan(
     );
   }
   const desiredServer = options.desiredServer ?? DEFAULT_MCP_SERVER_CONFIG;
+  const serverDrift = registration.registered
+    && !sameMcpServerConfig(registration.server, desiredServer);
   const currentConfig = await readConfig(configPath, registration.configFormat);
   const nextConfig = mergeSkillCentralServerConfig(currentConfig, registration.configFormat, desiredServer);
   const backupPath = registration.configExists
@@ -64,7 +67,9 @@ export async function buildConnectPlan(
     configFormat: registration.configFormat,
     serverName: SKILL_CENTRAL_MCP_SERVER_NAME,
     desiredServer,
+    currentServer: registration.server,
     currentRegistered: registration.registered,
+    serverDrift,
     configExists: registration.configExists,
     dryRun: !!options.dryRun,
     force: !!options.force,
@@ -81,7 +86,9 @@ export async function buildConnectPlan(
         kind: "preview",
         status: "applied",
         title: "Preview MCP config merge",
-        detail: `Set mcpServers.${SKILL_CENTRAL_MCP_SERVER_NAME} to ${desiredServer.command} ${(desiredServer.args ?? []).join(" ")}`,
+        detail: registration.registered && serverDrift
+          ? `Refresh drifted ${SKILL_CENTRAL_MCP_SERVER_NAME} entry to ${desiredServer.command} ${(desiredServer.args ?? []).join(" ")}`
+          : `Set mcpServers.${SKILL_CENTRAL_MCP_SERVER_NAME} to ${desiredServer.command} ${(desiredServer.args ?? []).join(" ")}`,
       },
       {
         kind: "backup",

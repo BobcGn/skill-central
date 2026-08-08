@@ -19,6 +19,8 @@
 //   POST /api/connect/plan
 //   POST /api/connect/apply
 //   POST /api/connect/rollback
+//   POST /api/startup-recognition
+//   GET  /api/startup-recognition/latest
 //   GET  /api/runtime/status
 //   POST /api/runtime/start
 //   POST /api/runtime/stop
@@ -49,6 +51,11 @@ import {
   rollbackConnectPlan,
   verifyConnectPlan,
 } from "../connect/connect-plan.js";
+import {
+  readLatestStartupRecognitionAudit,
+  writeStartupRecognitionAudit,
+} from "../startup/audit.js";
+import { reconcileStartupConnections } from "../startup/reconciler.js";
 import { checkIdeConnectionHealth } from "../health/ide-connection.js";
 import { detectIdeRegistration } from "../ide-detection/detect.js";
 import { isIdeTarget, listIdeDefinitions, SUPPORTED_IDES } from "../ide-detection/registry.js";
@@ -103,7 +110,7 @@ import type {
   SkillType,
   UniversalSkillSchemaVersion,
 } from "../schema/universal-skill.js";
-import type { McpServerConfig } from "../ide-detection/types.js";
+import type { IdeTarget, McpServerConfig } from "../ide-detection/types.js";
 import {
   assetAppliesTo,
   normaliseAssetScope,
@@ -1059,6 +1066,47 @@ export function createBoardApp(deps: BoardDeps): Hono {
     }));
   });
 
+  // ── POST /api/startup-recognition ─────────────────────────────────────
+  // Machine-readable startup recognition core for desktop and Board. By
+  // default this only reports plans; callers must explicitly opt into applying
+  // drift refreshes.
+  app.post("/api/startup-recognition", async (c) => {
+    let body: {
+      targets?: string[];
+      configPaths?: Record<string, string>;
+      applyDrift?: boolean;
+      verify?: boolean;
+      appStateDir?: string;
+      writeAudit?: boolean;
+    };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+
+    const targets = parseOptionalIdeTargets(body.targets);
+    if (targets === "invalid") return c.json({ error: ideTargetError() }, 400);
+    const configPaths = parseOptionalConfigPaths(body.configPaths);
+    if (configPaths === "invalid") return c.json({ error: "configPaths keys must be supported IDE targets and values must be strings" }, 400);
+
+    const report = await reconcileStartupConnections(deps.engine, {
+      targets,
+      configPaths,
+      applyDrift: body.applyDrift === true,
+      verify: body.verify === true,
+      desiredServer: deps.mcpServerConfig,
+    });
+    if (body.writeAudit === false) return c.json(report);
+    const audit = await writeStartupRecognitionAudit(report, { appStateDir: body.appStateDir });
+    return c.json({ ...report, audit });
+  });
+
+  app.get("/api/startup-recognition/latest", async (c) => {
+    const audit = await readLatestStartupRecognitionAudit({ appStateDir: c.req.query("appStateDir") });
+    return c.json(audit ?? { auditPath: null, record: null });
+  });
+
   // ── Runtime controls ──────────────────────────────────────────────────
   app.get("/api/runtime/status", (c) => c.json(runtime.getSnapshot()));
   app.post("/api/runtime/start", (c) => c.json(runtime.start()));
@@ -1811,6 +1859,28 @@ interface PendingGitHubFlow {
 
 function ideTargetError(): string {
   return `target must be one of: ${SUPPORTED_IDES.join(", ")}`;
+}
+
+function parseOptionalIdeTargets(value: string[] | undefined): IdeTarget[] | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return "invalid";
+  const targets: IdeTarget[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string" || !isIdeTarget(entry)) return "invalid";
+    targets.push(entry);
+  }
+  return targets;
+}
+
+function parseOptionalConfigPaths(value: Record<string, string> | undefined): Partial<Record<IdeTarget, string>> | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "invalid";
+  const configPaths: Partial<Record<IdeTarget, string>> = {};
+  for (const [target, configPath] of Object.entries(value)) {
+    if (!isIdeTarget(target) || typeof configPath !== "string") return "invalid";
+    configPaths[target] = configPath;
+  }
+  return configPaths;
 }
 
 function errorMessage(err: unknown): string {

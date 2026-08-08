@@ -19,23 +19,31 @@ import type { IdeTarget } from "../ide-detection/types.js";
 
 export interface RegisterOptions {
   remove?: boolean;
+  configPath?: string;
 }
 
 export type IdeType = IdeTarget;
 
 export async function cmdRegister(ideInput: string | undefined, opts: RegisterOptions): Promise<void> {
+  if (opts.configPath && !ideInput) {
+    throw new Error("--config-path requires an explicit IDE target.");
+  }
   const targets = resolveTargets(ideInput);
   for (const target of targets) {
     if (opts.remove) {
-      await removeRegistration(target);
+      await removeRegistration(target, opts.configPath);
     } else {
-      const plan = await buildConnectPlan(target);
-      if (plan.currentRegistered) {
+      const plan = await buildConnectPlan(target, { configPath: opts.configPath });
+      if (plan.currentRegistered && !plan.serverDrift) {
         console.log(`[${target}] skill-central is already registered.`);
         continue;
       }
       await applyConnectPlan(plan);
-      console.log(`[${target}] Registered skill-central in ${plan.configPath}.`);
+      console.log(
+        plan.currentRegistered
+          ? `[${target}] Refreshed drifted skill-central registration in ${plan.configPath}.`
+          : `[${target}] Registered skill-central in ${plan.configPath}.`,
+      );
     }
   }
 }
@@ -61,8 +69,8 @@ function resolveTargets(ideInput: string | undefined): IdeTarget[] {
   return detected;
 }
 
-async function removeRegistration(target: IdeTarget): Promise<void> {
-  const configPath = defaultIdeConfigPath(target);
+async function removeRegistration(target: IdeTarget, configPathOverride?: string): Promise<void> {
+  const configPath = configPathOverride ?? defaultIdeConfigPath(target);
   const format = getIdeDefinition(target).configFormat;
   const registration = await detectIdeRegistration(target, { configPath });
   if (!registration.configExists) {

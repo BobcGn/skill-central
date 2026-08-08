@@ -155,6 +155,14 @@
             <p data-i18n="ide.guideIntro">Select an IDE target to inspect status and connect it safely.</p>
             <p data-i18n="ide.guideDetails">Use the buttons below to check health, build a connect plan, and apply or rollback changes.</p>
           </div>
+          <div class="startup-recognition-card" role="status" aria-live="polite">
+            <div>
+              <span class="command-label" data-i18n="ide.startupTitle">Startup recognition</span>
+              <strong id="startup-recognition-summary" data-i18n="ide.startupEmpty">No startup recognition audit yet</strong>
+              <p id="startup-recognition-detail" data-i18n="ide.startupHint">Open the desktop app or refresh recognition to record evidence.</p>
+            </div>
+            <button id="btn-startup-recognition" class="button secondary" type="button" data-i18n="ide.startupRefresh">Refresh recognition</button>
+          </div>
           <div id="ide-targets" class="ide-grid" aria-label="IDE targets"></div>
           <div class="tool-surface ide-tool-surface">
             <div class="tool-surface-header">

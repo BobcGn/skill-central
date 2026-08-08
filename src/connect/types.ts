@@ -29,7 +29,9 @@ export interface OneClickConnectPlan {
   configFormat: IdeConfigFormat;
   serverName: "skill-central";
   desiredServer: McpServerConfig;
+  currentServer?: McpServerConfig;
   currentRegistered: boolean;
+  serverDrift: boolean;
   configExists: boolean;
   dryRun: boolean;
   force: boolean;
