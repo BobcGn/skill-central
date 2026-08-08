@@ -8,6 +8,7 @@ src/web/static/tray.png
 .ai/
 .codex/
 .idea/
+.reasonix/
 *.iml
 
 # Public documentation is versioned by language. Maintainer development notes
