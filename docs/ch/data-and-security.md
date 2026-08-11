@@ -12,9 +12,9 @@ Skill Central 采用本地优先设计，但它不是安全沙箱。它会读写
 
 | 数据 | 默认位置 | 用途 | 删除后的影响 |
 | --- | --- | --- | --- |
-| 用户 Layer 配置 | `~/.skill-central/config.yaml` | 用户级 Layer 定义 | 改变加载的 Layer |
+| 资产库选择 | `~/.skill-central/settings.json` | 经过校验、同时包含 `skills/` 与 `rules/` 的显式根目录 | 改变全局选择的资产库 |
 | 项目配置 | `<project>/skill-central.yaml` | 项目 Layer 定义 | 改变加载的项目 Layer |
-| Skill 源文件 | 已配置的 Layer Path，通常为 `.skills/` 和 `~/.skill-central/skills/` | 持久化 Skill 定义 | 直接影响 Skill 库 |
+| Skill/Rule 源文件 | 项目 `.skills/` 与 `.rules/`，或显式选择的 `<root>/skills/` 与 `<root>/rules/` | 持久化受治理资产 | 直接影响资产库 |
 | macOS App State | `~/Library/Application Support/skill-central/` | State、Audit、Cache、Sync、Token、Session | 影响派生/本地应用状态 |
 | Windows App State | `%APPDATA%/skill-central/` | 同上 | 影响派生/本地应用状态 |
 | Linux App State | `~/.local/share/skill-central/` | 同上 | 影响派生/本地应用状态 |
@@ -22,7 +22,7 @@ Skill Central 采用本地优先设计，但它不是安全沙箱。它会读写
 | Skill Edit Backup | Skill 源文件同级的 `.bak.<timestamp>` | Board 编辑与恢复 | 影响该 Skill 的恢复证据 |
 | Reverse-output Backup | 更新后 Skill/Rule 源文件同级的 `.bak.<timestamp>` | 反向输出回退 | 影响 Promote 更新的恢复证据 |
 
-测试或受控部署可以通过 `SKILL_CENTRAL_APP_STATE_DIR` 覆盖 App State Root。App State 有意不包含受治理的 Skill Source Layer。
+测试或受控部署可以通过 `SKILL_CENTRAL_APP_STATE_DIR` 覆盖 App State Root；`SKILL_CENTRAL_ASSET_ROOT` 可显式覆盖资产库根目录，但只有两个必要子目录同时存在时才生效。App State 与选择设置都不复制受治理的源资产。
 
 ## 浏览器本地偏好
 
@@ -45,7 +45,7 @@ Client ID 是公开应用标识，不是 Client Secret。项目 OAuth App 必须
 
 正式桌面程序使用 Electron `safeStorage` 加密完整的 Token 记录：macOS 依赖 Keychain，Windows 依赖当前系统用户的 DPAPI。密文使用受限权限和同目录原子替换；系统加密不可用时阻断登录，绝不回退明文。桌面程序发现旧版 `github.token.json` 明文凭据时会直接删除而不迁移，并要求重新登录；密文损坏或无法解密时也会删除记录并恢复为未登录状态。
 
-Renderer、Board API 与认证诊断日志不得接收 Access Token、Device Code、Authorization Header、密文或原始原生异常。日志只记录预定义的操作阶段、错误码和非敏感清理事件。CLI 使用的 `DevelopmentFileTokenStore` 仅供源码开发，不属于正式桌面安全承诺。Linux 桌面认证不在 `1.0.0` 支持范围内；Windows DPAPI 必须在每次正式发布的原生 Windows 打包门禁中验证。
+Renderer、Board API 与认证诊断日志不得接收 Access Token、Device Code、Authorization Header、密文或原始原生异常。日志只记录预定义的操作阶段、错误码和非敏感清理事件。CLI 使用的 `DevelopmentFileTokenStore` 仅供源码开发，不属于正式桌面安全承诺。Linux 桌面认证不在当前稳定版支持范围内；Windows DPAPI 必须在每次正式发布的原生 Windows 打包门禁中验证。
 
 Logout 会删除本地 Token 记录，但不会撤销 GitHub 侧的授权；怀疑泄露时还应在 GitHub 设置中单独撤销。密文与系统用户凭据绑定，不能保证跨设备或跨系统账户恢复。
 

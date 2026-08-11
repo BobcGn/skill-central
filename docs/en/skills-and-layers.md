@@ -114,7 +114,11 @@ appliesTo:
 
 Project identity prefers a stable `git:<host>/<owner>/<repo>` ID derived from Git `origin`. Without a supported remote it falls back to a canonical real path, `path:<absolute-path>`. GitHub project IDs are case-insensitive. Invalid, empty, or duplicate IDs produce field-level validation errors.
 
-Skills are filtered before entering the override tree, so non-matching candidates cannot affect conflict resolution and do not reach MCP, compiler, or ordinary CLI queries. User-global Skills under `~/.skill-central/skills/` load at lower priority in every project. Rules use the same scope matcher and load from `~/.skill-central/rules/` plus the project `.rules/`; a same-ID project rule overrides the global rule. Coding Agents can consume Rules through `rule://registry` and `rule://rule/<id>` resources, `rules:all` and `rule:<id>` prompts, or the `rules.list` and `rules.get` tools.
+Skills are filtered before entering the override tree, so non-matching candidates cannot affect conflict resolution and do not reach MCP, compiler, or ordinary CLI queries. The default asset boundary is the current project's configured `.skills/` layers plus its `.rules/` directory. Skill Central does not implicitly merge `~/.skill-central/skills`, `~/.skill-central/rules`, or the old user-level layer config into unrelated projects.
+
+Users may explicitly select one reusable asset-library root from **Personal settings → Asset library**. A valid root must contain both `skills/` and `rules/`; once selected, Board, CLI, and MCP use those two directories together. The validated choice is persisted in `~/.skill-central/settings.json`. **Use project library** clears only the selection and never deletes source files. `SKILL_CENTRAL_ASSET_ROOT` is the controlled environment override for automation and packaged runtime handoff. Coding Agents can consume Rules through `rule://registry` and `rule://rule/<id>` resources, `rules:all` and `rule:<id>` prompts, or the `rules.list` and `rules.get` tools.
+
+`skill-central add --user` writes to the selected custom library's `skills/` tree. It fails explicitly when no custom library is selected, so a successful command never creates a hidden asset outside the active source.
 
 ## Reverse Output
 

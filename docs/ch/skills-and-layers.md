@@ -114,7 +114,11 @@ appliesTo:
 
 项目身份优先由 Git `origin` 生成稳定的 `git:<host>/<owner>/<repo>` ID。没有受支持的 Remote 时，退化为规范化真实路径 `path:<absolute-path>`。GitHub 项目 ID 不区分大小写；无效、空或重复 ID 会产生字段级校验错误。
 
-Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不会参与冲突解析，也不会进入 MCP、Compiler 或普通 CLI 查询。`~/.skill-central/skills/` 下的用户全局 Skill 会在所有项目中以较低优先级加载。Rule 使用同一个作用域 Matcher，并从 `~/.skill-central/rules/` 和项目 `.rules/` 加载；同 ID 项目 Rule 覆盖全局 Rule。Coding Agent 可通过 `rule://registry`、`rule://rule/<id>` Resource，`rules:all`、`rule:<id>` Prompt，或 `rules.list`、`rules.get` Tool 直接消费规则。
+Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不会参与冲突解析，也不会进入 MCP、Compiler 或普通 CLI 查询。默认资产边界是当前项目配置的 `.skills/` Layer 与项目 `.rules/`；Skill Central 不再把 `~/.skill-central/skills`、`~/.skill-central/rules` 或旧的用户级 Layer 配置隐式合并到无关项目。
+
+用户可在**个人设置 → 资产库**显式选择一个可复用资产库根目录。合法根目录必须同时包含 `skills/` 和 `rules/`；选择后 Board、CLI 与 MCP 会共同使用这两个目录。校验后的选择持久化在 `~/.skill-central/settings.json`。**使用项目资产库**只清除选择，不删除任何源文件。自动化或打包 Runtime 交接可使用受控环境变量 `SKILL_CENTRAL_ASSET_ROOT`。Coding Agent 可通过 `rule://registry`、`rule://rule/<id>` Resource，`rules:all`、`rule:<id>` Prompt，或 `rules.list`、`rules.get` Tool 直接消费规则。
+
+`skill-central add --user` 会写入当前已选择自定义资产库的 `skills/` 树；未选择自定义库时命令明确失败，避免“创建成功但资产不在当前来源中”的孤立文件。
 
 ## 反向输出
 

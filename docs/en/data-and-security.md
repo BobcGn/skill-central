@@ -12,9 +12,9 @@ Report vulnerabilities through the private process in [SECURITY.md](../../SECURI
 
 | Data | Default location | Purpose | Deleting it affects |
 | --- | --- | --- | --- |
-| User layer config | `~/.skill-central/config.yaml` | User-level layer definitions | Which layers load |
+| Asset-library selection | `~/.skill-central/settings.json` | Validated opt-in root containing `skills/` and `rules/` | Which explicit library loads globally |
 | Project config | `<project>/skill-central.yaml` | Project layer definitions | Which project layers load |
-| Skill sources | Configured layer paths, commonly `.skills/` and `~/.skill-central/skills/` | Durable skill definitions | The actual skill library |
+| Skill/Rule sources | Project `.skills/` and `.rules/`, or selected `<root>/skills/` and `<root>/rules/` | Durable governed assets | The actual asset library |
 | App state on macOS | `~/Library/Application Support/skill-central/` | State, audit, cache, sync, tokens, sessions | Derived/local application state |
 | App state on Windows | `%APPDATA%/skill-central/` | Same as above | Derived/local application state |
 | App state on Linux | `~/.local/share/skill-central/` | Same as above | Derived/local application state |
@@ -22,7 +22,7 @@ Report vulnerabilities through the private process in [SECURITY.md](../../SECURI
 | Skill edit backups | Next to the skill source as `.bak.<timestamp>` | Board edit/restore | Recovery evidence for that skill |
 | Reverse-output backups | Next to an updated Skill/Rule source as `.bak.<timestamp>` | Reverse-output rollback | Recovery evidence for a promoted update |
 
-`SKILL_CENTRAL_APP_STATE_DIR` can override the application-state root for tests or controlled deployments. Application state intentionally does not contain the governed skill source layers.
+`SKILL_CENTRAL_APP_STATE_DIR` can override the application-state root for tests or controlled deployments. `SKILL_CENTRAL_ASSET_ROOT` explicitly overrides the selected asset-library root and is accepted only when both required child directories exist. Application state and selection settings contain no copies of governed source assets.
 
 ## Browser-Local Preferences
 
@@ -45,7 +45,7 @@ The Client ID is a public application identifier, not a client secret. The proje
 
 The official desktop application encrypts the complete token record with Electron `safeStorage`: macOS relies on Keychain and Windows relies on DPAPI for the current OS user. The ciphertext uses restricted permissions and same-directory atomic replacement. Login is blocked when system encryption is unavailable; there is no plaintext fallback. When the desktop finds a legacy plaintext `github.token.json`, it deletes the file without migrating the token and requires login again. Corrupt or undecryptable ciphertext is also deleted and treated as logged out.
 
-The renderer, Board API, and authentication diagnostics never receive access tokens, device codes, authorization headers, ciphertext, or raw native exceptions. Logs contain only predefined operation stages, error codes, and non-sensitive cleanup events. The CLI uses `DevelopmentFileTokenStore` for source development only and is outside the formal desktop security contract. Linux desktop authentication is outside the `1.0.0` support scope; Windows DPAPI must pass the native Windows packaging gate for every stable release.
+The renderer, Board API, and authentication diagnostics never receive access tokens, device codes, authorization headers, ciphertext, or raw native exceptions. Logs contain only predefined operation stages, error codes, and non-sensitive cleanup events. The CLI uses `DevelopmentFileTokenStore` for source development only and is outside the formal desktop security contract. Linux desktop authentication is outside the current stable support scope; Windows DPAPI must pass the native Windows packaging gate for every stable release.
 
 Logout removes the local token record but does not revoke the grant on GitHub. Revoke it separately in GitHub settings when compromise is suspected. Ciphertext is tied to OS-user credentials and is not guaranteed to survive migration to another device or system account.
 

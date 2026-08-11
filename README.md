@@ -4,7 +4,7 @@ Local-first MCP hub for distributing reusable AI skills across IDEs.
 
 [简体中文](./README.zh-CN.md)
 
-> The `1.0.0` release supports macOS (Apple Silicon and Intel) and Windows x64. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Keep backups of important registries and review every sync or IDE connection plan before applying it.
+> The `1.1.0` release supports macOS (Apple Silicon and Intel) and Windows x64. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Keep backups of important registries and review every sync or IDE connection plan before applying it.
 
 AI coding conventions often end up copied across Codex, Claude Code, Cursor, and other tools, each with its own config file and prompt format. Skill Central lets you write reusable Skills and covenant Rules once, keep them in governed local layers, and expose the same source through every MCP-capable Agent you connect.
 
@@ -68,7 +68,7 @@ Current Windows releases are not Authenticode-signed. SmartScreen can show an un
 Each release publishes a `latest.yml` file with a base64 SHA-512 digest for the NSIS installer. You can compare the downloaded file against that value in PowerShell:
 
 ```powershell
-$path = ".\Skill-Central-1.0.0-win-x64.exe"
+$path = ".\Skill-Central-1.1.0-win-x64.exe"
 $h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
 [Convert]::ToBase64String($h)
 ```
@@ -138,9 +138,19 @@ The main navigation is organized around repeatable work:
 | IDE Connections | Detect IDEs and preview/apply/verify/rollback MCP configuration |
 | Sync | Inspect local state, build GitHub registry plans, resolve conflicts, and review evidence |
 | Runtime | Inspect, start, and stop the local MCP runtime |
-| Personal settings | GitHub login, theme, language, and packaged-app updates |
+| Personal settings | Select the Skill/Rule asset library, GitHub login, theme, language, and packaged-app updates |
 
 The interface is responsive and uses a bottom navigation bar on narrow screens. Theme, locale, current view, and non-secret preferences remain local to the board.
+
+By default, the Board, CLI, and MCP server load only the current project's configured `.skills/`
+layers and `.rules/` directory. They do not merge `~/.skill-central/skills`,
+`~/.skill-central/rules`, or `~/.skill-central/config.yaml` automatically. In **Personal
+settings → Asset library**, desktop users can explicitly select a reusable directory whose root
+contains both `skills/` and `rules/`. The validated choice is persisted globally for Skill
+Central and is shared by the Board, CLI, and MCP runtime. **Use project library** clears that
+choice without deleting any assets. After a custom library is selected, `skill-central add
+--user ...` writes into its `skills/` tree; without an explicit selection the command fails
+instead of creating an invisible Home-directory asset.
 
 ## IDE Connections
 
@@ -219,7 +229,7 @@ prompt: |
   - summary must be lowercase, imperative mood, no period at end
 ```
 
-User-global Skills under `~/.skill-central/skills/` are loaded in every project at lower priority. Project layers default to `01-global` (priority 10), `02-workflows` (20), `03-domains` (30), and `04-tech-stack` (40). Applicable Rules are loaded from `~/.skill-central/rules/` and the project `.rules/`; a same-ID project rule overrides the global rule. Agents can read Rules through `rule://` resources, `rules:all` / `rule:<id>` prompts, and `rules.list` / `rules.get` tools.
+Project layers default to `01-global` (priority 10), `02-workflows` (20), `03-domains` (30), and `04-tech-stack` (40). Applicable Rules come from the project `.rules/` directory. A selected custom library replaces both sources with `<root>/skills/` and `<root>/rules/`; the two asset classes never come from different implicit roots. Agents can read Rules through `rule://` resources, `rules:all` / `rule:<id>` prompts, and `rules.list` / `rules.get` tools.
 
 ## GitHub Sync
 
@@ -234,6 +244,11 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 Official desktop packages contain the project Client ID and support GitHub Device Flow from the Personal settings view. Preview packages without this metadata must be upgraded before GitHub sync can be used.
 
 Remote writes require an explicit plan and confirmation. Sync operations preserve audit and backup evidence. Tokens are never returned by the Web API or written to browser storage.
+
+The desktop Sync page can fill the Registry checkout path with **Choose existing directory**.
+Cancellation leaves the previous value unchanged. Web-only Board sessions keep the editable path
+field and use a manual path prompt because browsers cannot expose arbitrary native directory
+paths safely.
 
 Official desktop packages encrypt GitHub tokens through macOS Keychain or Windows DPAPI and never fall back to plaintext when system secure storage is unavailable. Legacy plaintext development tokens are deleted rather than migrated, so login is required again. CLI login remains for source development only, and the Windows DPAPI route must pass a real packaged-app test before it is marked verified.
 
