@@ -191,6 +191,18 @@
               <h2 data-i18n="sync.title">Registry Sync</h2>
             </div>
           </div>
+          <div class="tool-surface sync-library-controls">
+            <div class="field span-2">
+              <span data-i18n="sync.libraryPath">Local asset library</span>
+              <code id="sync-asset-library-path"></code>
+              <span id="sync-asset-library-status" class="muted" data-i18n="library.default">Default ~/.skill-central skills / rules</span>
+            </div>
+            <div class="button-row sync-library-actions">
+              <button id="btn-sync-library-choose" class="button primary" type="button" data-i18n="library.choose">Choose directory</button>
+              <button id="btn-sync-library-default" class="button secondary" type="button" data-i18n="library.useDefault">Use default directory</button>
+            </div>
+            <p class="muted span-full" data-i18n="sync.libraryHint">Skills and Rules are loaded from the skills and rules children of this directory. Registry checkout below is only used to build synchronization plans.</p>
+          </div>
           <div class="tool-surface sync-controls">
             <div class="field span-2">
               <span data-i18n="sync.path">Registry checkout</span>
@@ -274,14 +286,14 @@
         <span class="profile-avatar">{ }</span>
         <div>
           <strong data-i18n="library.title">Asset library</strong>
-          <span id="asset-library-status" data-i18n="library.project">Current project .skills / .rules</span>
+          <span id="asset-library-status" data-i18n="library.default">Default ~/.skill-central skills / rules</span>
         </div>
       </div>
-      <p class="muted" data-i18n="library.hint">A custom folder must contain both skills and rules directories.</p>
+      <p class="muted" data-i18n="library.hint">The default directory is created automatically. A custom folder must contain both skills and rules directories.</p>
       <code id="asset-library-path"></code>
       <div class="button-row">
         <button id="btn-asset-library-choose" class="button primary" type="button" data-i18n="library.choose">Choose directory</button>
-        <button id="btn-asset-library-project" class="button secondary" type="button" data-i18n="library.useProject">Use project library</button>
+        <button id="btn-asset-library-default" class="button secondary" type="button" data-i18n="library.useDefault">Use default directory</button>
       </div>
     </section>
 

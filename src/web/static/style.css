@@ -467,6 +467,9 @@ code { overflow-wrap: anywhere; color: var(--accent-strong); }
 .output-surface.error { color: var(--console-error); border-color: var(--console-error-border); }
 
 .sync-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 0.45fr); gap: 14px 18px; }
+.sync-library-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px 18px; margin-bottom: 12px; }
+.sync-library-controls code { min-width: 0; overflow-wrap: anywhere; color: var(--console-code); }
+.sync-library-actions { justify-content: flex-end; }
 .field { display: grid; min-width: 0; gap: 6px; }
 .field input,
 .field select,
@@ -601,7 +604,9 @@ code { overflow-wrap: anywhere; color: var(--accent-strong); }
   .runtime-strip .button-row { width: 100%; }
   .ide-tool-surface .button,
   .runtime-strip .button { flex: 1 1 120px; }
-  .sync-controls { grid-template-columns: 1fr; }
+  .sync-controls,
+  .sync-library-controls { grid-template-columns: 1fr; }
+  .sync-library-actions { justify-content: flex-start; }
   .directory-field-row { grid-template-columns: 1fr; }
   .span-full { grid-column: 1; }
   .runtime-strip { align-items: flex-start; flex-direction: column; }

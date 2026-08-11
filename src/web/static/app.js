@@ -61,14 +61,16 @@ const messages = {
     "workspace.changed": "Workspace changed",
     "workspace.emptySuffix": "searched",
     "library.title": "Asset library",
-    "library.project": "Current project .skills / .rules",
+    "library.default": "Default ~/.skill-central skills / rules",
+    "library.project": "Project-configured .skills / .rules",
     "library.custom": "Custom skills / rules library",
-    "library.hint": "A custom folder must contain both skills and rules directories.",
+    "library.hint": "The default directory is created automatically. A custom folder must contain both skills and rules directories.",
     "library.choose": "Choose directory",
-    "library.useProject": "Use project library",
+    "library.useDefault": "Use default directory",
     "library.prompt": "Folder containing skills and rules directories",
     "library.changed": "Asset library changed",
-    "library.projectRestored": "Project asset library restored",
+    "library.defaultRestored": "Default asset library restored",
+    "library.backupsIgnored": "backup and template files are ignored",
     "settings.account": "Personal settings",
     "settings.title": "Personal settings",
     "settings.theme": "Theme",
@@ -141,6 +143,8 @@ const messages = {
     "ide.startupUpdated": "Last checked {time} · {summary}",
     "ide.startupAudit": "audit: {path}",
     "sync.title": "Registry Sync",
+    "sync.libraryPath": "Local asset library",
+    "sync.libraryHint": "Skills and Rules are loaded from the skills and rules children of this directory. Registry checkout below is only used to build synchronization plans.",
     "sync.path": "Registry checkout",
     "sync.chooseDirectory": "Choose directory",
     "sync.directoryPrompt": "Existing registry directory path",
@@ -201,14 +205,16 @@ const messages = {
     "workspace.changed": "工作区已切换",
     "workspace.emptySuffix": "搜索目录",
     "library.title": "资产库",
-    "library.project": "当前项目 .skills / .rules",
+    "library.default": "默认 ~/.skill-central skills / rules",
+    "library.project": "项目配置的 .skills / .rules",
     "library.custom": "自定义 skills / rules 资产库",
-    "library.hint": "自定义目录必须同时包含 skills 和 rules 子目录。",
+    "library.hint": "默认目录会在启动时自动创建；自定义目录必须同时包含 skills 和 rules 子目录。",
     "library.choose": "选择目录",
-    "library.useProject": "使用项目资产库",
+    "library.useDefault": "使用默认目录",
     "library.prompt": "包含 skills 和 rules 子目录的目录",
     "library.changed": "资产库已切换",
-    "library.projectRestored": "已恢复项目资产库",
+    "library.defaultRestored": "已恢复默认资产库",
+    "library.backupsIgnored": "备份与模板文件不会被加载",
     "settings.account": "个人设置",
     "settings.title": "个人设置",
     "settings.theme": "主题",
@@ -281,6 +287,8 @@ const messages = {
     "ide.startupUpdated": "最近检查 {time} · {summary}",
     "ide.startupAudit": "审计：{path}",
     "sync.title": "Registry 同步",
+    "sync.libraryPath": "本地资产库",
+    "sync.libraryHint": "Skills 与 Rules 分别从该目录下的 skills 和 rules 子目录加载；下方 Registry 目录只用于生成同步计划。",
     "sync.path": "Registry 本地目录",
     "sync.chooseDirectory": "选择已有目录",
     "sync.directoryPrompt": "已有 Registry 目录路径",
@@ -459,9 +467,18 @@ function renderAssetLibrary() {
   const library = state.workspace?.assetLibrary;
   const status = document.getElementById("asset-library-status");
   const assetPath = document.getElementById("asset-library-path");
-  if (!status || !assetPath) return;
-  status.textContent = t(library?.mode === "custom" ? "library.custom" : "library.project");
-  assetPath.textContent = library?.rootDir || state.workspace?.rootDir || "";
+  const syncStatus = document.getElementById("sync-asset-library-status");
+  const syncPath = document.getElementById("sync-asset-library-path");
+  const statusKey = library?.mode === "custom"
+    ? "library.custom"
+    : library?.mode === "project"
+      ? "library.project"
+      : "library.default";
+  const rootDir = library?.rootDir || "";
+  if (status) status.textContent = t(statusKey);
+  if (assetPath) assetPath.textContent = rootDir;
+  if (syncStatus) syncStatus.textContent = t(statusKey);
+  if (syncPath) syncPath.textContent = rootDir;
 }
 
 function renderList() {
@@ -480,7 +497,7 @@ function renderList() {
     const li = document.createElement("li");
     li.className = "list-empty";
     li.textContent = skillAssets.length === 0
-      ? `${t("skills.noSkills")} · ${t("workspace.emptySuffix")}: ${state.workspace?.rootDir || ""}`
+      ? `${t("skills.noSkills")} · ${t("workspace.emptySuffix")}: ${state.workspace?.assetLibrary?.skillsDir || ""} · ${t("library.backupsIgnored")}`
       : t("skills.noResults");
     ul.appendChild(li);
     return;
@@ -527,7 +544,7 @@ function renderRuleList() {
     const li = document.createElement("li");
     li.className = "list-empty";
     li.textContent = state.scopeAssets.every((asset) => asset.assetType !== "rule")
-      ? `${t("rules.noRules")} · ${t("workspace.emptySuffix")}: ${state.workspace?.rootDir || ""}`
+      ? `${t("rules.noRules")} · ${t("workspace.emptySuffix")}: ${state.workspace?.assetLibrary?.rulesDir || ""} · ${t("library.backupsIgnored")}`
       : t("rules.noResults");
     ul.appendChild(li);
     return;
@@ -2068,14 +2085,14 @@ async function chooseAssetLibraryDirectory() {
   }
 }
 
-async function restoreProjectAssetLibrary() {
+async function restoreDefaultAssetLibrary() {
   try {
-    await api("/api/asset-library", { method: "DELETE" });
+    await api("/api/asset-library/default", { method: "POST" });
     resetAssetLibrarySelection();
     await loadAll();
     renderDetail(null);
     renderRuleDetail(null);
-    flash(t("library.projectRestored"));
+    flash(t("library.defaultRestored"));
   } catch (err) {
     flash(`✗ ${err.message}`, true);
   }
@@ -2140,6 +2157,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target === event.currentTarget) event.currentTarget.close();
   });
   document.getElementById("btn-sync-status").addEventListener("click", showSyncStatus);
+  document.getElementById("btn-sync-library-choose").addEventListener("click", chooseAssetLibraryDirectory);
+  document.getElementById("btn-sync-library-default").addEventListener("click", restoreDefaultAssetLibrary);
   document.getElementById("btn-sync-select-directory").addEventListener("click", chooseSyncRegistryDirectory);
   document.getElementById("btn-sync-plan").addEventListener("click", showSyncPlan);
   document.getElementById("btn-sync-apply").addEventListener("click", applySync);
@@ -2227,7 +2246,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-settings").addEventListener("click", openSettings);
   document.getElementById("btn-workspace").addEventListener("click", changeWorkspace);
   document.getElementById("btn-asset-library-choose").addEventListener("click", chooseAssetLibraryDirectory);
-  document.getElementById("btn-asset-library-project").addEventListener("click", restoreProjectAssetLibrary);
+  document.getElementById("btn-asset-library-default").addEventListener("click", restoreDefaultAssetLibrary);
   document.getElementById("btn-close-settings").addEventListener("click", () => {
     document.getElementById("settings-dialog").close();
   });
