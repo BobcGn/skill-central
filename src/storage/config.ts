@@ -19,6 +19,15 @@ import { load as parseYaml } from "js-yaml";
 import type { SkillLayer } from "./schemas.js";
 import { DEFAULT_LEGACY_LAYERS, parseLayerConfigs } from "./layers.js";
 
+export const USER_SKILLS_DIR_ENV = "SKILL_CENTRAL_USER_SKILLS_DIR";
+
+export function resolveUserSkillsDir(
+  environment: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+): string {
+  return path.resolve(environment[USER_SKILLS_DIR_ENV] ?? path.join(home, ".skill-central", "skills"));
+}
+
 export interface SkillCentralConfig {
   layers: SkillLayer[];
   layerPresets?: {
@@ -38,10 +47,17 @@ export interface SkillCentralConfig {
 export function loadConfig(projectRoot?: string): SkillCentralConfig {
   const layers: SkillLayer[] = [];
   let layerPresets: SkillCentralConfig["layerPresets"];
+  let configuredLayerCount = 0;
+
+  // 0) User-global layers are always available in every project. They use
+  // lower priorities than the legacy project layers so project decisions can
+  // override shared defaults without hiding their provenance.
+  mergeLayers(layers, defaultUserLayers());
 
   // 1) Global config
   const globalPath = path.join(homedir(), ".skill-central", "config.yaml");
   const globalConfig = readConfigFile(globalPath);
+  configuredLayerCount += globalConfig.layers.length;
   mergeLayers(layers, globalConfig.layers);
   layerPresets = globalConfig.layerPresets ?? layerPresets;
 
@@ -51,6 +67,7 @@ export function loadConfig(projectRoot?: string): SkillCentralConfig {
     const projectPath = path.join(root, name);
     if (existsSync(projectPath)) {
       const projectConfig = readConfigFile(projectPath);
+      configuredLayerCount += projectConfig.layers.length;
       mergeLayers(layers, projectConfig.layers);
       layerPresets = projectConfig.layerPresets ?? layerPresets;
       break;
@@ -58,11 +75,36 @@ export function loadConfig(projectRoot?: string): SkillCentralConfig {
   }
 
   // 3) Fallback default
-  if (layers.length === 0) {
+  if (configuredLayerCount === 0) {
     layers.push(...DEFAULT_LEGACY_LAYERS.map((layer) => ({ ...layer, sync: { ...layer.sync } })));
   }
 
   return { layers: resolveLayerPaths(layers, root), layerPresets };
+}
+
+function defaultUserLayers(): SkillLayer[] {
+  const root = resolveUserSkillsDir();
+  if (!existsSync(root)) return [];
+  return [
+    userLayer("user-01-global", "user/01-global", path.join(root, "01-global"), 1),
+    userLayer("user-02-workflows", "user/02-workflows", path.join(root, "02-workflows"), 2),
+    userLayer("user-03-domains", "user/03-domains", path.join(root, "03-domains"), 3),
+    userLayer("user-04-tech-stack", "user/04-tech-stack", path.join(root, "04-tech-stack"), 4),
+  ].filter((layer) => existsSync(layer.path));
+}
+
+function userLayer(id: string, name: string, layerPath: string, priority: number): SkillLayer {
+  return {
+    id,
+    name,
+    path: layerPath,
+    scope: "user",
+    priority,
+    writable: true,
+    trust: "local",
+    sync: { enabled: true },
+    visibility: "private",
+  };
 }
 
 // ── Internals ──────────────────────────────────────────────────────────────

@@ -195,7 +195,7 @@ program
 
 program
   .command("rules")
-  .description("List all loaded rules from .rules/ (filters: --tag, --severity)")
+  .description("List applicable rules from global and project libraries (filters: --tag, --severity)")
   .option("--tag <tag>", "Only show rules with this tag")
   .option("--severity <severity>", 'Only show rules of this severity ("info", "warn", or "error")')
   .option("--dir <path>", "Override the rules directory (default .rules/)")

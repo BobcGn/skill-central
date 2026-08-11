@@ -10,6 +10,8 @@ import type {
   CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { SkillEngine, ResolvedSkillView } from "../core/engine.js";
+import type { RuleEngine } from "../core/rule-engine.js";
+import type { RuleSeverity } from "../schema/rule.js";
 import { composeSkill } from "../core/composer.js";
 import type { ComposedToolCall } from "../core/composer.js";
 import { runWorkflowAction } from "../commands/workflow.js";
@@ -22,33 +24,65 @@ export const BUILTIN_WORKFLOW_TOOL_NAMES = [
   "workflow.summarize",
 ] as const;
 export const REVERSE_OUTPUT_TOOL_NAME = "reverse_output" as const;
+export const RULE_LIST_TOOL_NAME = "rules.list" as const;
+export const RULE_GET_TOOL_NAME = "rules.get" as const;
 export const BUILTIN_CONTROL_TOOL_NAMES = [
   ...BUILTIN_WORKFLOW_TOOL_NAMES,
   REVERSE_OUTPUT_TOOL_NAME,
+  RULE_LIST_TOOL_NAME,
+  RULE_GET_TOOL_NAME,
 ] as const;
 
 export function buildListToolsHandler(
   engine: SkillEngine,
+  ruleEngine: RuleEngine,
   reverseOutput: ReverseOutputService,
 ) {
   return async (): Promise<ListToolsResult> => {
-    await engine.waitForReady();
+    await Promise.all([engine.waitForReady(), ruleEngine.waitForReady()]);
     const skills = engine.querySkills({ type: "tool" }).skills;
     void reverseOutput;
     return {
-      tools: [reverseOutputToolMeta(), ...workflowToolMetas(), ...skills.map(toToolMeta)],
+      tools: [
+        rulesListToolMeta(),
+        rulesGetToolMeta(),
+        reverseOutputToolMeta(),
+        ...workflowToolMetas(),
+        ...skills.map(toToolMeta),
+      ],
     };
   };
 }
 
 export function buildCallToolHandler(
   engine: SkillEngine,
+  ruleEngine: RuleEngine,
   reverseOutput: ReverseOutputService,
 ) {
   return async (
     request: { params: { name: string; arguments?: Record<string, unknown> } },
   ): Promise<CallToolResult> => {
-    await engine.waitForReady();
+    await Promise.all([engine.waitForReady(), ruleEngine.waitForReady()]);
+    if (request.params.name === RULE_LIST_TOOL_NAME) {
+      const args = request.params.arguments ?? {};
+      const rules = ruleEngine.queryRules({
+        tag: stringArg(args.tag),
+        severity: ruleSeverityArg(args.severity),
+      });
+      return jsonToolResult({
+        schemaVersion: "skillcentral.dev/rule-registry/v1",
+        count: rules.length,
+        rules: rules.map(({ body, ...metadata }) => metadata),
+      });
+    }
+
+    if (request.params.name === RULE_GET_TOOL_NAME) {
+      const id = requiredStringArg(request.params.arguments?.id, "id");
+      const rule = ruleEngine.getRule(id);
+      if (!rule) throw new Error(`Unknown rule: ${id}`);
+      return jsonToolResult(rule);
+    }
+
     if (request.params.name === REVERSE_OUTPUT_TOOL_NAME) {
       const result = await reverseOutput.execute(request.params.arguments ?? {});
       return {
@@ -222,6 +256,55 @@ function reverseOutputToolMeta() {
       required: ["action"],
     },
   };
+}
+
+function rulesListToolMeta() {
+  return {
+    name: RULE_LIST_TOOL_NAME,
+    description: "List applicable Skill Central covenant rules and their provenance.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tag: { type: "string", description: "Optional exact rule tag." },
+        severity: {
+          type: "string",
+          enum: ["info", "warn", "error"],
+          description: "Optional minimum library filter by exact severity.",
+        },
+      },
+    },
+  };
+}
+
+function rulesGetToolMeta() {
+  return {
+    name: RULE_GET_TOOL_NAME,
+    description: "Read one applicable covenant rule, including its full instruction body.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Rule id returned by rules.list." },
+      },
+      required: ["id"],
+    },
+  };
+}
+
+function jsonToolResult(value: unknown): CallToolResult {
+  return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }] };
+}
+
+function requiredStringArg(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${name} must be a non-empty string.`);
+  }
+  return value.trim();
+}
+
+function ruleSeverityArg(value: unknown): RuleSeverity | undefined {
+  if (value === undefined) return undefined;
+  if (value === "info" || value === "warn" || value === "error") return value;
+  throw new Error("severity must be one of: info, warn, error.");
 }
 
 function stringArg(value: unknown): string | undefined {

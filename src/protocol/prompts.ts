@@ -15,23 +15,47 @@ import type {
   GetPromptResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { SkillEngine, ResolvedSkillView } from "../core/engine.js";
+import type { RuleEngine, ResolvedRuleView } from "../core/rule-engine.js";
+import type { RuleSeverity } from "../schema/rule.js";
 import { composeSkill, composeByTags } from "../core/composer.js";
 import type { ComposedPrompt } from "../core/composer.js";
 
-export function buildListPromptsHandler(engine: SkillEngine) {
+export const ALL_RULES_PROMPT_NAME = "rules:all";
+export const RULE_PROMPT_PREFIX = "rule:";
+
+export function buildListPromptsHandler(engine: SkillEngine, ruleEngine: RuleEngine) {
   return async (): Promise<ListPromptsResult> => {
-    await engine.waitForReady();
+    await Promise.all([engine.waitForReady(), ruleEngine.waitForReady()]);
     const skills = engine.querySkills({ type: "prompt" }).skills;
-    return { prompts: skills.map(toPromptMeta) };
+    const rules = ruleEngine.queryRules();
+    return {
+      prompts: [allRulesPromptMeta(), ...rules.map(toRulePromptMeta), ...skills.map(toPromptMeta)],
+    };
   };
 }
 
-export function buildGetPromptHandler(engine: SkillEngine) {
+export function buildGetPromptHandler(engine: SkillEngine, ruleEngine: RuleEngine) {
   return async (
     request: { params: { name: string; arguments?: Record<string, string | undefined> } },
   ): Promise<GetPromptResult> => {
-    await engine.waitForReady();
+    await Promise.all([engine.waitForReady(), ruleEngine.waitForReady()]);
     const { name, arguments: args } = request.params;
+
+    if (name === ALL_RULES_PROMPT_NAME) {
+      const severity = extractSeverity(args?.severity);
+      const rules = ruleEngine.queryRules({
+        tag: args?.tag?.trim() || undefined,
+        severity,
+      });
+      return rulesPromptResult(rules, "Applicable Skill Central covenant rules");
+    }
+
+    if (name.startsWith(RULE_PROMPT_PREFIX)) {
+      const ruleId = name.slice(RULE_PROMPT_PREFIX.length);
+      const rule = ruleEngine.getRule(ruleId);
+      if (!rule) throw new Error(`Unknown rule prompt: ${ruleId}`);
+      return rulesPromptResult([rule], rule.description);
+    }
 
     // ── Special: tag-based composition ───────────────────────────────────
     if (name === "skills:compose") {
@@ -62,6 +86,51 @@ export function buildGetPromptHandler(engine: SkillEngine) {
       messages: result.messages,
     };
   };
+}
+
+function allRulesPromptMeta() {
+  return {
+    name: ALL_RULES_PROMPT_NAME,
+    description: "Load all applicable global and project covenant rules before coding.",
+    arguments: [
+      { name: "tag", description: "Optional rule tag filter", required: false },
+      { name: "severity", description: "Optional info, warn, or error filter", required: false },
+    ],
+  };
+}
+
+function toRulePromptMeta(rule: ResolvedRuleView) {
+  return {
+    name: `${RULE_PROMPT_PREFIX}${rule.id}`,
+    description: `[${rule.severity}] ${rule.description}`,
+  };
+}
+
+function rulesPromptResult(rules: ResolvedRuleView[], description: string): GetPromptResult {
+  if (rules.length === 0) throw new Error("No applicable rules found for the requested filters.");
+  return {
+    description,
+    messages: [{
+      role: "user",
+      content: {
+        type: "text",
+        text: rules.map((rule) => [
+          `# ${rule.name}`,
+          `Rule ID: ${rule.id}`,
+          `Severity: ${rule.severity}`,
+          `Source: ${rule.library} (${rule.source})`,
+          "",
+          rule.body,
+        ].join("\n")).join("\n\n---\n\n"),
+      },
+    }],
+  };
+}
+
+function extractSeverity(value: string | undefined): RuleSeverity | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  if (value === "info" || value === "warn" || value === "error") return value;
+  throw new Error(`Invalid rule severity: ${value}`);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

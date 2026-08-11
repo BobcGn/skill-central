@@ -21,6 +21,7 @@ import { detectIdeRegistration } from "../ide-detection/detect.js";
 import type { IdeDetectionOptions, IdeTarget, McpServerConfig } from "../ide-detection/types.js";
 import type { SkillEngine } from "../core/engine.js";
 import { BUILTIN_CONTROL_TOOL_NAMES } from "../protocol/tools.js";
+import { ALL_RULES_PROMPT_NAME, RULE_PROMPT_PREFIX } from "../protocol/prompts.js";
 import { VERSION } from "../version.js";
 
 export type IdeConnectionStatus =
@@ -42,6 +43,7 @@ export interface IdeConnectionHealth {
   serverArgs?: string[];
   serverVersion?: string;
   promptCount: number;
+  rulePromptCount: number;
   toolCount: number;
   loadedSkillCount: number;
   registryPromptCount: number;
@@ -81,6 +83,7 @@ export async function checkIdeConnectionHealth(
     registered: registration.registered,
     configPath: registration.configPath,
     promptCount: 0,
+    rulePromptCount: 0,
     toolCount: 0,
     loadedSkillCount: 0,
     registryPromptCount: baseline.promptIds.length,
@@ -135,9 +138,13 @@ export async function checkIdeConnectionHealth(
 
   try {
     const probe = await probeMcpServer(server, options.timeoutMs ?? 8000);
-    const promptIds = new Set(probe.promptIds);
     const toolIds = new Set(probe.toolIds);
-    const loadedIds = new Set([...probe.promptIds, ...probe.toolIds]);
+    // Rule prompts are a separate covenant asset class. They prove direct
+    // Agent consumption but must not be compared against Skill registry IDs.
+    const skillPromptIds = probe.promptIds.filter((id) =>
+      id !== ALL_RULES_PROMPT_NAME && !id.startsWith(RULE_PROMPT_PREFIX));
+    const rulePromptCount = probe.promptIds.length - skillPromptIds.length;
+    const loadedIds = new Set([...skillPromptIds, ...probe.toolIds]);
     const missing = baseline.skillIds.filter((id) => !loadedIds.has(id));
     const extra = [...loadedIds].filter((id) => !baseline.skillIdSet.has(id));
     const status = missing.length === 0 && extra.length === 0 ? "connected" : "connected-with-drift";
@@ -146,7 +153,8 @@ export async function checkIdeConnectionHealth(
       ...registeredBase,
       status,
       serverVersion: probe.serverVersion,
-      promptCount: promptIds.size,
+      promptCount: skillPromptIds.length,
+      rulePromptCount,
       toolCount: toolIds.size,
       loadedSkillCount: loadedIds.size,
       missingSkillIds: missing,
@@ -181,7 +189,16 @@ async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promi
   const transport = new StdioClientTransport({
     command: server.command,
     args: server.args ?? [],
-    env: server.env ? { ...getDefaultEnvironment(), ...server.env } : undefined,
+    // Preserve Skill Central's explicit runtime overrides even when the IDE
+    // entry only contains command/args. The SDK's default environment is a
+    // safety-filtered subset and intentionally omits custom variables; without
+    // this merge the health process and the probed MCP child can load different
+    // global Skill/Rule roots and report false drift.
+    env: {
+      ...getDefaultEnvironment(),
+      ...skillCentralEnvironment(),
+      ...server.env,
+    },
     stderr: "pipe",
   });
   transport.stderr?.on("data", (chunk) =>
@@ -205,6 +222,23 @@ async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promi
       await client.close().catch(() => undefined);
     }
   })(), timeoutMs, "initialize");
+}
+
+function skillCentralEnvironment(): Record<string, string> {
+  // Keep this allowlist narrow. Health may probe a user-configured command;
+  // forwarding every similarly prefixed variable could disclose a future
+  // credential to a drifted or malicious entry. These values only select
+  // local asset/project roots and are required for parent/child parity.
+  const names = [
+    "SKILL_CENTRAL_USER_SKILLS_DIR",
+    "SKILL_CENTRAL_GLOBAL_RULES_DIR",
+    "SKILL_CENTRAL_PROJECT_ROOT",
+  ];
+  const entries = names.flatMap((name) => {
+    const value = process.env[name];
+    return value === undefined ? [] : [[name, value] as const];
+  });
+  return Object.fromEntries(entries);
 }
 
 function registryBaseline(engine: SkillEngine) {

@@ -7,10 +7,11 @@
 // lists can never cross-contaminate.
 // ============================================================================
 
-import { readAllRules, DEFAULT_RULES_DIR } from "../storage/rule-reader.js";
+import { readAllRules } from "../storage/rule-reader.js";
 import { queryRules } from "../registry/rule-query.js";
 import type { RuleSeverity } from "../schema/rule.js";
 import { resolveAssetScopeContext } from "../storage/project-identity.js";
+import { RuleEngine } from "../core/rule-engine.js";
 
 export interface RulesOptions {
   tag?: string;
@@ -21,18 +22,18 @@ export interface RulesOptions {
 }
 
 export async function cmdRules(opts: RulesOptions): Promise<void> {
-  const rules = await readAllRules([opts.dir ?? DEFAULT_RULES_DIR]);
   const scopeContext = await resolveAssetScopeContext(opts.projectRoot, opts.projectId);
-
-  const matched = queryRules(rules, {
-    tag: opts.tag,
-    severity: opts.severity,
-    scopeContext,
-  });
+  const matched = opts.dir
+    ? queryRules(await readAllRules([opts.dir]), {
+        tag: opts.tag,
+        severity: opts.severity,
+        scopeContext,
+      })
+    : await queryDefaultRuleLibraries(opts, scopeContext);
 
   if (matched.length === 0) {
     console.log("");
-    console.log("  (no rules match the filters — add rule files under .rules/)");
+    console.log("  (no rules match the filters — add rules under ~/.skill-central/rules/ or .rules/)");
     console.log("");
     return;
   }
@@ -50,4 +51,17 @@ export async function cmdRules(opts: RulesOptions): Promise<void> {
     })),
   );
   console.log("");
+}
+
+async function queryDefaultRuleLibraries(
+  opts: RulesOptions,
+  scopeContext: Awaited<ReturnType<typeof resolveAssetScopeContext>>,
+) {
+  const engine = new RuleEngine();
+  await engine.reload({
+    projectRoot: opts.projectRoot,
+    projectId: opts.projectId,
+    scopeContext,
+  });
+  return engine.queryRules({ tag: opts.tag, severity: opts.severity });
 }

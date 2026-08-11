@@ -15,6 +15,7 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { SkillEngine } from "../core/engine.js";
+import type { RuleEngine } from "../core/rule-engine.js";
 import { loadConfig, type SkillCentralConfig } from "../storage/config.js";
 import { ReverseOutputService } from "../reverse-output/service.js";
 import {
@@ -38,6 +39,7 @@ import {
 export function registerHandlers(
   server: Server,
   engine: SkillEngine,
+  ruleEngine: RuleEngine,
   options: { config?: SkillCentralConfig; projectRoot?: string } = {},
 ): void {
   const projectRoot = options.projectRoot ?? process.cwd();
@@ -48,17 +50,17 @@ export function registerHandlers(
   });
 
   // ── Prompts ────────────────────────────────────────────────────────────
-  server.setRequestHandler(ListPromptsRequestSchema, buildListPromptsHandler(engine));
-  server.setRequestHandler(GetPromptRequestSchema, buildGetPromptHandler(engine));
+  server.setRequestHandler(ListPromptsRequestSchema, buildListPromptsHandler(engine, ruleEngine));
+  server.setRequestHandler(GetPromptRequestSchema, buildGetPromptHandler(engine, ruleEngine));
 
   // ── Tools ──────────────────────────────────────────────────────────────
-  server.setRequestHandler(ListToolsRequestSchema, buildListToolsHandler(engine, reverseOutput));
-  server.setRequestHandler(CallToolRequestSchema, buildCallToolHandler(engine, reverseOutput));
+  server.setRequestHandler(ListToolsRequestSchema, buildListToolsHandler(engine, ruleEngine, reverseOutput));
+  server.setRequestHandler(CallToolRequestSchema, buildCallToolHandler(engine, ruleEngine, reverseOutput));
 
   // ── Resources ─────────────────────────────────────────────────────────
   // Resource handlers are read-only evidence surfaces. Workflow/session URIs
   // are parsed in one place but intentionally fail until Phase 5B+ storage
   // exists, so clients never receive synthetic orchestration state.
-  server.setRequestHandler(ListResourcesRequestSchema, buildListResourcesHandler(engine));
-  server.setRequestHandler(ReadResourceRequestSchema, buildReadResourceHandler(engine));
+  server.setRequestHandler(ListResourcesRequestSchema, buildListResourcesHandler(engine, ruleEngine));
+  server.setRequestHandler(ReadResourceRequestSchema, buildReadResourceHandler(engine, ruleEngine));
 }

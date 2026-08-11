@@ -9,11 +9,10 @@
 
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 import { load as parseYaml, dump as dumpYaml } from "js-yaml";
 
-import { loadConfig } from "../storage/config.js";
+import { loadConfig, resolveUserSkillsDir } from "../storage/config.js";
 import { parseSkillFile, validateSkill } from "../storage/parser.js";
 import { discoverSkillFiles } from "../storage/reader.js";
 import type { SkillLayer } from "../storage/schemas.js";
@@ -274,7 +273,7 @@ interface Scope {
 
 async function resolveScope(userFlag: boolean): Promise<Scope> {
   if (userFlag) {
-    const root = path.join(homedir(), ".skill-central", "skills");
+    const root = resolveUserSkillsDir();
     await mkdir(root, { recursive: true });
     return { root, label: "user", implicit: false };
   }
@@ -295,7 +294,7 @@ async function resolveScope(userFlag: boolean): Promise<Scope> {
   console.error(
     "[skill-central] No .skills/ or skill-central.yaml in cwd; falling back to user scope.",
   );
-  const userRoot = path.join(homedir(), ".skill-central", "skills");
+  const userRoot = resolveUserSkillsDir();
   await mkdir(userRoot, { recursive: true });
   return { root: userRoot, label: "user", implicit: true };
 }

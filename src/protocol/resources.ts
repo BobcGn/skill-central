@@ -20,6 +20,7 @@ import { isCompileTarget } from "../adapters/registry.js";
 import type { CompileTarget } from "../adapters/types.js";
 import { compileIntentDryRun } from "../compiler/compiler.js";
 import type { SkillEngine, ResolvedSkillView } from "../core/engine.js";
+import type { RuleEngine, ResolvedRuleView } from "../core/rule-engine.js";
 import { ensureAppState } from "../local-store/app-state.js";
 import { createBlackboardStore } from "../state/blackboard.js";
 import { createSessionStore } from "../state/session-store.js";
@@ -29,15 +30,18 @@ import type { WorkflowStep } from "../schema/universal-skill.js";
 type ParsedResourceUri =
   | { kind: "registry" }
   | { kind: "skill"; skillId: string }
+  | { kind: "rule-registry" }
+  | { kind: "rule"; ruleId: string }
   | { kind: "bundle"; target: CompileTarget; intent: string }
   | { kind: "session-context"; sessionId: string }
   | { kind: "session-topic"; sessionId: string; topic: string }
   | { kind: "workflow-plan"; workflowId: string };
 
-export function buildListResourcesHandler(engine: SkillEngine) {
+export function buildListResourcesHandler(engine: SkillEngine, ruleEngine: RuleEngine) {
   return async (): Promise<ListResourcesResult> => {
-    await engine.waitForReady();
+    await Promise.all([engine.waitForReady(), ruleEngine.waitForReady()]);
     const skills = engine.querySkills().skills;
+    const rules = ruleEngine.queryRules();
 
     return {
       resources: [
@@ -48,6 +52,15 @@ export function buildListResourcesHandler(engine: SkillEngine) {
           description: "Resolved skill registry with effective/conflicted records and layer provenance.",
           mimeType: "application/json",
         },
+        {
+          uri: "rule://registry",
+          name: "skill-central rule registry",
+          title: "Rule Registry",
+          description: "Applicable global and project covenant rules available to the Coding Agent.",
+          mimeType: "application/json",
+          annotations: { audience: ["assistant" as const], priority: 1 },
+        },
+        ...rules.map(toRuleResource),
         ...skills.map(toSkillResource),
         ...skills.filter((skill) => skill.type === "workflow").map(toWorkflowPlanResource),
       ],
@@ -55,11 +68,11 @@ export function buildListResourcesHandler(engine: SkillEngine) {
   };
 }
 
-export function buildReadResourceHandler(engine: SkillEngine) {
+export function buildReadResourceHandler(engine: SkillEngine, ruleEngine: RuleEngine) {
   return async (
     request: { params: { uri: string } },
   ): Promise<ReadResourceResult> => {
-    await engine.waitForReady();
+    await Promise.all([engine.waitForReady(), ruleEngine.waitForReady()]);
     const parsed = parseResourceUri(request.params.uri);
 
     if (parsed.kind === "registry") {
@@ -72,6 +85,19 @@ export function buildReadResourceHandler(engine: SkillEngine) {
       const skill = engine.querySkills({ id: parsed.skillId }).skills[0];
       if (!skill) throw new Error(`Unknown skill resource: ${parsed.skillId}`);
       return jsonResource(`skill://skill/${encodeURIComponent(parsed.skillId)}`, skill);
+    }
+
+    if (parsed.kind === "rule-registry") {
+      return jsonResource("rule://registry", {
+        schemaVersion: "skillcentral.dev/rule-registry/v1",
+        rules: ruleEngine.queryRules(),
+      });
+    }
+
+    if (parsed.kind === "rule") {
+      const rule = ruleEngine.getRule(parsed.ruleId);
+      if (!rule) throw new Error(`Unknown rule resource: ${parsed.ruleId}`);
+      return jsonResource(`rule://rule/${encodeURIComponent(parsed.ruleId)}`, rule);
     }
 
     if (parsed.kind === "bundle") {
@@ -119,6 +145,18 @@ export function parseResourceUri(uri: string): ParsedResourceUri {
     throw new Error(`Invalid skill resource URI: ${uri}`);
   }
 
+  if (url.protocol === "rule:") {
+    const ruleSegments = [url.hostname, ...url.pathname.split("/")]
+      .filter(Boolean)
+      .map(decodeURIComponent);
+    const [ruleRoot, ruleId] = ruleSegments;
+    if (ruleRoot === "registry" && ruleSegments.length === 1) return { kind: "rule-registry" };
+    if (ruleRoot === "rule" && ruleId && ruleSegments.length === 2) {
+      return { kind: "rule", ruleId };
+    }
+    throw new Error(`Unknown rule resource URI: ${uri}`);
+  }
+
   if (url.protocol !== "skill:") {
     throw new Error(`Unsupported resource protocol: ${url.protocol}`);
   }
@@ -145,6 +183,20 @@ export function parseResourceUri(uri: string): ParsedResourceUri {
   }
 
   throw new Error(`Unknown skill resource URI: ${uri}`);
+}
+
+function toRuleResource(rule: ResolvedRuleView) {
+  return {
+    uri: `rule://rule/${encodeURIComponent(rule.id)}`,
+    name: rule.id,
+    title: rule.name,
+    description: rule.description,
+    mimeType: "application/json",
+    annotations: {
+      audience: ["assistant" as const],
+      priority: rule.severity === "error" ? 1 : rule.severity === "warn" ? 0.9 : 0.8,
+    },
+  };
 }
 
 function toSkillResource(skill: ResolvedSkillView) {

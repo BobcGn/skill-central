@@ -8,6 +8,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SkillEngine } from "./core/engine.js";
+import { RuleEngine } from "./core/rule-engine.js";
 import { registerHandlers } from "./protocol/handler.js";
 import { loadConfig } from "./storage/config.js";
 import { VERSION } from "./version.js";
@@ -44,12 +45,14 @@ export async function startMcpServer(options: StartMcpServerOptions = {}): Promi
   );
 
   const engine = new SkillEngine();
-  registerHandlers(server, engine, {
+  const ruleEngine = new RuleEngine();
+  registerHandlers(server, engine, ruleEngine, {
     config,
     projectRoot,
   });
 
   await engine.reload(config.layers, { projectRoot });
+  await ruleEngine.reload({ projectRoot });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
