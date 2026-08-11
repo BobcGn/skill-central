@@ -109,7 +109,7 @@ function renderCask({ version: releaseVersion, arm64Sha256, x64Sha256, downloadU
   ]
 
   caveats <<~EOS
-    This alpha has no Developer ID signature and is not notarized. If macOS
+    This release has no Developer ID signature and is not notarized. If macOS
     blocks first launch, verify the release source and prefer Open Anyway in
     System Settings. Use the README quarantine step only as a last resort.
 

@@ -1,9 +1,9 @@
 cask "skill-central" do
   arch arm: "arm64", intel: "x64"
 
-  version "1.0.0-rc.3"
-  sha256 arm:   "c22464cf4d5d51ad535cef5a06434b180ff2fc48dc9840caf97eda4df1bb1b13",
-         intel: "7e33fa87304446c53b1f668a35045ce1048e9bd70004d158601df2eeaf05b95c"
+  version "1.0.0"
+  sha256 arm:   "1c84a336c54e4aea98a905ebcc1602024eadad7efffebf58f32e00269bf27cac",
+         intel: "d42ebf9155b07a93adbd251519c6e372caeca77ce9eaf04b1a46b271afa657cc"
 
   url "https://github.com/BobcGn/skill-central/releases/download/v#{version}/Skill-Central-#{version}-mac-#{arch}.dmg"
   name "Skill Central"
@@ -24,7 +24,7 @@ cask "skill-central" do
   ]
 
   caveats <<~EOS
-    This alpha has no Developer ID signature and is not notarized. If macOS
+    This release has no Developer ID signature and is not notarized. If macOS
     blocks first launch, verify the release source and prefer Open Anyway in
     System Settings. Use the README quarantine step only as a last resort.
 

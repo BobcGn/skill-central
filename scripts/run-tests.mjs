@@ -20,7 +20,20 @@ if (result.error) {
   process.exit(1);
 }
 
-process.exit(result.status ?? 1);
+if (result.status !== 0) process.exit(result.status ?? 1);
+
+const mcpGate = spawnSync(process.execPath, [path.join("scripts", "test-mcp-protocol.mjs")], {
+  cwd: process.cwd(),
+  env: process.env,
+  stdio: "inherit",
+  shell: false,
+});
+if (mcpGate.error) {
+  console.error(`[skill-central] Failed to start MCP release gate: ${mcpGate.error.message}`);
+  process.exit(1);
+}
+
+process.exit(mcpGate.status ?? 1);
 
 function resolveWindowsBash() {
   const explicit = process.env.SKILL_CENTRAL_BASH;

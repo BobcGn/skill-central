@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-11
+
+### 新增
+
+- **正式 Agent 支持范围**：首个正式版支持 Codex、Claude Code 与 Cursor；Trae、
+  Windsurf、Cline 保留实验性注册能力并明确标记为未完整验证。
+- **全局技能与规则消费**：自动加载 `~/.skill-central/skills` 用户全局技能层；MCP
+  通过 Resources、Prompts 与 Tools 直接暴露全局/项目 Rules，并保持项目同 ID 覆盖
+  全局规则的确定性优先级。
+- **启动识别与修复**：桌面启动时检测正式 Agent 的 MCP 配置，安全刷新漂移项，并在
+  Agent 配置已经存在时自动补登记 Skill Central；不会为未安装的 Agent 创建配置。
+- **正式发布门禁**：新增独立 MCP 协议消费测试、发布风险检查、生产/完整依赖审计，
+  并由原生 macOS 与 Windows GitHub Actions 构建安装包。
+
+### 修复
+
+- **健康检查一致性**：Rule Prompt/Tool 不再被误判为 Skill 漂移；MCP 探测子进程会继承
+  `SKILL_CENTRAL_*` 运行时覆盖，避免父子进程加载不同资产根目录造成假告警。
+- **供应链风险**：升级 Hono、js-yaml 及受影响的传递依赖，消除发布依赖树的已知
+  npm audit 漏洞。
+
+### 兼容性与限制
+
+- 桌面正式发布目标为 macOS x64/arm64 与 Windows x64；Linux 留待后续版本。
+- macOS 当前使用 ad-hoc 签名且未公证。推荐通过 Homebrew 安装；直接下载被
+  Gatekeeper 阻止时，按 README 中的校验与 quarantine 处理步骤操作。
+- IDE 反向输出保留为可用的实验性控制面，1.0.0 的首要保证是 Agent 能发现并消费
+  Skills 与 Rules。
+
 ## [1.0.0-rc.3] - 2026-08-02
 
 ### 修复

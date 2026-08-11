@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
       - name: Lint
         run: npm run lint
 
@@ -47,6 +50,9 @@ jobs:
 
       - name: Build web assets
         run: npm run build:web
+
+      - name: Run release risk gate
+        run: npm run test:risk
 
       - name: Verify build artifacts
         run: |
@@ -75,3 +81,9 @@ jobs:
 
       - name: Run full test suite
         run: npm test
+
+      - name: Run explicit MCP protocol gate
+        run: npm run test:mcp
+
+      - name: Run release risk gate
+        run: npm run test:risk

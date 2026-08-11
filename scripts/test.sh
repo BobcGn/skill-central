@@ -44,6 +44,7 @@ NC='\033[0m' # No Color
 
 TEST_BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/skill-central-bin.XXXXXX")"
 export PATH="$TEST_BIN_DIR:$PWD/node_modules/.bin:$PATH"
+export SKILL_CENTRAL_USER_SKILLS_DIR="$TEST_BIN_DIR/user-skills"
 unset SKILL_CENTRAL_GITHUB_CLIENT_ID
 
 # Homebrew documents exit 1 as a valid "outdated items found" result in some
@@ -124,7 +125,7 @@ cleanup() {
     .skills/web-sync-ci/web-apply-conflict.yaml
   rm -f .skills/01-global/test-sync-conflict.yaml.bak.* .skills/01-global/test-sync-delete-local.yaml.bak.*
   rm -f .skills/web-sync-ci/web-apply-conflict.yaml.bak.*
-  rm -rf .rules-ci .rules-empty-ci
+  rm -rf .rules-ci .rules-empty-ci .rules-mcp-ci
   rm -rf "$TEST_BIN_DIR"
 }
 trap cleanup EXIT
@@ -175,6 +176,19 @@ echo "→ 4/24 验证技能列表..."
 node dist/index.js list | grep -q "test-skill" \
   && pass "list 包含 legacy test-skill" \
   || fail "list 中未找到 test-skill"
+
+node dist/index.js add \
+  --id ci-user-global \
+  --name "CI User Global" \
+  --description "Proves user-global skills load in every project" \
+  --tags global \
+  --prompt "Always expose this user-global fixture through the registry." \
+  --user \
+  --yes > /dev/null
+node dist/index.js list 2>/dev/null | grep -q "ci-user-global" \
+  && pass "~/.skill-central/skills 用户全局层自动加载" \
+  || fail "用户全局 Skill 写入后未被 Registry 加载"
+rm -rf "$SKILL_CENTRAL_USER_SKILLS_DIR"
 
 # ── 5. Universal Skill v1 / legacy compatibility ───────────────────────────
 echo ""
@@ -694,14 +708,31 @@ pass "compile --json 输出机器可读报告"
 echo ""
 echo "→ 12/24 Phase 5I MCP resource router..."
 
-node --input-type=module <<'NODE'
+RULES_MCP_CI_DIR=".rules-mcp-ci"
+rm -rf "$RULES_MCP_CI_DIR"
+mkdir -p "$RULES_MCP_CI_DIR"
+cat > "$RULES_MCP_CI_DIR/agent-consumption.yaml" <<'EOF'
+schemaVersion: skillcentral.dev/rule/v1
+id: ci-agent-consumption
+name: CI Agent Consumption
+description: Proves that Coding Agents can discover and read applicable rules through MCP.
+severity: error
+tags: [ci, governance]
+appliesTo: global
+body: |
+  Always preserve explicit verification evidence for this CI fixture.
+EOF
+
+SKILL_CENTRAL_GLOBAL_RULES_DIR="$RULES_MCP_CI_DIR" node --input-type=module <<'NODE'
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
+const childEnv = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined));
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: ["dist/index.js", "mcp"],
   cwd: process.cwd(),
+  env: childEnv,
   stderr: "pipe",
 });
 const client = new Client({ name: "skill-central-resource-ci", version: "0.0.0" }, { capabilities: {} });
@@ -712,6 +743,53 @@ try {
   const listed = await client.listResources();
   if (!listed.resources.some((resource) => resource.uri === "skill://registry")) {
     throw new Error("resources/list missing skill://registry");
+  }
+  if (!listed.resources.some((resource) => resource.uri === "rule://registry")) {
+    throw new Error("resources/list missing rule://registry");
+  }
+  if (!listed.resources.some((resource) => resource.uri === "rule://rule/ci-agent-consumption")) {
+    throw new Error("resources/list missing applicable rule resource");
+  }
+
+  const ruleRegistry = await client.readResource({ uri: "rule://registry" });
+  const ruleRegistryBody = JSON.parse(ruleRegistry.contents[0].text);
+  if (!ruleRegistryBody.rules.some((rule) => rule.id === "ci-agent-consumption")) {
+    throw new Error("rule registry resource missing CI rule");
+  }
+
+  const ruleResource = await client.readResource({ uri: "rule://rule/ci-agent-consumption" });
+  const ruleResourceBody = JSON.parse(ruleResource.contents[0].text);
+  if (ruleResourceBody.severity !== "error" || !ruleResourceBody.body.includes("verification evidence")) {
+    throw new Error("rule resource missing instruction body or severity");
+  }
+
+  const prompts = await client.listPrompts();
+  if (!prompts.prompts.some((prompt) => prompt.name === "rules:all")) {
+    throw new Error("prompts/list missing rules:all");
+  }
+  if (!prompts.prompts.some((prompt) => prompt.name === "rule:ci-agent-consumption")) {
+    throw new Error("prompts/list missing direct rule prompt");
+  }
+  const rulePrompt = await client.getPrompt({ name: "rule:ci-agent-consumption" });
+  if (!rulePrompt.messages[0]?.content?.text?.includes("verification evidence")) {
+    throw new Error("rule prompt missing covenant body");
+  }
+
+  const tools = await client.listTools();
+  for (const name of ["rules.list", "rules.get"]) {
+    if (!tools.tools.some((tool) => tool.name === name)) {
+      throw new Error(`tools/list missing ${name}`);
+    }
+  }
+  const listedRules = await client.callTool({ name: "rules.list", arguments: { tag: "ci" } });
+  const listedRulesBody = JSON.parse(listedRules.content[0].text);
+  if (!listedRulesBody.rules.some((rule) => rule.id === "ci-agent-consumption")) {
+    throw new Error("rules.list tool missing CI rule");
+  }
+  const fetchedRule = await client.callTool({ name: "rules.get", arguments: { id: "ci-agent-consumption" } });
+  const fetchedRuleBody = JSON.parse(fetchedRule.content[0].text);
+  if (!fetchedRuleBody.body.includes("verification evidence")) {
+    throw new Error("rules.get tool missing full rule body");
   }
   if (!listed.resources.some((resource) => resource.uri === "skill://skill/test-v1-workflow")) {
     throw new Error("resources/list missing test-v1-workflow skill resource");
@@ -773,7 +851,8 @@ try {
   await client.close().catch(() => undefined);
 }
 NODE
-pass "MCP resources/list 与 resources/read 返回 registry、skill、bundle、workflow plan 证据"
+rm -rf "$RULES_MCP_CI_DIR"
+pass "MCP Resources/Prompts/Tools 同时暴露 Skills 与可消费 Rules"
 
 # ── 13. Phase 5J durable session store ─────────────────────────────────────
 echo ""
@@ -1202,7 +1281,10 @@ cat > "$ide_config" <<JSON
   "mcpServers": {
     "skill-central": {
       "command": "node",
-      "args": ["dist/index.js", "mcp"]
+      "args": ["dist/index.js", "mcp"],
+      "env": {
+        "SKILL_CENTRAL_USER_SKILLS_DIR": "$SKILL_CENTRAL_USER_SKILLS_DIR"
+      }
     }
   }
 }
@@ -1282,7 +1364,10 @@ if (!plan.steps.some((step) => step.kind === "write" && step.status === "applied
   throw new Error("connect apply did not mark write applied");
 }
 if (!plan.health || plan.health.status !== "connected") {
-  throw new Error(`connect verify failed: ${plan.health?.status} ${plan.health?.errorSummary}`);
+  throw new Error(
+    `connect verify failed: ${plan.health?.status} ${plan.health?.errorSummary} ` +
+    `missing=${JSON.stringify(plan.health?.missingSkillIds)} extra=${JSON.stringify(plan.health?.extraSkillIds)}`,
+  );
 }
 NODE
 connect_backup_path=$(CONNECT_APPLY_JSON="$connect_apply" node --input-type=module <<'NODE'
@@ -1390,6 +1475,7 @@ printf '%s' "$register_drift_output" | grep -q "Refreshed drifted skill-central 
 
 reconciler_ready_config="$connect_dir/reconciler-ready-cursor.json"
 reconciler_drift_config="$connect_dir/reconciler-drift-claude.json"
+reconciler_missing_config="$connect_dir/reconciler-missing-cursor.json"
 cat > "$reconciler_ready_config" <<'JSON'
 {
   "mcpServers": {
@@ -1414,12 +1500,27 @@ cat > "$reconciler_drift_config" <<'JSON'
   }
 }
 JSON
+cat > "$reconciler_missing_config" <<'JSON'
+{
+  "mcpServers": {
+    "existing-server": {
+      "command": "existing",
+      "args": ["serve"]
+    }
+  }
+}
+JSON
 
-RECONCILER_READY_CONFIG="$reconciler_ready_config" RECONCILER_DRIFT_CONFIG="$reconciler_drift_config" node --input-type=module <<'NODE'
+RECONCILER_READY_CONFIG="$reconciler_ready_config" RECONCILER_DRIFT_CONFIG="$reconciler_drift_config" RECONCILER_MISSING_CONFIG="$reconciler_missing_config" node --input-type=module <<'NODE'
 import { SkillEngine } from "./dist/core/engine.js";
 import { loadConfig } from "./dist/storage/config.js";
 import { reconcileStartupConnections } from "./dist/startup/reconciler.js";
+import { RELEASE_SUPPORTED_IDES } from "./dist/ide-detection/registry.js";
 import { readFile } from "node:fs/promises";
+
+if (JSON.stringify(RELEASE_SUPPORTED_IDES) !== JSON.stringify(["codex", "claude", "cursor"])) {
+  throw new Error(`unexpected 1.0.0 Agent support matrix: ${RELEASE_SUPPORTED_IDES.join(",")}`);
+}
 
 const engine = new SkillEngine();
 const config = loadConfig(process.cwd());
@@ -1455,8 +1556,25 @@ if (driftRaw.mcpServers["skill-central"].command !== "skill-central") {
 if (driftRaw.mcpServers["existing-server"].command !== "existing") {
   throw new Error("reconciler should preserve existing MCP servers");
 }
+
+report = await reconcileStartupConnections(engine, {
+  targets: ["cursor"],
+  configPaths: { cursor: process.env.RECONCILER_MISSING_CONFIG },
+  registerMissing: true,
+});
+const registered = report.targets[0];
+if (registered.status !== "registered") {
+  throw new Error(`expected registered, got ${registered.status}`);
+}
+const missingRaw = JSON.parse(await readFile(process.env.RECONCILER_MISSING_CONFIG, "utf8"));
+if (missingRaw.mcpServers["skill-central"].command !== "skill-central") {
+  throw new Error("reconciler did not register into an existing Agent config");
+}
+if (missingRaw.mcpServers["existing-server"].command !== "existing") {
+  throw new Error("registerMissing should preserve existing MCP servers");
+}
 NODE
-pass "Startup Reconciler 默认只报告漂移，显式 applyDrift 才刷新"
+pass "Startup Reconciler 正式 Agent 范围、漂移刷新与安全自动注册通过"
 
 malformed_config="$connect_dir/malformed-cursor-mcp.json"
 printf '{ invalid json\n' > "$malformed_config"
@@ -2881,6 +2999,9 @@ if (
 }
 if (!cask.includes('uninstall quit: "dev.skillcentral.app"')) {
   throw new Error("candidate Cask cannot quit the background application");
+}
+if (!cask.includes("This release has no Developer ID signature") || /alpha/i.test(cask)) {
+  throw new Error("candidate Cask contains stale preview release copy");
 }
 NODE
 pass "桌面更新器统一走 GitHub provider 且错误经分类器封装"

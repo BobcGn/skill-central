@@ -1,6 +1,6 @@
 {
   "name": "@bobcgn/skill-central",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0",
   "private": true,
   "description": "Local MCP Server for cross-IDE AI skill distribution and reuse",
   "author": "BobcGn",
@@ -35,6 +35,9 @@
     "claude"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev:mcp": "tsx watch src/index.ts mcp",
     "dev:board": "tsx src/index.ts board",
@@ -53,6 +56,9 @@
     "test:registry-perf": "node scripts/test-registry-performance.mjs",
     "test:asset-scope": "node scripts/test-asset-scope.mjs",
     "test:reverse-output": "node scripts/test-reverse-output.mjs",
+    "test:mcp": "npm run build && node scripts/test-mcp-protocol.mjs",
+    "test:risk": "npm run build && node scripts/check-release-risk.mjs --allow-prerelease",
+    "release:check": "npm run build && node scripts/check-release-risk.mjs",
     "test:auth:mac": "npm run build && node scripts/validate-macos-github-auth.mjs",
     "test:keychain:mac": "npm run build && node scripts/validate-macos-keychain.mjs",
     "pretest": "npm run build && npm run build:web",
@@ -64,8 +70,8 @@
     "@modelcontextprotocol/sdk": "^1.9.0",
     "commander": "^14.0.3",
     "electron-updater": "^6.8.9",
-    "hono": "^4.12.25",
-    "js-yaml": "^4.1.1",
+    "hono": "^4.13.1",
+    "js-yaml": "^4.3.1",
     "smol-toml": "^1.7.1",
     "tar-stream": "^3.2.0"
   },
@@ -76,5 +82,22 @@
     "electron-builder": "^26.15.7",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "fast-uri": "^3.1.5",
+    "ip-address": "^10.5.0",
+    "minimatch@3.1.5": {
+      "brace-expansion": "1.1.18"
+    },
+    "minimatch@5.1.9": {
+      "brace-expansion": "2.1.4"
+    },
+    "minimatch@9.0.9": {
+      "brace-expansion": "2.1.4"
+    },
+    "minimatch@10.2.6": {
+      "brace-expansion": "5.0.9"
+    }
   }
 }

@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
       # The Client ID is public package metadata; a client secret must never be
       # configured for a desktop Device Flow build.
       - name: Validate GitHub OAuth configuration
@@ -57,6 +60,12 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Test MCP protocol explicitly
+        run: npm run test:mcp
+
+      - name: Validate release risk gates
+        run: npm run test:risk
 
       - name: Resolve release version
         id: version
@@ -266,16 +275,17 @@ jobs:
           path: main/Casks/skill-central.rb
           if-no-files-found: error
 
-      - name: Create Cask update pull request
+      - name: Push Cask update branch
+        id: cask-branch
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
         working-directory: main
         run: |
           BRANCH="automation/homebrew-$VERSION"
           if git diff --quiet -- Casks/skill-central.rb; then
             echo "Cask is already current for $VERSION."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -285,6 +295,23 @@ jobs:
           git add Casks/skill-central.rb
           git commit -m "chore(homebrew): update cask to $VERSION"
           git push --force-with-lease origin "HEAD:refs/heads/$BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # Some repositories disable GitHub Actions from creating pull requests.
+      # The generated Cask artifact and pushed branch remain hard gates; only
+      # PR creation degrades to a maintainer action so Draft staging cannot be
+      # deadlocked by that repository setting.
+      - name: Create Cask update pull request
+        id: cask-pr
+        if: steps.cask-branch.outputs.changed == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        working-directory: main
+        run: |
+          BRANCH="automation/homebrew-$VERSION"
 
           if gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh pr edit "$BRANCH" \
@@ -299,6 +326,21 @@ jobs:
               --title "chore(homebrew): update cask to $VERSION" \
               --body "Pins the Homebrew Cask to the staged $VERSION macOS DMGs and their SHA-256 digests. Do not merge until the validated draft Release is public."
           fi
+
+      - name: Record manual Cask PR fallback
+        if: steps.cask-pr.outcome == 'failure'
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          BRANCH="automation/homebrew-$VERSION"
+          COMPARE_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$BRANCH?expand=1"
+          echo "::warning::GitHub Actions could not create the Cask PR. The checksum-pinned branch was pushed successfully; a maintainer must open it before publishing."
+          {
+            echo "## Manual Homebrew Cask PR required"
+            echo
+            echo "Open: $COMPARE_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Tag builds only stage a Draft. Publishing remains an explicit maintainer
   # decision after artifact, install, authentication, and update verification.
