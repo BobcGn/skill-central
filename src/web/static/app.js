@@ -115,6 +115,8 @@ const messages = {
     "ide.registered": "registered",
     "ide.notRegistered": "not registered",
     "ide.invalidConfig": "invalid config",
+    "ide.unverified": "not installed / unverified",
+    "ide.experimental": "Experimental",
     "ide.checking": "Checking {target}...",
     "ide.building": "Building {target} connect plan...",
     "ide.applying": "Applying {target} connect plan...",
@@ -241,6 +243,8 @@ const messages = {
     "ide.registered": "已注册",
     "ide.notRegistered": "未注册",
     "ide.invalidConfig": "配置异常",
+    "ide.unverified": "未安装 / 未验证",
+    "ide.experimental": "实验性",
     "ide.checking": "正在检查 {target}...",
     "ide.building": "正在生成 {target} 连接计划...",
     "ide.applying": "正在应用 {target} 连接计划...",
@@ -1042,12 +1046,18 @@ function renderIdeTargets() {
   if (!container) return;
   container.innerHTML = state.ideTargets.map((target) => {
     const invalid = !target.configReadable && target.configExists;
-    const statusKey = invalid ? "ide.invalidConfig" : target.registered ? "ide.registered" : "ide.notRegistered";
+    const statusKey = invalid
+      ? "ide.invalidConfig"
+      : target.registered
+        ? "ide.registered"
+        : !target.configExists
+          ? "ide.unverified"
+          : "ide.notRegistered";
     const statusClass = invalid ? "error" : target.registered ? "connected" : "";
     return `
       <button class="ide-card ${target.target === state.activeIde ? "active" : ""}" type="button" data-ide-target="${escapeHtml(target.target)}">
         <span class="ide-card-head">
-          <strong>${escapeHtml(target.label)}</strong>
+          <strong>${escapeHtml(target.label)}${target.supportTier === "experimental" ? ` · ${escapeHtml(t("ide.experimental"))}` : ""}</strong>
           <span class="connection-state ${statusClass}">${escapeHtml(t(statusKey))}</span>
         </span>
         <p>${escapeHtml(ideDescription(target))}</p>
@@ -1104,7 +1114,7 @@ async function refreshStartupRecognition() {
   try {
     state.startupRecognition = await api("/api/startup-recognition", {
       method: "POST",
-      body: JSON.stringify({ applyDrift: true, verify: true }),
+      body: JSON.stringify({ applyDrift: true, registerMissing: true, verify: true }),
     });
     renderStartupRecognition();
     await loadIdeTargets();

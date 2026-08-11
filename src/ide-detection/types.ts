@@ -21,6 +21,7 @@ export interface IdeTargetDefinition {
   description: string;
   configFormat: IdeConfigFormat;
   docsUrl: string;
+  supportTier: "supported" | "experimental";
 }
 
 export interface McpServerConfig {

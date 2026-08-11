@@ -110,7 +110,7 @@ async function runDesktopStartupRecognition(board: BoardServerHandle): Promise<v
     const response = await fetch(`http://${board.host}:${board.port}/api/startup-recognition`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ applyDrift: true, verify: true }),
+      body: JSON.stringify({ applyDrift: true, registerMissing: true, verify: true }),
     });
     if (!response.ok) {
       console.warn(`[skill-central] startup recognition failed: HTTP ${response.status}`);

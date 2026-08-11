@@ -15,7 +15,7 @@ import type { OneClickConnectPlan } from "../connect/types.js";
 import type { SkillEngine } from "../core/engine.js";
 import {
   defaultIdeConfigPath,
-  SUPPORTED_IDES,
+  RELEASE_SUPPORTED_IDES,
 } from "../ide-detection/registry.js";
 import type { IdeTarget, McpServerConfig } from "../ide-detection/types.js";
 
@@ -24,6 +24,7 @@ export type StartupRecognitionStatus =
   | "ready"
   | "verified"
   | "drift"
+  | "registered"
   | "refreshed"
   | "blocked"
   | "verify-failed";
@@ -33,6 +34,7 @@ export interface StartupRecognitionOptions {
   configPaths?: Partial<Record<IdeTarget, string>>;
   desiredServer?: McpServerConfig;
   applyDrift?: boolean;
+  registerMissing?: boolean;
   verify?: boolean;
 }
 
@@ -48,6 +50,7 @@ export interface StartupRecognitionTarget {
 export interface StartupRecognitionReport {
   checkedAt: string;
   applyDrift: boolean;
+  registerMissing: boolean;
   verify: boolean;
   targets: StartupRecognitionTarget[];
 }
@@ -57,10 +60,11 @@ export async function reconcileStartupConnections(
   options: StartupRecognitionOptions = {},
 ): Promise<StartupRecognitionReport> {
   if (options.verify) await engine.waitForReady();
-  const targets = options.targets ?? SUPPORTED_IDES;
+  const targets = options.targets ?? RELEASE_SUPPORTED_IDES;
   return {
     checkedAt: new Date().toISOString(),
     applyDrift: !!options.applyDrift,
+    registerMissing: !!options.registerMissing,
     verify: !!options.verify,
     targets: await Promise.all(targets.map((target) => reconcileTarget(engine, target, options))),
   };
@@ -76,10 +80,23 @@ async function reconcileTarget(
     let plan = await buildConnectPlan(target, {
       configPath,
       desiredServer: options.desiredServer,
-      dryRun: !options.applyDrift,
+      dryRun: !(options.applyDrift || options.registerMissing),
     });
 
     if (!plan.currentRegistered) {
+      if (options.registerMissing && plan.configExists) {
+        plan = await applyConnectPlan(plan);
+        if (!options.verify) {
+          return {
+            target,
+            status: "registered",
+            configPath: plan.configPath,
+            plan,
+            nextActions: ["Reload or restart the target Agent so it reads the new MCP config."],
+          };
+        }
+        return withVerification(engine, plan, "registered");
+      }
       return {
         target,
         status: "not-registered",
@@ -87,7 +104,9 @@ async function reconcileTarget(
         plan,
         nextActions: [
           `Run skill-central connect --target ${target} --config-path ${plan.configPath} --dry-run`,
-          "Apply the connection plan when the target should use Skill Central.",
+          plan.configExists
+            ? "Apply the connection plan when the target should use Skill Central."
+            : "The target config was not found. Install/start the Agent first, then retry detection.",
         ],
       };
     }
@@ -146,7 +165,7 @@ async function reconcileTarget(
 async function withVerification(
   engine: SkillEngine,
   plan: OneClickConnectPlan,
-  successStatus: "verified" | "refreshed",
+  successStatus: "verified" | "refreshed" | "registered",
 ): Promise<StartupRecognitionTarget> {
   const verified = await verifyConnectPlan(plan, engine);
   const health = verified.health;

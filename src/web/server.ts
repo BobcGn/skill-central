@@ -1075,6 +1075,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       targets?: string[];
       configPaths?: Record<string, string>;
       applyDrift?: boolean;
+      registerMissing?: boolean;
       verify?: boolean;
       appStateDir?: string;
       writeAudit?: boolean;
@@ -1094,6 +1095,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       targets,
       configPaths,
       applyDrift: body.applyDrift === true,
+      registerMissing: body.registerMissing === true,
       verify: body.verify === true,
       desiredServer: deps.mcpServerConfig,
     });

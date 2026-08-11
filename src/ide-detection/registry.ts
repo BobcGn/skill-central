@@ -10,6 +10,8 @@ import path from "node:path";
 import type { IdeTarget, IdeTargetDefinition, McpServerConfig } from "./types.js";
 
 export const SUPPORTED_IDES: IdeTarget[] = ["codex", "claude", "trae", "cursor", "windsurf", "cline"];
+export const RELEASE_SUPPORTED_IDES: IdeTarget[] = ["codex", "claude", "cursor"];
+export const EXPERIMENTAL_IDES: IdeTarget[] = ["trae", "windsurf", "cline"];
 
 export const SKILL_CENTRAL_MCP_SERVER_NAME = "skill-central";
 
@@ -25,6 +27,7 @@ const DEFINITIONS: Record<IdeTarget, IdeTargetDefinition> = {
     description: "OpenAI Codex shared MCP config at project or user scope.",
     configFormat: "toml",
     docsUrl: "https://developers.openai.com/codex/mcp/",
+    supportTier: "supported",
   },
   claude: {
     target: "claude",
@@ -32,6 +35,7 @@ const DEFINITIONS: Record<IdeTarget, IdeTargetDefinition> = {
     description: "Claude Code user config or Claude Desktop MCP config.",
     configFormat: "json",
     docsUrl: "https://docs.anthropic.com/en/docs/claude-code/mcp",
+    supportTier: "supported",
   },
   trae: {
     target: "trae",
@@ -39,6 +43,7 @@ const DEFINITIONS: Record<IdeTarget, IdeTargetDefinition> = {
     description: "Trae global MCP configuration, including international and China editions.",
     configFormat: "json",
     docsUrl: "https://docs.trae.ai/ide/add-mcp-servers",
+    supportTier: "experimental",
   },
   cursor: {
     target: "cursor",
@@ -46,6 +51,7 @@ const DEFINITIONS: Record<IdeTarget, IdeTargetDefinition> = {
     description: "Cursor global MCP configuration.",
     configFormat: "json",
     docsUrl: "https://docs.cursor.com/context/model-context-protocol",
+    supportTier: "supported",
   },
   windsurf: {
     target: "windsurf",
@@ -53,6 +59,7 @@ const DEFINITIONS: Record<IdeTarget, IdeTargetDefinition> = {
     description: "Windsurf global MCP configuration.",
     configFormat: "json",
     docsUrl: "https://docs.windsurf.com/windsurf/cascade/mcp",
+    supportTier: "experimental",
   },
   cline: {
     target: "cline",
@@ -60,6 +67,7 @@ const DEFINITIONS: Record<IdeTarget, IdeTargetDefinition> = {
     description: "Cline MCP settings stored by the VS Code extension.",
     configFormat: "json",
     docsUrl: "https://docs.cline.bot/mcp/configuring-mcp-servers",
+    supportTier: "experimental",
   },
 };
 
