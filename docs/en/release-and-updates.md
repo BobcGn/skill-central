@@ -6,7 +6,7 @@ Release creation, tags, package publication, signing, and repository permission 
 
 ## Current Release
 
-`1.0.0` supports macOS arm64/x64 and Windows x64. macOS artifacts are ad-hoc signed (no Developer ID) and not notarized; Windows artifacts are not Authenticode-signed. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Trae, Windsurf, and Cline configuration adapters remain experimental and must be reported as unverified when their applications are unavailable.
+`1.1.0` supports macOS arm64/x64 and Windows x64. macOS artifacts are ad-hoc signed (no Developer ID) and not notarized; Windows artifacts are not Authenticode-signed. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Trae, Windsurf, and Cline configuration adapters remain experimental and must be reported as unverified when their applications are unavailable.
 
 ## Version Invariants
 
@@ -152,11 +152,11 @@ stack context — never reach the client UI; they stay in the desktop diagnostic
 
 On Windows, packaged NSIS builds also use `electron-updater` with GitHub. MSI and ZIP are manual deployment formats and are not assumed to have NSIS update behavior. Every stable release must validate the Windows x64 package in its native GitHub Actions job.
 
-## 1.0.0 Startup Recognition Release Matrix
+## Stable Startup Recognition Release Matrix
 
 The final release must validate four separate layers: the app started, MCP stdio can handshake, the target Agent config is registered or refreshed, and the current session discovered the tool surface. Skill Central can automate and audit the first three layers. The fourth layer must be recorded with real Agent smoke results; a present config must not be reported as proof that an already-running session can call the tools.
 
-| Dimension | Release 1.0.0 requirement | Current automated evidence | Real candidate-package gate |
+| Dimension | Stable release requirement | Current automated evidence | Real candidate-package gate |
 | --- | --- | --- | --- |
 | macOS desktop | Run startup recognition asynchronously after Board startup and expose the latest audit | `npm run lint` and `npm test` cover the reconciler, API, and Board summary entry | First launch on arm64 and available x64 packages confirms audit creation and no duplicate process |
 | Windows desktop | After NSIS install, Board starts and the MCP command path is executable by target Agents | Path and format logic are indirectly covered by unit/integration tests | Real Windows x64 install, launch, quit, update, and at least Codex/Cursor registration checks |
@@ -178,7 +178,7 @@ Record only the public Client ID shown on the page. Do not generate, copy, or co
 
 The Release workflow validates this variable and writes it into desktop package metadata; a missing or malformed value blocks packaging. After configuration, a real release-candidate package must still pass login, user-profile lookup, and logout testing.
 
-## 1.0.0 Release Gate Checklist
+## Stable Release Gate Checklist
 
 1. Land all English and Chinese installation, migration, update, security, and lifecycle documentation.
 2. Keep package metadata at the current released version until implementation and documentation are ready for candidate packaging.
@@ -192,7 +192,7 @@ The Release workflow validates this variable and writes it into desktop package 
 10. Require the native Windows x64 GitHub Actions package job to pass; do not infer Windows success from macOS.
 11. Create a maintainer-controlled GitHub OAuth App with Device Flow enabled and set its public Client ID as the `SKILL_CENTRAL_GITHUB_CLIENT_ID` repository variable. Do not configure a client secret.
 12. Use a real desktop candidate containing that Client ID to complete GitHub login, user-profile lookup, application restart, and logout. Confirm that users do not enter a Client ID, login survives restart, ciphertext contains no plaintext token, logout removes ciphertext, legacy plaintext credentials are deleted without migration, and API responses and logs contain no access token, device code, authorization header, ciphertext, or raw native exception.
-13. Complete the supported-platform and supported-Agent smoke checks in the "1.0.0 Startup Recognition Release Matrix": record the latest audit, target status counts, and current-session discovery result. Mark experimental Agents as unverified when unavailable; do not infer them from other environments.
+13. Complete the supported-platform and supported-Agent smoke checks in the "Stable Startup Recognition Release Matrix": record the latest audit, target status counts, and current-session discovery result. Mark experimental Agents as unverified when unavailable; do not infer them from other environments.
 14. Review the final diff, confirm no private `docs/dev/` or `logs/` material is tracked, then obtain maintainer approval before changing versions or tagging.
 
 ## Rollback and Failed Releases

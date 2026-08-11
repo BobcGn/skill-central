@@ -173,4 +173,4 @@ MCP stdio 进程，并使用一键连接写入 IDE 配置的同一个可执行�
 
 ## 连接目标与编译目标
 
-上述目标表示 Skill Central 可以在哪里生成或协调 MCP 配置；`1.0.0` 仅正式支持 Codex、Claude Code、Cursor。Compiler Adapter 用于生成目标特定的预览产物，目前支持 generic MCP、Cursor、Windsurf。两组 Registry 用途不同，不得将其描述为相同覆盖范围。
+上述目标表示 Skill Central 可以在哪里生成或协调 MCP 配置；当前稳定版仅正式支持 Codex、Claude Code、Cursor。Compiler Adapter 用于生成目标特定的预览产物，目前支持 generic MCP、Cursor、Windsurf。两组 Registry 用途不同，不得将其描述为相同覆盖范围。

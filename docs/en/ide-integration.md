@@ -181,4 +181,4 @@ Do not add silent fallback writes to guessed paths. Unsupported or ambiguous cas
 
 ## Connection Targets vs Compile Targets
 
-The targets above describe where Skill Central can generate or reconcile MCP configuration; only Codex, Claude Code, and Cursor are formally supported in `1.0.0`. Compiler adapters describe target-specific preview artifacts and currently support generic MCP, Cursor, and Windsurf. These registries serve different purposes and must not be presented as equivalent coverage.
+The targets above describe where Skill Central can generate or reconcile MCP configuration; only Codex, Claude Code, and Cursor are formally supported in the current stable release. Compiler adapters describe target-specific preview artifacts and currently support generic MCP, Cursor, and Windsurf. These registries serve different purposes and must not be presented as equivalent coverage.

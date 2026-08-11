@@ -4,6 +4,34 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-11
+
+### 新增
+
+- **显式统一资产库**：个人设置可选择一个同时包含 `skills/` 与 `rules/` 的自定义目录；
+  Board、CLI 与 MCP 共用同一 Asset Library Context，选择持久化并可恢复为当前项目资产库。
+- **目录选择体验**：桌面 Sync 页可通过原生目录对话框选择已有 Registry；Asset Library
+  同样使用受限原生选择器，Web-only 模式保留手工路径 fallback。
+- **资产库边界测试**：覆盖目录合法性、取消、Same-Origin、持久化、恢复、CLI/MCP 同源发现、
+  `add --user` 写入以及未选择用户目录的隔离行为。
+
+### 修复
+
+- **Skill 来源污染**：默认项目模式不再自动合并 `~/.skill-central/skills`、
+  `~/.skill-central/rules` 或 `~/.skill-central/config.yaml`，避免 Board 展示用户未选择的资产。
+- **双栏滚动**：Skills 与 Rules 的左侧索引、右侧详情改为独立滚动容器；选择列表末尾条目时，
+  详情从顶部打开且列表位置保持不变。
+- **不可见用户资产**：`skill-central add --user` 现在只写入已显式选择的自定义资产库；
+  未选择时明确失败，不再创建当前 Registry 无法发现的 Home 目录文件。
+
+### 兼容性说明
+
+- 1.0.0 的 Home 目录自动加载行为已由显式资产库选择取代。若需要跨项目共享资产，请创建一个
+  同时包含 `skills/` 和 `rules/` 的根目录，并在**个人设置 → 资产库**中选择它。
+- 已有 `~/.skill-central/skills` 与 `~/.skill-central/rules` 内容不会被删除或迁移；只有用户
+  明确选择的目录才会进入 Board、CLI 与 MCP。
+- 正式平台与 Agent 范围保持不变：macOS x64/arm64、Windows x64；Codex、Claude Code、Cursor。
+
 ## [1.0.0] - 2026-08-11
 
 ### 新增

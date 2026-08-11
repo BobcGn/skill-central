@@ -104,20 +104,20 @@ jobs:
             package_script: package:mac
             artifact_name: skill-central-ci-macos
             artifact_paths: |
-              release-artifacts/Skill-Central-1.0.0-mac-arm64.dmg
-              release-artifacts/Skill-Central-1.0.0-mac-x64.dmg
-              release-artifacts/Skill-Central-1.0.0-mac-arm64.zip
-              release-artifacts/Skill-Central-1.0.0-mac-x64.zip
+              release-artifacts/Skill-Central-*-mac-arm64.dmg
+              release-artifacts/Skill-Central-*-mac-x64.dmg
+              release-artifacts/Skill-Central-*-mac-arm64.zip
+              release-artifacts/Skill-Central-*-mac-x64.zip
               release-artifacts/latest-mac.yml
           - name: Windows
             os: windows-latest
             package_script: package:win
             artifact_name: skill-central-ci-windows
             artifact_paths: |
-              release-artifacts/Skill-Central-1.0.0-win-x64.exe
-              release-artifacts/Skill-Central-1.0.0-win-x64.exe.blockmap
-              release-artifacts/Skill-Central-1.0.0-win-x64.msi
-              release-artifacts/Skill-Central-1.0.0-win-x64.zip
+              release-artifacts/Skill-Central-*-win-x64.exe
+              release-artifacts/Skill-Central-*-win-x64.exe.blockmap
+              release-artifacts/Skill-Central-*-win-x64.msi
+              release-artifacts/Skill-Central-*-win-x64.zip
               release-artifacts/latest.yml
 
     steps:

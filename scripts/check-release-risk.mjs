@@ -23,7 +23,7 @@ const caskGenerator = await text("scripts/generate-homebrew-cask.mjs");
 const publicDocs = await collectPublicDocs();
 
 check(pkg.version === lock.packages?.[""]?.version, "package.json and package-lock root versions differ");
-check(allowPrerelease || pkg.version === "1.0.0", `stable release gate requires version 1.0.0, found ${pkg.version}`);
+check(allowPrerelease || /^\d+\.\d+\.\d+$/.test(pkg.version), `stable release gate requires a stable SemVer version, found ${pkg.version}`);
 check(changelog.includes(`## [${pkg.version}]`), `CHANGELOG is missing ## [${pkg.version}]`);
 check(pkg.engines?.node === ">=22", "package engines.node must be >=22");
 check(pkg.scripts?.["package:mac"] && pkg.scripts?.["package:win"], "macOS and Windows package scripts are required");
@@ -37,7 +37,7 @@ check(hasTarget(builder?.mac?.target, "dmg", ["x64", "arm64"]), "macOS DMG must 
 check(hasTarget(builder?.mac?.target, "zip", ["x64", "arm64"]), "macOS ZIP must target x64 and arm64");
 check(hasTarget(builder?.win?.target, "nsis", ["x64"]), "Windows NSIS must target x64");
 check(hasTarget(builder?.win?.target, "msi", ["x64"]), "Windows MSI must target x64");
-check(!builder?.linux, "Linux desktop packaging must not be claimed in 1.0.0");
+check(!builder?.linux, "Linux desktop packaging must not be claimed in the current stable release");
 
 for (const [name, workflow] of [["CI", ci], ["Release", release]]) {
   check(workflow.includes("npm audit --omit=dev"), `${name} workflow is missing production dependency audit`);
@@ -47,13 +47,19 @@ for (const [name, workflow] of [["CI", ci], ["Release", release]]) {
 check(release.includes("macos-latest") && release.includes("windows-latest"), "Release workflow must build on native macOS and Windows runners");
 check(ci.includes("macos-latest") && ci.includes("windows-latest"), "Main CI must prove native macOS and Windows packages before tagging");
 check(ci.includes("Upload native package evidence"), "Main CI must retain native package evidence");
+check(!ci.includes("Skill-Central-1.0.0-"), "Main CI artifact paths must follow the package version instead of hard-coding 1.0.0");
 check(release.includes('tags: ["v*"]'), "Release workflow must remain tag-gated");
 check(release.includes("Push Cask update branch"), "Release workflow must preserve a checksum-pinned Cask branch");
 check(release.includes("continue-on-error: true") && release.includes("Manual Homebrew Cask PR required"), "Release workflow must survive repository-level PR creation restrictions");
 
 check(gitignore.includes("/logs/"), "logs directory must remain ignored");
 check(gitignore.includes(".skills/") && gitignore.includes(".rules/"), "personal Skill/Rule libraries must remain ignored");
-check(cask.includes(`version "${pkg.version}"`), `Cask version does not match ${pkg.version}`);
+const caskVersion = /version\s+"(\d+\.\d+\.\d+)"/.exec(cask)?.[1];
+check(!!caskVersion, "Cask must declare a stable SemVer version");
+check(
+  !!caskVersion && compareSemver(caskVersion, pkg.version) <= 0,
+  `tracked Cask version ${caskVersion ?? "unknown"} must not be newer than release target ${pkg.version}`,
+);
 check(!/This alpha/i.test(caskGenerator), "generated Cask still contains preview release copy");
 
 const forbidden = [
@@ -97,4 +103,13 @@ function equal(actual, expected) {
 function hasTarget(targets, name, arches) {
   const target = Array.isArray(targets) && targets.find((entry) => entry?.target === name);
   return !!target && arches.every((arch) => target.arch?.includes(arch));
+}
+
+function compareSemver(left, right) {
+  const a = left.split(".").map(Number);
+  const b = right.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] !== b[index]) return a[index] - b[index];
+  }
+  return 0;
 }

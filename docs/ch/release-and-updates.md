@@ -6,7 +6,7 @@ Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护�
 
 ## 当前正式版
 
-`1.0.0` 支持 macOS arm64/x64 与 Windows x64。macOS 产物使用 ad-hoc 签名（无 Developer ID）且未公证；Windows 产物未使用 Authenticode。正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 配置适配器保持实验性；本机缺少对应应用时必须标记“未验证”。
+`1.1.0` 支持 macOS arm64/x64 与 Windows x64。macOS 产物使用 ad-hoc 签名（无 Developer ID）且未公证；Windows 产物未使用 Authenticode。正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 配置适配器保持实验性；本机缺少对应应用时必须标记“未验证”。
 
 ## 版本不变量
 
@@ -150,11 +150,11 @@ macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release
 
 Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI 与 ZIP 属于手动部署格式，不得假设它们拥有 NSIS 更新行为。每个稳定版都必须通过原生 Windows x64 GitHub Actions 打包任务。
 
-## 1.0.0 启动识别发布矩阵
+## 稳定版启动识别发布矩阵
 
 正式版必须同时验证“应用已启动”“MCP stdio 可握手”“目标 Agent 配置已注册/刷新”和“当前会话已发现工具”四层状态。前三层可由 Skill Central 自动检查并写入 app-state audit；第四层必须按 Agent 行为记录真实 smoke 结果，不能把配置存在误报为当前会话已经可调用。
 
-| 维度 | release 1.0.0 要求 | 当前自动化证据 | 真实候选包验收 |
+| 维度 | 稳定版要求 | 当前自动化证据 | 真实候选包验收 |
 | --- | --- | --- | --- |
 | macOS 桌面 | Board 启动后异步执行 startup recognition，latest audit 可见 | `npm run lint`、`npm test` 覆盖 Reconciler、API、Board 摘要入口 | arm64 与可用 x64 安装包首次启动，确认 audit 生成且不新增重复进程 |
 | Windows 桌面 | NSIS 安装后启动 Board，MCP 命令路径可被目标 Agent 执行 | 路径/格式逻辑通过单元与集成测试间接覆盖 | 真实 Windows x64 安装、启动、退出、更新和至少 Codex/Cursor 注册验证 |
@@ -176,7 +176,7 @@ Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI
 
 Release Workflow 会校验该变量并写入桌面包的 Package Metadata；变量缺失或格式无效时拒绝构建。配置完成后仍必须用真实 release candidate 安装包执行一次登录、用户信息读取和登出测试。
 
-## 1.0.0 Release Gate 检查表
+## 稳定版 Release Gate 检查表
 
 1. 落地全部中英文安装、迁移、更新、安全和生命周期文档。
 2. 在实现与文档准备好生成候选包之前，Package Metadata 保持为当前已发布版本。
@@ -190,7 +190,7 @@ Release Workflow 会校验该变量并写入桌面包的 Package Metadata；变�
 10. 要求原生 Windows x64 GitHub Actions 打包任务通过，不得用 macOS 结果推断 Windows 成功。
 11. 创建由项目维护者控制且启用 Device Flow 的 GitHub OAuth App，将其公共 Client ID 配置为 Repository Variable `SKILL_CENTRAL_GITHUB_CLIENT_ID`；不得配置 Client Secret。
 12. 使用注入该 Client ID 的真实桌面候选包完成 GitHub 登录、用户信息读取、应用重启与登出；确认普通用户无需填写 Client ID，重启后仍保持登录，密文不含 Token 明文，登出删除密文，旧明文凭据被清除且不迁移，API 响应和日志中没有 Access Token、Device Code、Authorization Header、密文或原始原生异常。
-13. 按“1.0.0 启动识别发布矩阵”完成正式平台与正式 Agent smoke：记录 latest audit、目标状态计数和当前会话 discovery 结果；实验性 Agent 在不可用时必须明确标记未验证，不得推断。
+13. 按“稳定版启动识别发布矩阵”完成正式平台与正式 Agent smoke：记录 latest audit、目标状态计数和当前会话 discovery 结果；实验性 Agent 在不可用时必须明确标记未验证，不得推断。
 14. 审查最终 Diff，确认没有追踪私有 `docs/dev/` 或 `logs/` 内容；得到维护者确认后，才可修改 Version 或创建 Tag。
 
 ## 回退与失败发布
