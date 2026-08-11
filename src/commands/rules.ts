@@ -33,7 +33,7 @@ export async function cmdRules(opts: RulesOptions): Promise<void> {
 
   if (matched.length === 0) {
     console.log("");
-    console.log("  (no rules match the filters — add rules under ~/.skill-central/rules/ or .rules/)");
+    console.log("  (no rules match the filters — add rules under .rules/ or the selected custom library)");
     console.log("");
     return;
   }

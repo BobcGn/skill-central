@@ -233,6 +233,8 @@ function skillCentralEnvironment(): Record<string, string> {
     "SKILL_CENTRAL_USER_SKILLS_DIR",
     "SKILL_CENTRAL_GLOBAL_RULES_DIR",
     "SKILL_CENTRAL_PROJECT_ROOT",
+    "SKILL_CENTRAL_ASSET_ROOT",
+    "SKILL_CENTRAL_SETTINGS_PATH",
   ];
   const entries = names.flatMap((name) => {
     const value = process.env[name];

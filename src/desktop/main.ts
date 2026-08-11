@@ -17,6 +17,7 @@ import {
   shell,
   Tray,
   type MenuItemConstructorOptions,
+  type OpenDialogOptions,
 } from "electron";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -89,6 +90,8 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
       console.warn(`[skill-central] GitHub auth diagnostic: operation=${operation} code=${code}`);
     },
     onWorkspaceChange: writeDesktopWorkspace,
+    selectSyncRegistryDirectory,
+    selectAssetLibraryDirectory,
   });
   boardServer = board;
   try {
@@ -145,6 +148,38 @@ async function writeDesktopWorkspace(rootDir: string): Promise<void> {
 
 function desktopWorkspacePath(): string {
   return path.join(app.getPath("userData"), "workspace.json");
+}
+
+async function selectSyncRegistryDirectory(currentPath?: string): Promise<string | undefined> {
+  return selectExistingDirectory(
+    "Select an existing Skill Central registry directory",
+    currentPath,
+  );
+}
+
+async function selectAssetLibraryDirectory(currentPath?: string): Promise<string | undefined> {
+  return selectExistingDirectory(
+    "Select a folder containing skills and rules directories",
+    currentPath,
+  );
+}
+
+async function selectExistingDirectory(
+  title: string,
+  currentPath?: string,
+): Promise<string | undefined> {
+  const options: OpenDialogOptions = {
+    title,
+    buttonLabel: "Select directory",
+    properties: ["openDirectory"],
+    ...(currentPath && existsSync(path.resolve(currentPath))
+      ? { defaultPath: path.resolve(currentPath) }
+      : {}),
+  };
+  const result = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options);
+  return result.canceled ? undefined : result.filePaths[0];
 }
 
 async function createMainWindow(): Promise<void> {

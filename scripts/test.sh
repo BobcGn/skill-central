@@ -177,18 +177,37 @@ node dist/index.js list | grep -q "test-skill" \
   && pass "list 包含 legacy test-skill" \
   || fail "list 中未找到 test-skill"
 
-node dist/index.js add \
-  --id ci-user-global \
-  --name "CI User Global" \
-  --description "Proves user-global skills load in every project" \
-  --tags global \
-  --prompt "Always expose this user-global fixture through the registry." \
-  --user \
-  --yes > /dev/null
-node dist/index.js list 2>/dev/null | grep -q "ci-user-global" \
-  && pass "~/.skill-central/skills 用户全局层自动加载" \
-  || fail "用户全局 Skill 写入后未被 Registry 加载"
+mkdir -p "$SKILL_CENTRAL_USER_SKILLS_DIR/01-global"
+cat > "$SKILL_CENTRAL_USER_SKILLS_DIR/01-global/ci-user-global.yaml" <<'YAML'
+schemaVersion: skillcentral.dev/v1
+id: ci-user-global
+name: CI User Global
+description: Proves user-global skills stay isolated until explicitly selected
+type: prompt
+prompt: Do not expose this fixture through an unrelated project registry.
+YAML
+if node dist/index.js list 2>/dev/null | grep -q "ci-user-global"; then
+  fail "未显式选择的 ~/.skill-central/skills 不应污染项目 Registry"
+fi
+pass "未显式选择的用户目录不会污染项目 Registry"
 rm -rf "$SKILL_CENTRAL_USER_SKILLS_DIR"
+
+set +e
+unselected_user_add=$(node dist/index.js add \
+  --id ci-unselected-user-add \
+  --name "CI Unselected User Add" \
+  --description "Must fail without an explicit custom library" \
+  --prompt "never written" \
+  --user \
+  --yes 2>&1)
+unselected_user_add_status=$?
+set -e
+if [ "$unselected_user_add_status" -eq 0 ]; then
+  fail "add --user 未选择自定义资产库时不应创建不可见文件"
+fi
+printf '%s' "$unselected_user_add" | grep -q "requires an explicit custom Asset Library" \
+  && pass "add --user 未选择资产库时明确失败且不创建孤立资产" \
+  || fail "add --user 缺少明确的资产库选择错误"
 
 # ── 5. Universal Skill v1 / legacy compatibility ───────────────────────────
 echo ""
@@ -1777,6 +1796,8 @@ import { SkillEngine } from "./dist/core/engine.js";
 import { loadConfig } from "./dist/storage/config.js";
 import { compileIntentDryRun } from "./dist/compiler/compiler.js";
 import { LocalRuntimeManager } from "./dist/runtime/manager.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const config = loadConfig();
 const engine = new SkillEngine();
@@ -1835,6 +1856,8 @@ const githubClientFactory = (clientId) => {
 };
 let updateChecks = 0;
 let updateInstalls = 0;
+let directoryPickerCurrentPath;
+const selectedRegistryDirectory = `${process.cwd()}/.skill-central-web-ci/registry`;
 let updateSnapshot = {
   supported: true,
   provider: "homebrew",
@@ -1864,7 +1887,211 @@ const app = createBoardApp({
   githubOAuthClientId: "project-client-fixture",
   githubClientFactory,
   updater,
+  selectSyncRegistryDirectory: async (currentPath) => {
+    directoryPickerCurrentPath = currentPath;
+    return selectedRegistryDirectory;
+  },
 });
+
+const pickerHealth = await (await app.request("/api/health")).json();
+if (pickerHealth.directoryPicker !== true) {
+  throw new Error("desktop-injected directory picker capability was not exposed");
+}
+const selectedDirectoryRes = await app.request("/api/sync/select-directory", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ currentPath: "./previous-registry" }),
+});
+const selectedDirectory = await selectedDirectoryRes.json();
+if (selectedDirectoryRes.status !== 200 || selectedDirectory.cancelled || selectedDirectory.path !== selectedRegistryDirectory) {
+  throw new Error(`sync directory picker returned unexpected selection: ${JSON.stringify(selectedDirectory)}`);
+}
+if (directoryPickerCurrentPath !== "./previous-registry") {
+  throw new Error(`sync directory picker did not receive current input: ${directoryPickerCurrentPath}`);
+}
+const crossOriginDirectoryRes = await app.request("http://localhost/api/sync/select-directory", {
+  method: "POST",
+  headers: { origin: "https://attacker.example", "content-type": "application/json" },
+  body: JSON.stringify({ currentPath: selectedRegistryDirectory }),
+});
+if (crossOriginDirectoryRes.status !== 403) {
+  throw new Error("sync directory picker did not reject a cross-origin request");
+}
+const cancelledPickerApp = createBoardApp({
+  config,
+  engine,
+  rootDir: process.cwd(),
+  version: "test",
+  runtime,
+  selectSyncRegistryDirectory: async () => undefined,
+});
+const cancelledDirectory = await (await cancelledPickerApp.request("/api/sync/select-directory", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ currentPath: selectedRegistryDirectory }),
+})).json();
+if (cancelledDirectory.cancelled !== true || "path" in cancelledDirectory) {
+  throw new Error(`cancelled sync directory picker should have no path: ${JSON.stringify(cancelledDirectory)}`);
+}
+const unavailablePickerApp = createBoardApp({ config, engine, rootDir: process.cwd(), version: "test", runtime });
+const unavailableDirectoryRes = await unavailablePickerApp.request("/api/sync/select-directory", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({}),
+});
+if (unavailableDirectoryRes.status !== 501) {
+  throw new Error(`web-only sync directory picker should report unavailable; got ${unavailableDirectoryRes.status}`);
+}
+const filePickerApp = createBoardApp({
+  config,
+  engine,
+  rootDir: process.cwd(),
+  version: "test",
+  runtime,
+  selectSyncRegistryDirectory: async () => `${process.cwd()}/package.json`,
+});
+const fileDirectoryRes = await filePickerApp.request("/api/sync/select-directory", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({}),
+});
+if (fileDirectoryRes.status !== 400) {
+  throw new Error(`sync directory picker should reject a file selection; got ${fileDirectoryRes.status}`);
+}
+
+const assetLibraryRoot = `${process.cwd()}/.skill-central-web-ci/custom-library`;
+const invalidAssetLibraryRoot = `${process.cwd()}/.skill-central-web-ci/invalid-library`;
+const assetLibrarySettingsPath = `${process.cwd()}/.skill-central-web-ci/asset-library-settings.json`;
+await mkdir(`${assetLibraryRoot}/skills`, { recursive: true });
+await mkdir(`${assetLibraryRoot}/rules`, { recursive: true });
+await mkdir(`${invalidAssetLibraryRoot}/skills`, { recursive: true });
+await writeFile(`${assetLibraryRoot}/skills/custom-library-skill.yaml`, `schemaVersion: skillcentral.dev/v1
+id: custom-library-skill
+name: Custom Library Skill
+description: Loaded only after explicit library selection
+type: prompt
+prompt: "custom library"
+`, "utf-8");
+await writeFile(`${assetLibraryRoot}/rules/custom-library-rule.yaml`, `schemaVersion: skillcentral.dev/rule/v1
+id: custom-library-rule
+name: Custom Library Rule
+description: Loaded from the same selected asset library
+severity: warn
+tags: [ci, library]
+appliesTo: global
+body: |
+  Skills and rules must share one explicit source.
+`, "utf-8");
+
+const assetEngine = new SkillEngine();
+const assetConfig = loadConfig(process.cwd(), { settingsPath: assetLibrarySettingsPath });
+await assetEngine.reload(assetConfig.layers);
+let assetPickerSelection = assetLibraryRoot;
+let assetPickerCurrentPath;
+const assetLibraryApp = createBoardApp({
+  config: assetConfig,
+  engine: assetEngine,
+  rootDir: process.cwd(),
+  version: "test",
+  runtime,
+  assetLibrarySettingsPath,
+  selectAssetLibraryDirectory: async (currentPath) => {
+    assetPickerCurrentPath = currentPath;
+    return assetPickerSelection;
+  },
+});
+const assetHealth = await (await assetLibraryApp.request("/api/health")).json();
+if (assetHealth.assetLibraryPicker !== true || assetHealth.assetLibrary.mode !== "project") {
+  throw new Error(`asset library picker health is incomplete: ${JSON.stringify(assetHealth)}`);
+}
+const selectedAssetLibraryRes = await assetLibraryApp.request("/api/asset-library/select-directory", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ currentPath: process.cwd() }),
+});
+const selectedAssetLibrary = await selectedAssetLibraryRes.json();
+if (selectedAssetLibraryRes.status !== 200 || selectedAssetLibrary.cancelled || selectedAssetLibrary.rootDir !== assetLibraryRoot) {
+  throw new Error(`asset library selection failed: ${JSON.stringify(selectedAssetLibrary)}`);
+}
+if (assetPickerCurrentPath !== process.cwd()) {
+  throw new Error(`asset library picker did not receive current path: ${assetPickerCurrentPath}`);
+}
+const customSkills = await (await assetLibraryApp.request("/api/skills")).json();
+const customRules = await (await assetLibraryApp.request("/api/rules")).json();
+if (customSkills.length !== 1 || customSkills[0].id !== "custom-library-skill") {
+  throw new Error(`selected custom skills were not isolated: ${JSON.stringify(customSkills.map((item) => item.id))}`);
+}
+if (customRules.length !== 1 || customRules[0].id !== "custom-library-rule") {
+  throw new Error(`selected custom rules were not loaded from the same root: ${JSON.stringify(customRules.map((item) => item.id))}`);
+}
+
+const mcpEnvironment = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined));
+mcpEnvironment.SKILL_CENTRAL_ASSET_ROOT = assetLibraryRoot;
+mcpEnvironment.SKILL_CENTRAL_PROJECT_ROOT = process.cwd();
+const assetTransport = new StdioClientTransport({
+  command: process.execPath,
+  args: ["dist/index.js", "mcp"],
+  cwd: process.cwd(),
+  env: mcpEnvironment,
+  stderr: "pipe",
+});
+const assetClient = new Client(
+  { name: "asset-library-board-ci", version: "0.0.0" },
+  { capabilities: {} },
+);
+try {
+  await assetClient.connect(assetTransport);
+  const resources = await assetClient.listResources();
+  const resourceUris = resources.resources.map((resource) => resource.uri);
+  if (!resourceUris.includes("skill://skill/custom-library-skill")) {
+    throw new Error("MCP did not discover the selected custom Skill library");
+  }
+  if (!resourceUris.includes("rule://rule/custom-library-rule")) {
+    throw new Error("MCP did not discover the selected custom Rule library");
+  }
+  if (resourceUris.includes("skill://skill/test-v1-workflow")) {
+    throw new Error("MCP mixed project Skills into the selected custom library");
+  }
+} finally {
+  await assetClient.close();
+}
+
+assetPickerSelection = invalidAssetLibraryRoot;
+const invalidAssetLibraryRes = await assetLibraryApp.request("/api/asset-library/select-directory", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ currentPath: assetLibraryRoot }),
+});
+if (invalidAssetLibraryRes.status !== 400) {
+  throw new Error(`asset library without rules/ should be rejected; got ${invalidAssetLibraryRes.status}`);
+}
+const afterInvalidSelection = await (await assetLibraryApp.request("/api/asset-library")).json();
+if (afterInvalidSelection.rootDir !== assetLibraryRoot) {
+  throw new Error("invalid asset library selection overwrote the previous valid setting");
+}
+
+assetPickerSelection = undefined;
+const cancelledAssetLibrary = await (await assetLibraryApp.request("/api/asset-library/select-directory", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ currentPath: assetLibraryRoot }),
+})).json();
+if (cancelledAssetLibrary.cancelled !== true || "rootDir" in cancelledAssetLibrary) {
+  throw new Error(`cancelled asset library picker should not mutate state: ${JSON.stringify(cancelledAssetLibrary)}`);
+}
+const crossOriginAssetLibraryRes = await assetLibraryApp.request("http://localhost/api/asset-library", {
+  method: "POST",
+  headers: { origin: "https://attacker.example", "content-type": "application/json" },
+  body: JSON.stringify({ rootDir: assetLibraryRoot }),
+});
+if (crossOriginAssetLibraryRes.status !== 403) {
+  throw new Error("asset library endpoint did not reject a cross-origin request");
+}
+const restoreProjectLibraryRes = await assetLibraryApp.request("/api/asset-library", { method: "DELETE" });
+const restoredProjectLibrary = await restoreProjectLibraryRes.json();
+if (restoreProjectLibraryRes.status !== 200 || restoredProjectLibrary.mode !== "project") {
+  throw new Error(`project asset library was not restored: ${JSON.stringify(restoredProjectLibrary)}`);
+}
 
 const workspaceRoot = `${process.cwd()}/.skill-central-web-ci/workspace-root`;
 await mkdir(`${workspaceRoot}/.skills/02-workflows`, { recursive: true });
@@ -2685,6 +2912,32 @@ if (rejectedBackupRes.status !== 400) {
 NODE
 pass "Web API 复用 compiler/health/connect/runtime/sync 底层能力并暴露 resolution 链"
 
+custom_library_dir="$PWD/.skill-central-web-ci/custom-library"
+custom_cli_skills=$(SKILL_CENTRAL_ASSET_ROOT="$custom_library_dir" node dist/index.js list)
+printf '%s' "$custom_cli_skills" | grep -q "custom-library-skill" \
+  && ! printf '%s' "$custom_cli_skills" | grep -q "test-v1-workflow" \
+  && pass "CLI 仅加载显式选择的自定义 Skills 目录" \
+  || fail "CLI 未隔离自定义 Skills 目录"
+
+custom_cli_rules=$(SKILL_CENTRAL_ASSET_ROOT="$custom_library_dir" node dist/index.js rules)
+printf '%s' "$custom_cli_rules" | grep -q "custom-library-rule" \
+  && pass "CLI 从同一自定义根目录加载 Rules" \
+  || fail "CLI 未从自定义根目录加载 Rules"
+
+SKILL_CENTRAL_ASSET_ROOT="$custom_library_dir" node dist/index.js add \
+  --id custom-library-added \
+  --name "Custom Library Added" \
+  --description "Written into the explicitly selected custom library" \
+  --prompt "custom write" \
+  --user \
+  --yes > /dev/null
+if [ ! -f "$custom_library_dir/skills/02-workflows/custom-library-added.yaml" ]; then
+  fail "add --user 未写入显式选择的自定义 Skills 目录"
+fi
+SKILL_CENTRAL_ASSET_ROOT="$custom_library_dir" node dist/index.js list 2>/dev/null | grep -q "custom-library-added" \
+  && pass "add --user 写入后可被同一自定义资产库立即发现" \
+  || fail "add --user 写入的自定义 Skill 不可发现"
+
 if grep -q "skill-central" "$web_config"; then
   fail "Web connect rollback 后不应保留 skill-central 配置"
 fi
@@ -2695,6 +2948,23 @@ grep -q "startup-recognition-card" src/web/static/index.html \
   && grep -q "startup-recognition-card" src/web/static/style.css \
   && pass "Web Board 暴露启动识别 latest 摘要入口" \
   || fail "Web Board 缺少启动识别 latest 摘要入口"
+
+grep -q 'id="btn-sync-select-directory"' src/web/static/index.html \
+  && grep -q '/api/sync/select-directory' src/web/static/app.js \
+  && grep -q 'directory-field-row' src/web/static/style.css \
+  && pass "同步页暴露选择已有 Registry 目录入口" \
+  || fail "同步页缺少 Registry 目录选择入口"
+
+grep -q 'id="btn-asset-library-choose"' src/web/static/index.html \
+  && grep -q '/api/asset-library/select-directory' src/web/static/app.js \
+  && grep -q 'id="btn-asset-library-project"' src/web/static/index.html \
+  && pass "设置页支持选择或恢复统一 Skills/Rules 目录" \
+  || fail "设置页缺少统一 Skills/Rules 目录选择能力"
+
+grep -q 'overflow-y: auto; overscroll-behavior: contain' src/web/static/style.css \
+  && grep -q 'scrollDetailPaneToTop' src/web/static/app.js \
+  && pass "Skills/Rules 索引与预览使用独立滚动容器" \
+  || fail "Skills/Rules 索引与预览滚动仍未分离"
 
 rm -rf "$web_dir"
 rm -rf .skills/web-sync-ci

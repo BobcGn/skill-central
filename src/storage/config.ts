@@ -6,8 +6,8 @@
 // Design intent:
 // - Config loading should only parse and promote layer metadata. It should not
 //   infer behavior from directory names after this point.
-// - Global and project configs still merge by layer id/name for compatibility,
-//   but every returned layer is a full governance object.
+// - Project configs remain compatible with governed layers, while machine-wide
+//   sources require an explicit Asset Library selection.
 // - Invalid layer blocks are skipped with field-level warnings so one bad layer
 //   does not prevent local-first usage of the remaining layers.
 // ============================================================================
@@ -18,6 +18,11 @@ import path from "node:path";
 import { load as parseYaml } from "js-yaml";
 import type { SkillLayer } from "./schemas.js";
 import { DEFAULT_LEGACY_LAYERS, parseLayerConfigs } from "./layers.js";
+import {
+  resolveAssetLibrary,
+  type AssetLibraryContext,
+  type ResolveAssetLibraryOptions,
+} from "./asset-library.js";
 
 export const USER_SKILLS_DIR_ENV = "SKILL_CENTRAL_USER_SKILLS_DIR";
 
@@ -30,39 +35,55 @@ export function resolveUserSkillsDir(
 
 export interface SkillCentralConfig {
   layers: SkillLayer[];
+  assetLibrary: AssetLibraryContext;
   layerPresets?: {
     active?: string;
   };
 }
 
+interface ParsedSkillCentralConfig {
+  layers: SkillLayer[];
+  layerPresets?: SkillCentralConfig["layerPresets"];
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**
- * Read config from disk, merging global → project → defaults.
+ * Read the one explicit asset source from disk.
  *
  * The fallback is the legacy four-layer preset, promoted to full layer
  * metadata. This preserves old installs while giving Phase 1B+ one complete
  * shape to reason about.
  */
-export function loadConfig(projectRoot?: string): SkillCentralConfig {
+export function loadConfig(
+  projectRoot?: string,
+  assetLibraryOptions: ResolveAssetLibraryOptions = {},
+): SkillCentralConfig {
+  const root = path.resolve(projectRoot ?? process.cwd());
+  const assetLibrary = resolveAssetLibrary(root, assetLibraryOptions);
+  if (assetLibrary.mode === "custom") {
+    return {
+      assetLibrary,
+      layers: [{
+        id: "custom-library",
+        name: "custom/library",
+        path: assetLibrary.skillsDir,
+        scope: "user",
+        priority: 10,
+        writable: true,
+        trust: "local",
+        sync: { enabled: true },
+        visibility: "private",
+      }],
+    };
+  }
+
   const layers: SkillLayer[] = [];
   let layerPresets: SkillCentralConfig["layerPresets"];
   let configuredLayerCount = 0;
 
-  // 0) User-global layers are always available in every project. They use
-  // lower priorities than the legacy project layers so project decisions can
-  // override shared defaults without hiding their provenance.
-  mergeLayers(layers, defaultUserLayers());
-
-  // 1) Global config
-  const globalPath = path.join(homedir(), ".skill-central", "config.yaml");
-  const globalConfig = readConfigFile(globalPath);
-  configuredLayerCount += globalConfig.layers.length;
-  mergeLayers(layers, globalConfig.layers);
-  layerPresets = globalConfig.layerPresets ?? layerPresets;
-
-  // 2) Project-level config
-  const root = projectRoot ?? process.cwd();
+  // Project-level config is the default boundary. Machine-wide directories
+  // are never merged implicitly; users opt into one through Asset Library.
   for (const name of ["skill-central.yaml", "skill-central.yml"]) {
     const projectPath = path.join(root, name);
     if (existsSync(projectPath)) {
@@ -74,42 +95,17 @@ export function loadConfig(projectRoot?: string): SkillCentralConfig {
     }
   }
 
-  // 3) Fallback default
+  // Fallback default
   if (configuredLayerCount === 0) {
     layers.push(...DEFAULT_LEGACY_LAYERS.map((layer) => ({ ...layer, sync: { ...layer.sync } })));
   }
 
-  return { layers: resolveLayerPaths(layers, root), layerPresets };
-}
-
-function defaultUserLayers(): SkillLayer[] {
-  const root = resolveUserSkillsDir();
-  if (!existsSync(root)) return [];
-  return [
-    userLayer("user-01-global", "user/01-global", path.join(root, "01-global"), 1),
-    userLayer("user-02-workflows", "user/02-workflows", path.join(root, "02-workflows"), 2),
-    userLayer("user-03-domains", "user/03-domains", path.join(root, "03-domains"), 3),
-    userLayer("user-04-tech-stack", "user/04-tech-stack", path.join(root, "04-tech-stack"), 4),
-  ].filter((layer) => existsSync(layer.path));
-}
-
-function userLayer(id: string, name: string, layerPath: string, priority: number): SkillLayer {
-  return {
-    id,
-    name,
-    path: layerPath,
-    scope: "user",
-    priority,
-    writable: true,
-    trust: "local",
-    sync: { enabled: true },
-    visibility: "private",
-  };
+  return { layers: resolveLayerPaths(layers, root), assetLibrary, layerPresets };
 }
 
 // ── Internals ──────────────────────────────────────────────────────────────
 
-function readConfigFile(filePath: string): SkillCentralConfig {
+function readConfigFile(filePath: string): ParsedSkillCentralConfig {
   if (!existsSync(filePath)) {
     return { layers: [] };
   }

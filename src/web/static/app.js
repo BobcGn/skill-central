@@ -43,6 +43,8 @@ const state = {
   },
   editing: false,
   workspace: null,
+  directoryPicker: false,
+  assetLibraryPicker: false,
   createAssetType: "skill",
 };
 
@@ -58,6 +60,15 @@ const messages = {
     "workspace.prompt": "Workspace folder path",
     "workspace.changed": "Workspace changed",
     "workspace.emptySuffix": "searched",
+    "library.title": "Asset library",
+    "library.project": "Current project .skills / .rules",
+    "library.custom": "Custom skills / rules library",
+    "library.hint": "A custom folder must contain both skills and rules directories.",
+    "library.choose": "Choose directory",
+    "library.useProject": "Use project library",
+    "library.prompt": "Folder containing skills and rules directories",
+    "library.changed": "Asset library changed",
+    "library.projectRestored": "Project asset library restored",
     "settings.account": "Personal settings",
     "settings.title": "Personal settings",
     "settings.theme": "Theme",
@@ -131,6 +142,9 @@ const messages = {
     "ide.startupAudit": "audit: {path}",
     "sync.title": "Registry Sync",
     "sync.path": "Registry checkout",
+    "sync.chooseDirectory": "Choose directory",
+    "sync.directoryPrompt": "Existing registry directory path",
+    "sync.directorySelected": "Registry directory selected",
     "sync.direction": "Direction",
     "sync.force": "Force with backup",
     "sync.confirm": "Apply confirmation",
@@ -186,6 +200,15 @@ const messages = {
     "workspace.prompt": "工作区目录路径",
     "workspace.changed": "工作区已切换",
     "workspace.emptySuffix": "搜索目录",
+    "library.title": "资产库",
+    "library.project": "当前项目 .skills / .rules",
+    "library.custom": "自定义 skills / rules 资产库",
+    "library.hint": "自定义目录必须同时包含 skills 和 rules 子目录。",
+    "library.choose": "选择目录",
+    "library.useProject": "使用项目资产库",
+    "library.prompt": "包含 skills 和 rules 子目录的目录",
+    "library.changed": "资产库已切换",
+    "library.projectRestored": "已恢复项目资产库",
     "settings.account": "个人设置",
     "settings.title": "个人设置",
     "settings.theme": "主题",
@@ -259,6 +282,9 @@ const messages = {
     "ide.startupAudit": "审计：{path}",
     "sync.title": "Registry 同步",
     "sync.path": "Registry 本地目录",
+    "sync.chooseDirectory": "选择已有目录",
+    "sync.directoryPrompt": "已有 Registry 目录路径",
+    "sync.directorySelected": "Registry 目录已选择",
     "sync.direction": "同步方向",
     "sync.force": "强制执行并备份",
     "sync.confirm": "执行确认",
@@ -408,6 +434,11 @@ function renderHealth(health) {
   document.getElementById("rule-count").textContent = ruleCount;
   const brandVersion = document.getElementById("brand-version");
   if (brandVersion) brandVersion.textContent = health.version;
+  state.directoryPicker = health.directoryPicker === true;
+  state.assetLibraryPicker = health.assetLibraryPicker === true;
+  if (health.assetLibrary) {
+    state.workspace = { ...(state.workspace || {}), assetLibrary: health.assetLibrary };
+  }
   if (health.rootDir) {
     state.workspace = { ...(state.workspace || {}), rootDir: health.rootDir };
     renderWorkspace();
@@ -421,6 +452,16 @@ function renderWorkspace() {
   button.textContent = rootDir || t("workspace.change");
   button.title = rootDir ? `${t("workspace.change")}: ${rootDir}` : t("workspace.change");
   button.setAttribute("aria-label", t("workspace.change"));
+  renderAssetLibrary();
+}
+
+function renderAssetLibrary() {
+  const library = state.workspace?.assetLibrary;
+  const status = document.getElementById("asset-library-status");
+  const assetPath = document.getElementById("asset-library-path");
+  if (!status || !assetPath) return;
+  status.textContent = t(library?.mode === "custom" ? "library.custom" : "library.project");
+  assetPath.textContent = library?.rootDir || state.workspace?.rootDir || "";
 }
 
 function renderList() {
@@ -784,6 +825,7 @@ async function selectSkill(id) {
     state.detail = detail;
     renderList();
     if (!state.editing) renderDetail(detail);
+    scrollDetailPaneToTop("skills");
   } catch (err) {
     document.getElementById("skill-detail").innerHTML =
       `<div class="error">Failed to load: ${escapeHtml(String(err))}</div>`;
@@ -805,6 +847,7 @@ async function selectSkillAsset(key) {
   state.detail = { ...asset, scopeOnly: true, status: asset.appliesHere ? "shadowed" : "out-of-scope" };
   renderList();
   renderDetail(state.detail);
+  scrollDetailPaneToTop("skills");
 }
 
 function selectRule(key) {
@@ -814,6 +857,12 @@ function selectRule(key) {
   ) || null;
   renderRuleList();
   renderRuleDetail(state.ruleDetail);
+  scrollDetailPaneToTop("rules");
+}
+
+function scrollDetailPaneToTop(view) {
+  const pane = document.querySelector(`#view-${view} .skill-stage`);
+  if (pane) pane.scrollTop = 0;
 }
 
 function scopeAssetKey(asset) {
@@ -1294,6 +1343,38 @@ async function showSyncStatus() {
   } catch (err) {
     output.classList.add("error");
     output.textContent = err.message;
+  }
+}
+
+async function chooseSyncRegistryDirectory() {
+  const input = document.getElementById("sync-registry-dir");
+  if (!input) return;
+
+  // The packaged desktop injects a native Electron directory picker. The
+  // loopback Board can also run in an ordinary browser, where a path prompt
+  // keeps the existing manual-input capability instead of exposing Node APIs.
+  if (!state.directoryPicker) {
+    const fallback = prompt(t("sync.directoryPrompt"), input.value.trim());
+    if (fallback === null) return;
+    const selected = fallback.trim();
+    if (!selected) return;
+    input.value = selected;
+    state.syncPlan = null;
+    flash(t("sync.directorySelected"));
+    return;
+  }
+
+  try {
+    const result = await api("/api/sync/select-directory", {
+      method: "POST",
+      body: JSON.stringify({ currentPath: input.value.trim() }),
+    });
+    if (result.cancelled) return;
+    input.value = result.path;
+    state.syncPlan = null;
+    flash(t("sync.directorySelected"));
+  } catch (err) {
+    flash(`✗ ${err.message}`, true);
   }
 }
 
@@ -1893,6 +1974,7 @@ function clearUpdatePollTimer() {
 function openSettings() {
   const dialog = document.getElementById("settings-dialog");
   if (!dialog.open) dialog.showModal();
+  renderAssetLibrary();
   loadGithubStatus();
   loadUpdateStatus();
 }
@@ -1945,6 +2027,55 @@ async function changeWorkspace() {
     renderDetail(null);
     renderRuleDetail(null);
     flash(t("workspace.changed"));
+  } catch (err) {
+    flash(`✗ ${err.message}`, true);
+  }
+}
+
+function resetAssetLibrarySelection() {
+  state.activeId = null;
+  state.activeSkillKey = null;
+  state.activeRuleId = null;
+  state.detail = null;
+  state.ruleDetail = null;
+  state.editing = false;
+}
+
+async function chooseAssetLibraryDirectory() {
+  const current = state.workspace?.assetLibrary?.rootDir || "";
+  try {
+    if (state.assetLibraryPicker) {
+      const result = await api("/api/asset-library/select-directory", {
+        method: "POST",
+        body: JSON.stringify({ currentPath: current }),
+      });
+      if (result.cancelled) return;
+    } else {
+      const selected = prompt(t("library.prompt"), current);
+      if (selected === null || !selected.trim()) return;
+      await api("/api/asset-library", {
+        method: "POST",
+        body: JSON.stringify({ rootDir: selected.trim() }),
+      });
+    }
+    resetAssetLibrarySelection();
+    await loadAll();
+    renderDetail(null);
+    renderRuleDetail(null);
+    flash(t("library.changed"));
+  } catch (err) {
+    flash(`✗ ${err.message}`, true);
+  }
+}
+
+async function restoreProjectAssetLibrary() {
+  try {
+    await api("/api/asset-library", { method: "DELETE" });
+    resetAssetLibrarySelection();
+    await loadAll();
+    renderDetail(null);
+    renderRuleDetail(null);
+    flash(t("library.projectRestored"));
   } catch (err) {
     flash(`✗ ${err.message}`, true);
   }
@@ -2009,6 +2140,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target === event.currentTarget) event.currentTarget.close();
   });
   document.getElementById("btn-sync-status").addEventListener("click", showSyncStatus);
+  document.getElementById("btn-sync-select-directory").addEventListener("click", chooseSyncRegistryDirectory);
   document.getElementById("btn-sync-plan").addEventListener("click", showSyncPlan);
   document.getElementById("btn-sync-apply").addEventListener("click", applySync);
   document.getElementById("btn-sync-audits").addEventListener("click", showSyncAudits);
@@ -2094,6 +2226,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("btn-settings").addEventListener("click", openSettings);
   document.getElementById("btn-workspace").addEventListener("click", changeWorkspace);
+  document.getElementById("btn-asset-library-choose").addEventListener("click", chooseAssetLibraryDirectory);
+  document.getElementById("btn-asset-library-project").addEventListener("click", restoreProjectAssetLibrary);
   document.getElementById("btn-close-settings").addEventListener("click", () => {
     document.getElementById("settings-dialog").close();
   });

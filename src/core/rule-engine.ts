@@ -6,13 +6,13 @@
 // storage, query, scope, and failure boundary.
 // ============================================================================
 
-import { homedir } from "node:os";
 import path from "node:path";
 import { queryRules, type RuleQuery } from "../registry/rule-query.js";
 import { assetAppliesTo, type AssetScopeContext } from "../schema/asset-scope.js";
 import type { Rule } from "../schema/rule.js";
 import { resolveAssetScopeContext } from "../storage/project-identity.js";
 import { readAllRuleEntries } from "../storage/rule-reader.js";
+import { resolveAssetLibrary } from "../storage/asset-library.js";
 
 export const GLOBAL_RULES_DIR_ENV = "SKILL_CENTRAL_GLOBAL_RULES_DIR";
 
@@ -54,21 +54,20 @@ export class RuleEngine {
 
   private async load(options: RuleEngineOptions): Promise<void> {
     const projectRoot = path.resolve(options.projectRoot ?? process.cwd());
-    const globalDir = path.resolve(
-      options.globalRulesDir
-        ?? process.env[GLOBAL_RULES_DIR_ENV]
-        ?? path.join(homedir(), ".skill-central", "rules"),
-    );
-    const projectDir = path.resolve(options.projectRulesDir ?? path.join(projectRoot, ".rules"));
     const scopeContext = options.scopeContext
       ?? await resolveAssetScopeContext(projectRoot, options.projectId);
-
-    const sources = globalDir === projectDir
-      ? [{ directory: globalDir, library: "global" as const }]
-      : [
-          { directory: globalDir, library: "global" as const },
-          { directory: projectDir, library: "project" as const },
-        ];
+    const explicitGlobalDir = options.globalRulesDir ?? process.env[GLOBAL_RULES_DIR_ENV];
+    const projectDir = path.resolve(
+      options.projectRulesDir ?? resolveAssetLibrary(projectRoot).rulesDir,
+    );
+    const sources = explicitGlobalDir
+      ? path.resolve(explicitGlobalDir) === projectDir
+        ? [{ directory: projectDir, library: "project" as const }]
+        : [
+            { directory: path.resolve(explicitGlobalDir), library: "global" as const },
+            { directory: projectDir, library: "project" as const },
+          ]
+      : [{ directory: projectDir, library: "project" as const }];
     const effective = new Map<string, ResolvedRuleView>();
 
     for (const source of sources) {
@@ -86,7 +85,7 @@ export class RuleEngine {
 
     this.rules = [...effective.values()].sort((a, b) => a.id.localeCompare(b.id));
     console.error(
-      `[skill-central] Loaded ${this.rules.length} rules from global/project covenant libraries`,
+      `[skill-central] Loaded ${this.rules.length} rules from ${sources.length} explicit covenant source(s)`,
     );
   }
 }

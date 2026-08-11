@@ -24,6 +24,7 @@
 //   GET  /api/runtime/status
 //   POST /api/runtime/start
 //   POST /api/runtime/stop
+//   POST /api/sync/select-directory
 //   GET  /api/sync/status
 //   POST /api/sync/plan
 //   POST /api/sync/apply
@@ -79,6 +80,13 @@ import {
 } from "../auth/token-store.js";
 import { LocalRuntimeManager } from "../runtime/manager.js";
 import { loadConfig } from "../storage/config.js";
+import {
+  ASSET_LIBRARY_ROOT_ENV,
+  clearCustomAssetLibrary,
+  saveCustomAssetLibrary,
+  validateCustomAssetLibrary,
+  type AssetLibraryContext,
+} from "../storage/asset-library.js";
 import { readAllLayers } from "../storage/reader.js";
 import { validateSkill } from "../storage/parser.js";
 import {
@@ -147,6 +155,10 @@ export interface BoardDeps {
   /** Override the default .rules directory for embedded consumers and tests. */
   rulesDir?: string;
   onWorkspaceChange?: (rootDir: string) => void | Promise<void>;
+  /** Desktop-only native folder picker. Web-only callers keep manual input. */
+  selectSyncRegistryDirectory?: (currentPath?: string) => Promise<string | undefined>;
+  selectAssetLibraryDirectory?: (currentPath?: string) => Promise<string | undefined>;
+  assetLibrarySettingsPath?: string;
 }
 
 export interface BoardOptions {
@@ -160,6 +172,9 @@ export interface BoardOptions {
   tokenStore?: TokenStore;
   authLogger?: (event: BoardAuthLogEvent) => void;
   onWorkspaceChange?: (rootDir: string) => void | Promise<void>;
+  selectSyncRegistryDirectory?: (currentPath?: string) => Promise<string | undefined>;
+  selectAssetLibraryDirectory?: (currentPath?: string) => Promise<string | undefined>;
+  assetLibrarySettingsPath?: string;
 }
 
 export interface BoardServerHandle {
@@ -192,6 +207,7 @@ export interface BoardAuthLogEvent {
 
 interface WorkspaceStatus {
   rootDir: string;
+  assetLibrary: AssetLibraryContext;
   layers: Array<{ id: string; path: string; priority: number; scope?: string }>;
 }
 
@@ -423,7 +439,10 @@ async function buildRuleDto(
  */
 export function createBoardApp(deps: BoardDeps): Hono {
   const app = new Hono();
-  const rulesDir = () => path.resolve(deps.rootDir, deps.rulesDir ?? DEFAULT_RULES_DIR);
+  const rulesDir = () => path.resolve(
+    deps.rootDir,
+    deps.rulesDir ?? deps.config.assetLibrary?.rulesDir ?? DEFAULT_RULES_DIR,
+  );
   const runtime = deps.runtime ?? createRuntimeController(deps.mcpServerConfig);
   const updater = deps.updater ?? new UnsupportedUpdateController(
     deps.version,
@@ -456,7 +475,15 @@ export function createBoardApp(deps: BoardDeps): Hono {
 
   // ── /api/health ────────────────────────────────────────────────────────
   app.get("/api/health", (c) =>
-    c.json({ ok: true, version: deps.version, rootDir: deps.rootDir, skills: deps.engine.querySkills().skills.length }),
+    c.json({
+      ok: true,
+      version: deps.version,
+      rootDir: deps.rootDir,
+      skills: deps.engine.querySkills().skills.length,
+      directoryPicker: typeof deps.selectSyncRegistryDirectory === "function",
+      assetLibraryPicker: typeof deps.selectAssetLibraryDirectory === "function",
+      assetLibrary: deps.config.assetLibrary,
+    }),
   );
 
   app.get("/api/workspace", (c) => c.json(workspaceStatus(deps)));
@@ -481,16 +508,86 @@ export function createBoardApp(deps: BoardDeps): Hono {
       if (!nextRootStat.isDirectory()) {
         return c.json({ error: `workspace is not a directory: ${nextRoot}` }, 400);
       }
-      const nextConfig = loadConfig(nextRoot);
+      const nextConfig = loadConfig(nextRoot, { settingsPath: deps.assetLibrarySettingsPath });
       await deps.engine.reload(nextConfig.layers, { projectRoot: nextRoot });
       deps.rootDir = nextRoot;
       deps.config = nextConfig;
-      deps.mcpServerConfig = withProjectRootEnv(deps.mcpServerConfig, nextRoot);
+      deps.mcpServerConfig = withProjectRootEnv(deps.mcpServerConfig, nextRoot, nextConfig.assetLibrary);
       await configureRuntimeForWorkspace(runtime, deps.mcpServerConfig, nextRoot);
       await deps.onWorkspaceChange?.(nextRoot);
       return c.json(workspaceStatus(deps));
     } catch (err) {
       return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  app.get("/api/asset-library", (c) => c.json(deps.config.assetLibrary));
+
+  app.post("/api/asset-library", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin asset library request rejected." }, 403);
+    }
+    let body: { rootDir?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (typeof body.rootDir !== "string" || body.rootDir.trim().length === 0) {
+      return c.json({ error: "rootDir must be a non-empty string" }, 400);
+    }
+    try {
+      const context = await saveCustomAssetLibrary(body.rootDir, {
+        settingsPath: deps.assetLibrarySettingsPath,
+      });
+      await reloadBoardAssetLibrary(deps, runtime);
+      return c.json(context);
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 400);
+    }
+  });
+
+  app.delete("/api/asset-library", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin asset library request rejected." }, 403);
+    }
+    try {
+      await clearCustomAssetLibrary({ settingsPath: deps.assetLibrarySettingsPath });
+      await reloadBoardAssetLibrary(deps, runtime);
+      return c.json(deps.config.assetLibrary);
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  app.post("/api/asset-library/select-directory", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin asset library selection request rejected." }, 403);
+    }
+    if (!deps.selectAssetLibraryDirectory) {
+      return c.json({ error: "Native asset library selection is unavailable in this Board session." }, 501);
+    }
+    let body: { currentPath?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (body.currentPath !== undefined && typeof body.currentPath !== "string") {
+      return c.json({ error: "currentPath must be a string when provided" }, 400);
+    }
+    try {
+      const currentPath = typeof body.currentPath === "string"
+        ? body.currentPath.trim() || undefined
+        : undefined;
+      const selected = await deps.selectAssetLibraryDirectory(currentPath);
+      if (!selected) return c.json({ cancelled: true });
+      const context = validateCustomAssetLibrary(selected);
+      await saveCustomAssetLibrary(context.rootDir, { settingsPath: deps.assetLibrarySettingsPath });
+      await reloadBoardAssetLibrary(deps, runtime);
+      return c.json({ cancelled: false, ...context });
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 400);
     }
   });
 
@@ -1118,6 +1215,41 @@ export function createBoardApp(deps: BoardDeps): Hono {
   // The Web Board reuses Phase 4's plan/apply transaction instead of carrying
   // a browser-specific sync writer. That keeps preflight, backups, and audit
   // reports identical across CLI and desktop packaging.
+  app.post("/api/sync/select-directory", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin directory selection request rejected." }, 403);
+    }
+    if (!deps.selectSyncRegistryDirectory) {
+      return c.json({ error: "Native directory selection is unavailable in this Board session." }, 501);
+    }
+
+    let body: { currentPath?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    if (body.currentPath !== undefined && typeof body.currentPath !== "string") {
+      return c.json({ error: "currentPath must be a string when provided" }, 400);
+    }
+
+    try {
+      const currentPath = typeof body.currentPath === "string"
+        ? body.currentPath.trim() || undefined
+        : undefined;
+      const selected = await deps.selectSyncRegistryDirectory(currentPath);
+      if (!selected) return c.json({ cancelled: true });
+      const selectedPath = path.resolve(selected);
+      const selectedStat = await stat(selectedPath);
+      if (!selectedStat.isDirectory()) {
+        return c.json({ error: `selected path is not a directory: ${selectedPath}` }, 400);
+      }
+      return c.json({ cancelled: false, path: selectedPath });
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 400);
+    }
+  });
+
   app.get("/api/sync/status", async (c) => {
     const appState = await ensureAppState({ overrideDir: c.req.query("appStateDir") });
     return c.json({
@@ -1953,6 +2085,7 @@ async function resolveEditableAssetSource(
 function workspaceStatus(deps: BoardDeps): WorkspaceStatus {
   return {
     rootDir: deps.rootDir,
+    assetLibrary: deps.config.assetLibrary,
     layers: deps.config.layers.map((layer) => ({
       id: layer.id,
       path: layer.path,
@@ -1975,15 +2108,36 @@ function resolveWritableSkillLayer(config: SkillCentralConfig, requestedLayerId?
 function withProjectRootEnv(
   server: McpServerConfig | undefined,
   projectRoot: string,
+  assetLibrary?: AssetLibraryContext,
 ): McpServerConfig | undefined {
   if (!server) return undefined;
+  const env: Record<string, string> = {
+    ...(server.env ?? {}),
+    [PROJECT_ROOT_ENV]: projectRoot,
+  };
+  delete env[ASSET_LIBRARY_ROOT_ENV];
+  if (assetLibrary?.mode === "custom") {
+    env[ASSET_LIBRARY_ROOT_ENV] = assetLibrary.rootDir;
+  }
   return {
     ...server,
-    env: {
-      ...(server.env ?? {}),
-      [PROJECT_ROOT_ENV]: projectRoot,
-    },
+    env,
   };
+}
+
+async function reloadBoardAssetLibrary(
+  deps: BoardDeps,
+  runtime: RuntimeController,
+): Promise<void> {
+  const nextConfig = loadConfig(deps.rootDir, { settingsPath: deps.assetLibrarySettingsPath });
+  await deps.engine.reload(nextConfig.layers, { projectRoot: deps.rootDir });
+  deps.config = nextConfig;
+  deps.mcpServerConfig = withProjectRootEnv(
+    deps.mcpServerConfig,
+    deps.rootDir,
+    nextConfig.assetLibrary,
+  );
+  await configureRuntimeForWorkspace(runtime, deps.mcpServerConfig, deps.rootDir);
 }
 
 async function configureRuntimeForWorkspace(
@@ -2016,10 +2170,10 @@ function isConfigurableRuntime(runtime: RuntimeController): runtime is Configura
  */
 export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
   const rootDir = path.resolve(opts.rootDir ?? process.cwd());
-  const config = loadConfig(rootDir);
+  const config = loadConfig(rootDir, { settingsPath: opts.assetLibrarySettingsPath });
   const engine = new SkillEngine();
   const version = VERSION;
-  const mcpServerConfig = withProjectRootEnv(opts.mcpServerConfig, rootDir);
+  const mcpServerConfig = withProjectRootEnv(opts.mcpServerConfig, rootDir, config.assetLibrary);
 
   // Block on initial load so /api/skills returns immediately.
   // (engine.reload is sync-ish at startup; Hono handlers are async so it's fine.)
@@ -2038,6 +2192,9 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
     tokenStore: opts.tokenStore,
     authLogger: opts.authLogger,
     onWorkspaceChange: opts.onWorkspaceChange,
+    selectSyncRegistryDirectory: opts.selectSyncRegistryDirectory,
+    selectAssetLibraryDirectory: opts.selectAssetLibraryDirectory,
+    assetLibrarySettingsPath: opts.assetLibrarySettingsPath,
   });
 
   const host = opts.host ?? "127.0.0.1";

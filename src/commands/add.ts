@@ -3,8 +3,8 @@
 // ----------------------------------------------------------------------------
 // "skill-central add" — create a new skill definition file in the appropriate
 // layer. Layer selection is automatic from tags (table-driven), with explicit
-// override via --layer. Scope is project (.skills/) by default, or user
-// (~/.skill-central/skills/) with --user.
+// override via --layer. Scope is project (.skills/) by default, or the
+// explicitly selected custom Asset Library with --user.
 // ============================================================================
 
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
@@ -12,7 +12,8 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { load as parseYaml, dump as dumpYaml } from "js-yaml";
 
-import { loadConfig, resolveUserSkillsDir } from "../storage/config.js";
+import { loadConfig } from "../storage/config.js";
+import { resolveAssetLibrary } from "../storage/asset-library.js";
 import { parseSkillFile, validateSkill } from "../storage/parser.js";
 import { discoverSkillFiles } from "../storage/reader.js";
 import type { SkillLayer } from "../storage/schemas.js";
@@ -154,7 +155,7 @@ export interface AddOptions {
   fromFile?: string;
   /** Force the layer (bypasses inference). */
   layer?: string;
-  /** Write to user-level ~/.skill-central/skills/ instead of project .skills/. */
+  /** Write to the explicitly selected custom Asset Library. */
   user?: boolean;
   /** Overwrite existing file if present. */
   force?: boolean;
@@ -265,17 +266,21 @@ export async function cmdAdd(opts: AddOptions): Promise<void> {
 interface Scope {
   /** Absolute root directory containing the 4 layer subdirs. */
   root: string;
-  /** Short label for printing: "project" or "user". */
-  label: "project" | "user";
+  /** Short label for printing: "project" or "custom". */
+  label: "project" | "custom";
   /** Whether this scope was chosen implicitly (for warnings). */
   implicit: boolean;
 }
 
 async function resolveScope(userFlag: boolean): Promise<Scope> {
   if (userFlag) {
-    const root = resolveUserSkillsDir();
-    await mkdir(root, { recursive: true });
-    return { root, label: "user", implicit: false };
+    const library = resolveAssetLibrary(process.cwd());
+    if (library.mode !== "custom") {
+      throw new Error(
+        "--user requires an explicit custom Asset Library. Select a folder containing skills/ and rules/ in Personal settings first.",
+      );
+    }
+    return { root: library.skillsDir, label: "custom", implicit: false };
   }
 
   const projectRoot = path.join(process.cwd(), ".skills");
@@ -283,20 +288,17 @@ async function resolveScope(userFlag: boolean): Promise<Scope> {
     return { root: projectRoot, label: "project", implicit: false };
   }
 
-  // .skills/ missing → check whether a config exists; if yes, still use cwd.
-  // If neither config nor .skills/ exists, fall back to user.
+  // `.skills/` missing: the explicit default remains the current project.
+  // Never create an invisible Home asset as a side effect of a project command.
   const configHere = path.join(process.cwd(), "skill-central.yaml");
   if (await fileExists(configHere)) {
     await mkdir(projectRoot, { recursive: true });
     return { root: projectRoot, label: "project", implicit: false };
   }
 
-  console.error(
-    "[skill-central] No .skills/ or skill-central.yaml in cwd; falling back to user scope.",
-  );
-  const userRoot = resolveUserSkillsDir();
-  await mkdir(userRoot, { recursive: true });
-  return { root: userRoot, label: "user", implicit: true };
+  console.error("[skill-central] No .skills/ or skill-central.yaml in cwd; creating project .skills/.");
+  await mkdir(projectRoot, { recursive: true });
+  return { root: projectRoot, label: "project", implicit: true };
 }
 
 // ── Layer resolution ────────────────────────────────────────────────────────

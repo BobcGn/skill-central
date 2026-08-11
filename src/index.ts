@@ -110,7 +110,7 @@ program
   .option("--prompt-file <path>", "Read prompt content from a file")
   .option("--from-file <path>", "Copy an existing skill file verbatim (overrides other content flags)")
   .option("--layer <layer>", "Force target layer (bypasses tag inference)")
-  .option("--user", "Write to ~/.skill-central/skills/ instead of project .skills/")
+  .option("--user", "Write to the explicitly selected custom Asset Library")
   .option("--force", "Overwrite existing file (creates a .bak.<ts> backup)")
   .option("-y, --yes", "Skip confirmations")
   .action((opts) => {
