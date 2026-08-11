@@ -22,6 +22,22 @@ if (result.error) {
 
 if (result.status !== 0) process.exit(result.status ?? 1);
 
+const defaultAssetLibraryGate = spawnSync(
+  process.execPath,
+  [path.join("scripts", "test-default-asset-library.mjs")],
+  {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "inherit",
+    shell: false,
+  },
+);
+if (defaultAssetLibraryGate.error) {
+  console.error(`[skill-central] Failed to start default asset library gate: ${defaultAssetLibraryGate.error.message}`);
+  process.exit(1);
+}
+if (defaultAssetLibraryGate.status !== 0) process.exit(defaultAssetLibraryGate.status ?? 1);
+
 const mcpGate = spawnSync(process.execPath, [path.join("scripts", "test-mcp-protocol.mjs")], {
   cwd: process.cwd(),
   env: process.env,

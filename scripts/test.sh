@@ -45,6 +45,7 @@ NC='\033[0m' # No Color
 TEST_BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/skill-central-bin.XXXXXX")"
 export PATH="$TEST_BIN_DIR:$PWD/node_modules/.bin:$PATH"
 export SKILL_CENTRAL_USER_SKILLS_DIR="$TEST_BIN_DIR/user-skills"
+export SKILL_CENTRAL_DEFAULT_ASSET_ROOT="$TEST_BIN_DIR/default-asset-library"
 unset SKILL_CENTRAL_GITHUB_CLIENT_ID
 
 # Homebrew documents exit 1 as a valid "outdated items found" result in some
@@ -192,22 +193,20 @@ fi
 pass "未显式选择的用户目录不会污染项目 Registry"
 rm -rf "$SKILL_CENTRAL_USER_SKILLS_DIR"
 
-set +e
-unselected_user_add=$(node dist/index.js add \
+default_user_add=$(node dist/index.js add \
   --id ci-unselected-user-add \
-  --name "CI Unselected User Add" \
-  --description "Must fail without an explicit custom library" \
-  --prompt "never written" \
+  --name "CI Default User Add" \
+  --description "Writes to the initialized default asset library" \
+  --prompt "default library write" \
   --user \
   --yes 2>&1)
-unselected_user_add_status=$?
-set -e
-if [ "$unselected_user_add_status" -eq 0 ]; then
-  fail "add --user 未选择自定义资产库时不应创建不可见文件"
+if [ ! -f "$SKILL_CENTRAL_DEFAULT_ASSET_ROOT/skills/02-workflows/ci-unselected-user-add.yaml" ]; then
+  fail "add --user 未写入默认 ~/.skill-central 结构"
 fi
-printf '%s' "$unselected_user_add" | grep -q "requires an explicit custom Asset Library" \
-  && pass "add --user 未选择资产库时明确失败且不创建孤立资产" \
-  || fail "add --user 缺少明确的资产库选择错误"
+printf '%s' "$default_user_add" | grep -q "Created default:02-workflows/ci-unselected-user-add.yaml" \
+  && SKILL_CENTRAL_ASSET_ROOT="$SKILL_CENTRAL_DEFAULT_ASSET_ROOT" node dist/index.js list 2>/dev/null | grep -q "ci-unselected-user-add" \
+  && pass "add --user 写入默认资产库且可立即发现" \
+  || fail "add --user 默认资产库写入/发现失败"
 
 # ── 5. Universal Skill v1 / legacy compatibility ───────────────────────────
 echo ""
@@ -2087,6 +2086,27 @@ const crossOriginAssetLibraryRes = await assetLibraryApp.request("http://localho
 if (crossOriginAssetLibraryRes.status !== 403) {
   throw new Error("asset library endpoint did not reject a cross-origin request");
 }
+const crossOriginDefaultLibraryRes = await assetLibraryApp.request("http://localhost/api/asset-library/default", {
+  method: "POST",
+  headers: { origin: "https://attacker.example" },
+});
+if (crossOriginDefaultLibraryRes.status !== 403) {
+  throw new Error("default asset library endpoint did not reject a cross-origin request");
+}
+const useDefaultLibraryRes = await assetLibraryApp.request("/api/asset-library/default", { method: "POST" });
+const defaultLibrary = await useDefaultLibraryRes.json();
+const normalizedDefaultRoot = defaultLibrary.rootDir?.replaceAll("\\", "/") ?? "";
+const normalizedDefaultSkills = defaultLibrary.skillsDir?.replaceAll("\\", "/") ?? "";
+const normalizedDefaultRules = defaultLibrary.rulesDir?.replaceAll("\\", "/") ?? "";
+if (
+  useDefaultLibraryRes.status !== 200
+  || defaultLibrary.mode !== "default"
+  || !normalizedDefaultRoot.endsWith("/default-asset-library")
+  || !normalizedDefaultSkills.endsWith("/default-asset-library/skills")
+  || !normalizedDefaultRules.endsWith("/default-asset-library/rules")
+) {
+  throw new Error(`default asset library was not restored explicitly: ${JSON.stringify(defaultLibrary)}`);
+}
 const restoreProjectLibraryRes = await assetLibraryApp.request("/api/asset-library", { method: "DELETE" });
 const restoredProjectLibrary = await restoreProjectLibraryRes.json();
 if (restoreProjectLibraryRes.status !== 200 || restoredProjectLibrary.mode !== "project") {
@@ -2957,8 +2977,11 @@ grep -q 'id="btn-sync-select-directory"' src/web/static/index.html \
 
 grep -q 'id="btn-asset-library-choose"' src/web/static/index.html \
   && grep -q '/api/asset-library/select-directory' src/web/static/app.js \
-  && grep -q 'id="btn-asset-library-project"' src/web/static/index.html \
-  && pass "设置页支持选择或恢复统一 Skills/Rules 目录" \
+  && grep -q 'id="btn-asset-library-default"' src/web/static/index.html \
+  && grep -q 'id="btn-sync-library-choose"' src/web/static/index.html \
+  && grep -q 'id="btn-sync-library-default"' src/web/static/index.html \
+  && grep -q '/api/asset-library/default' src/web/static/app.js \
+  && pass "设置页与同步页支持选择或恢复统一 Skills/Rules 目录" \
   || fail "设置页缺少统一 Skills/Rules 目录选择能力"
 
 grep -q 'overflow-y: auto; overscroll-behavior: contain' src/web/static/style.css \
