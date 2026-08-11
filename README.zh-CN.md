@@ -218,7 +218,7 @@ prompt: |
   - summary must be lowercase, imperative mood, no period at end
 ```
 
-`~/.skill-central/skills/` 下的用户全局 Skill 会在任意项目中以较低优先级自动加载；项目层默认使用 `01-global`（优先级 10）、`02-workflows`（20）、`03-domains`（30）和 `04-tech-stack`（40）。适用 Rule 同时从 `~/.skill-central/rules/` 与项目 `.rules/` 加载，同 ID 项目 Rule 覆盖全局 Rule。Agent 可通过 `rule://` Resource、`rules:all` / `rule:<id>` Prompt 以及 `rules.list` / `rules.get` Tool 直接读取规则。
+Board、CLI 与 MCP 默认共享用户根目录下的 `~/.skill-central` 资产库。程序首次启动时会幂等创建 `~/.skill-central/skills` 与 `~/.skill-central/rules`，并分别加载 Skill 与 Rule；即使含 `skill-central.yaml` 的项目作为显式项目 Layer 覆盖，启动初始化也仍会完成。在**同步 → 本地资产库**或**个人设置 → 资产库**中，可以选择另一个同时包含 `skills/`、`rules/` 的根目录。同步页下方的 Registry 本地目录是另一条路径，只用于生成同步计划，不会替代资产库。点击**使用默认目录**可切回 `~/.skill-central`，不会删除任何文件。`*.bak.*` 备份与 `_` 前缀模板不会作为生效资产加载。Agent 可通过 `rule://` Resource、`rules:all` / `rule:<id>` Prompt 以及 `rules.list` / `rules.get` Tool 直接读取规则。
 
 ## GitHub 同步
 

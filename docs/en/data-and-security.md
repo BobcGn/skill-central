@@ -12,9 +12,10 @@ Report vulnerabilities through the private process in [SECURITY.md](../../SECURI
 
 | Data | Default location | Purpose | Deleting it affects |
 | --- | --- | --- | --- |
-| Asset-library selection | `~/.skill-central/settings.json` | Validated opt-in root containing `skills/` and `rules/` | Which explicit library loads globally |
+| Default asset library | `~/.skill-central/skills/`, `~/.skill-central/rules/` | Auto-created cross-project Skill and Rule sources | The default governed assets |
+| Asset-library selection | `~/.skill-central/settings.json` | Validated custom/default root containing `skills/` and `rules/` | Which library Board/CLI/MCP share |
 | Project config | `<project>/skill-central.yaml` | Project layer definitions | Which project layers load |
-| Skill/Rule sources | Project `.skills/` and `.rules/`, or selected `<root>/skills/` and `<root>/rules/` | Durable governed assets | The actual asset library |
+| Skill/Rule sources | Default or selected `<root>/skills/` and `<root>/rules/`; explicit project layers when configured | Durable governed assets | The actual asset library |
 | App state on macOS | `~/Library/Application Support/skill-central/` | State, audit, cache, sync, tokens, sessions | Derived/local application state |
 | App state on Windows | `%APPDATA%/skill-central/` | Same as above | Derived/local application state |
 | App state on Linux | `~/.local/share/skill-central/` | Same as above | Derived/local application state |
@@ -22,7 +23,7 @@ Report vulnerabilities through the private process in [SECURITY.md](../../SECURI
 | Skill edit backups | Next to the skill source as `.bak.<timestamp>` | Board edit/restore | Recovery evidence for that skill |
 | Reverse-output backups | Next to an updated Skill/Rule source as `.bak.<timestamp>` | Reverse-output rollback | Recovery evidence for a promoted update |
 
-`SKILL_CENTRAL_APP_STATE_DIR` can override the application-state root for tests or controlled deployments. `SKILL_CENTRAL_ASSET_ROOT` explicitly overrides the selected asset-library root and is accepted only when both required child directories exist. Application state and selection settings contain no copies of governed source assets.
+`SKILL_CENTRAL_APP_STATE_DIR` can override the application-state root for tests or controlled deployments. `SKILL_CENTRAL_ASSET_ROOT` explicitly overrides the selected asset-library root and is accepted only when both required child directories exist. `SKILL_CENTRAL_DEFAULT_ASSET_ROOT` isolates the auto-created default in tests. Application state and selection settings contain no copies of governed source assets; startup directory creation never migrates or overwrites files.
 
 ## Browser-Local Preferences
 

@@ -142,15 +142,14 @@ The main navigation is organized around repeatable work:
 
 The interface is responsive and uses a bottom navigation bar on narrow screens. Theme, locale, current view, and non-secret preferences remain local to the board.
 
-By default, the Board, CLI, and MCP server load only the current project's configured `.skills/`
-layers and `.rules/` directory. They do not merge `~/.skill-central/skills`,
-`~/.skill-central/rules`, or `~/.skill-central/config.yaml` automatically. In **Personal
-settings → Asset library**, desktop users can explicitly select a reusable directory whose root
-contains both `skills/` and `rules/`. The validated choice is persisted globally for Skill
-Central and is shared by the Board, CLI, and MCP runtime. **Use project library** clears that
-choice without deleting any assets. After a custom library is selected, `skill-central add
---user ...` writes into its `skills/` tree; without an explicit selection the command fails
-instead of creating an invisible Home-directory asset.
+By default, the Board, CLI, and MCP server share `~/.skill-central` as their asset-library root.
+Skill Central creates `~/.skill-central/skills` and `~/.skill-central/rules` on first startup and
+loads the two asset classes independently. A project containing `skill-central.yaml` remains an
+explicit project-layer override, but startup still initializes the reusable default directories. In either **Sync → Local asset library** or **Personal settings →
+Asset library**, desktop users can select another root that contains both `skills/` and `rules/`.
+The Registry checkout shown below the asset library on the Sync page is a separate path used only
+for synchronization plans. **Use default directory** switches back without deleting any assets.
+Backup files such as `*.bak.*` and `_`-prefixed templates are never treated as live assets.
 
 ## IDE Connections
 
@@ -229,7 +228,7 @@ prompt: |
   - summary must be lowercase, imperative mood, no period at end
 ```
 
-Project layers default to `01-global` (priority 10), `02-workflows` (20), `03-domains` (30), and `04-tech-stack` (40). Applicable Rules come from the project `.rules/` directory. A selected custom library replaces both sources with `<root>/skills/` and `<root>/rules/`; the two asset classes never come from different implicit roots. Agents can read Rules through `rule://` resources, `rules:all` / `rule:<id>` prompts, and `rules.list` / `rules.get` tools.
+The default Home asset library is read recursively from `<root>/skills/` and `<root>/rules/`. An explicitly configured project may define `01-global` (priority 10), `02-workflows` (20), `03-domains` (30), and `04-tech-stack` (40) layers. A selected custom library replaces the active root with the same two child directories; the two asset classes never come from different implicit roots. Agents can read Rules through `rule://` resources, `rules:all` / `rule:<id>` prompts, and `rules.list` / `rules.get` tools.
 
 ## GitHub Sync
 

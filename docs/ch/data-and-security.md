@@ -12,9 +12,10 @@ Skill Central 采用本地优先设计，但它不是安全沙箱。它会读写
 
 | 数据 | 默认位置 | 用途 | 删除后的影响 |
 | --- | --- | --- | --- |
-| 资产库选择 | `~/.skill-central/settings.json` | 经过校验、同时包含 `skills/` 与 `rules/` 的显式根目录 | 改变全局选择的资产库 |
+| 默认资产库 | `~/.skill-central/skills/`、`~/.skill-central/rules/` | 自动创建的跨项目 Skill 与 Rule 来源 | 影响默认受治理资产 |
+| 资产库选择 | `~/.skill-central/settings.json` | 经过校验、同时包含 `skills/` 与 `rules/` 的自定义/默认根目录 | 改变 Board/CLI/MCP 共享的资产库 |
 | 项目配置 | `<project>/skill-central.yaml` | 项目 Layer 定义 | 改变加载的项目 Layer |
-| Skill/Rule 源文件 | 项目 `.skills/` 与 `.rules/`，或显式选择的 `<root>/skills/` 与 `<root>/rules/` | 持久化受治理资产 | 直接影响资产库 |
+| Skill/Rule 源文件 | 默认或选中 `<root>/skills/` 与 `<root>/rules/`；显式配置时使用项目 Layer | 持久化受治理资产 | 直接影响资产库 |
 | macOS App State | `~/Library/Application Support/skill-central/` | State、Audit、Cache、Sync、Token、Session | 影响派生/本地应用状态 |
 | Windows App State | `%APPDATA%/skill-central/` | 同上 | 影响派生/本地应用状态 |
 | Linux App State | `~/.local/share/skill-central/` | 同上 | 影响派生/本地应用状态 |
@@ -22,7 +23,7 @@ Skill Central 采用本地优先设计，但它不是安全沙箱。它会读写
 | Skill Edit Backup | Skill 源文件同级的 `.bak.<timestamp>` | Board 编辑与恢复 | 影响该 Skill 的恢复证据 |
 | Reverse-output Backup | 更新后 Skill/Rule 源文件同级的 `.bak.<timestamp>` | 反向输出回退 | 影响 Promote 更新的恢复证据 |
 
-测试或受控部署可以通过 `SKILL_CENTRAL_APP_STATE_DIR` 覆盖 App State Root；`SKILL_CENTRAL_ASSET_ROOT` 可显式覆盖资产库根目录，但只有两个必要子目录同时存在时才生效。App State 与选择设置都不复制受治理的源资产。
+测试或受控部署可以通过 `SKILL_CENTRAL_APP_STATE_DIR` 覆盖 App State Root；`SKILL_CENTRAL_ASSET_ROOT` 可显式覆盖资产库根目录，但只有两个必要子目录同时存在时才生效；`SKILL_CENTRAL_DEFAULT_ASSET_ROOT` 用于在测试中隔离自动创建的默认根。App State 与选择设置都不复制受治理源资产，启动初始化也不会迁移或覆盖文件。
 
 ## 浏览器本地偏好
 
