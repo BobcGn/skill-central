@@ -2,8 +2,8 @@ cask "skill-central" do
   arch arm: "arm64", intel: "x64"
 
   version "1.0.0"
-  sha256 arm:   "1c84a336c54e4aea98a905ebcc1602024eadad7efffebf58f32e00269bf27cac",
-         intel: "d42ebf9155b07a93adbd251519c6e372caeca77ce9eaf04b1a46b271afa657cc"
+  sha256 arm:   "8a081627959aa6dc2327a70bdecad4a4c98a71b0d64b9ba3137a68896b9b9867",
+         intel: "9a7dfc30232eaeea6f33fc99dc76c9f0b0448e7900f4ec65835c0c6c4a76e57f"
 
   url "https://github.com/BobcGn/skill-central/releases/download/v#{version}/Skill-Central-#{version}-mac-#{arch}.dmg"
   name "Skill Central"
