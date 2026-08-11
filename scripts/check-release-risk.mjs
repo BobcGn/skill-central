@@ -45,6 +45,8 @@ for (const [name, workflow] of [["CI", ci], ["Release", release]]) {
   check(workflow.includes("npm run test:risk"), `${name} workflow is missing the release-risk gate`);
 }
 check(release.includes("macos-latest") && release.includes("windows-latest"), "Release workflow must build on native macOS and Windows runners");
+check(ci.includes("macos-latest") && ci.includes("windows-latest"), "Main CI must prove native macOS and Windows packages before tagging");
+check(ci.includes("Upload native package evidence"), "Main CI must retain native package evidence");
 check(release.includes('tags: ["v*"]'), "Release workflow must remain tag-gated");
 check(release.includes("Push Cask update branch"), "Release workflow must preserve a checksum-pinned Cask branch");
 check(release.includes("continue-on-error: true") && release.includes("Manual Homebrew Cask PR required"), "Release workflow must survive repository-level PR creation restrictions");

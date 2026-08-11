@@ -87,3 +87,72 @@ jobs:
 
       - name: Run release risk gate
         run: npm run test:risk
+
+  desktop-package:
+    name: Desktop Package (${{ matrix.name }})
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    needs: integration
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            package_script: package:mac
+            artifact_name: skill-central-ci-macos
+            artifact_paths: |
+              release-artifacts/Skill-Central-1.0.0-mac-arm64.dmg
+              release-artifacts/Skill-Central-1.0.0-mac-x64.dmg
+              release-artifacts/Skill-Central-1.0.0-mac-arm64.zip
+              release-artifacts/Skill-Central-1.0.0-mac-x64.zip
+              release-artifacts/latest-mac.yml
+          - name: Windows
+            os: windows-latest
+            package_script: package:win
+            artifact_name: skill-central-ci-windows
+            artifact_paths: |
+              release-artifacts/Skill-Central-1.0.0-win-x64.exe
+              release-artifacts/Skill-Central-1.0.0-win-x64.exe.blockmap
+              release-artifacts/Skill-Central-1.0.0-win-x64.msi
+              release-artifacts/Skill-Central-1.0.0-win-x64.zip
+              release-artifacts/latest.yml
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate GitHub OAuth configuration
+        shell: bash
+        env:
+          SKILL_CENTRAL_GITHUB_CLIENT_ID: ${{ vars.SKILL_CENTRAL_GITHUB_CLIENT_ID }}
+        run: |
+          if [[ ! "$SKILL_CENTRAL_GITHUB_CLIENT_ID" =~ ^[A-Za-z0-9._-]{8,128}$ ]]; then
+            echo "::error::Set repository variable SKILL_CENTRAL_GITHUB_CLIENT_ID before native desktop packaging."
+            exit 1
+          fi
+
+      - name: Build native desktop package
+        env:
+          SKILL_CENTRAL_GITHUB_CLIENT_ID: ${{ vars.SKILL_CENTRAL_GITHUB_CLIENT_ID }}
+        run: npm run ${{ matrix.package_script }}
+
+      - name: Upload native package evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
+          retention-days: 7
