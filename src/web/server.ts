@@ -84,6 +84,7 @@ import {
   ASSET_LIBRARY_ROOT_ENV,
   clearCustomAssetLibrary,
   saveCustomAssetLibrary,
+  useDefaultAssetLibrary,
   validateCustomAssetLibrary,
   type AssetLibraryContext,
 } from "../storage/asset-library.js";
@@ -152,7 +153,7 @@ export interface BoardDeps {
   updater?: UpdateController;
   /** Desktop packages use their own executable as the MCP launcher. */
   mcpServerConfig?: McpServerConfig;
-  /** Override the default .rules directory for embedded consumers and tests. */
+  /** Override the active Asset Library rules directory for embedded consumers and tests. */
   rulesDir?: string;
   onWorkspaceChange?: (rootDir: string) => void | Promise<void>;
   /** Desktop-only native folder picker. Web-only callers keep manual input. */
@@ -553,6 +554,19 @@ export function createBoardApp(deps: BoardDeps): Hono {
     }
     try {
       await clearCustomAssetLibrary({ settingsPath: deps.assetLibrarySettingsPath });
+      await reloadBoardAssetLibrary(deps, runtime);
+      return c.json(deps.config.assetLibrary);
+    } catch (err) {
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  app.post("/api/asset-library/default", async (c) => {
+    if (!isSameOriginRequest(c.req.url, c.req.header("origin"))) {
+      return c.json({ error: "Cross-origin asset library request rejected." }, 403);
+    }
+    try {
+      await useDefaultAssetLibrary({ settingsPath: deps.assetLibrarySettingsPath });
       await reloadBoardAssetLibrary(deps, runtime);
       return c.json(deps.config.assetLibrary);
     } catch (err) {
@@ -2116,7 +2130,7 @@ function withProjectRootEnv(
     [PROJECT_ROOT_ENV]: projectRoot,
   };
   delete env[ASSET_LIBRARY_ROOT_ENV];
-  if (assetLibrary?.mode === "custom") {
+  if (assetLibrary && assetLibrary.mode !== "project") {
     env[ASSET_LIBRARY_ROOT_ENV] = assetLibrary.rootDir;
   }
   return {

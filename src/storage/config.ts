@@ -6,8 +6,8 @@
 // Design intent:
 // - Config loading should only parse and promote layer metadata. It should not
 //   infer behavior from directory names after this point.
-// - Project configs remain compatible with governed layers, while machine-wide
-//   sources require an explicit Asset Library selection.
+// - Project configs remain an explicit governed override. Otherwise every
+//   process uses the initialized `~/.skill-central/{skills,rules}` library.
 // - Invalid layer blocks are skipped with field-level warnings so one bad layer
 //   does not prevent local-first usage of the remaining layers.
 // ============================================================================
@@ -61,12 +61,12 @@ export function loadConfig(
 ): SkillCentralConfig {
   const root = path.resolve(projectRoot ?? process.cwd());
   const assetLibrary = resolveAssetLibrary(root, assetLibraryOptions);
-  if (assetLibrary.mode === "custom") {
+  if (assetLibrary.mode !== "project") {
     return {
       assetLibrary,
       layers: [{
-        id: "custom-library",
-        name: "custom/library",
+        id: `${assetLibrary.mode}-library`,
+        name: `${assetLibrary.mode}/library`,
         path: assetLibrary.skillsDir,
         scope: "user",
         priority: 10,
@@ -82,8 +82,7 @@ export function loadConfig(
   let layerPresets: SkillCentralConfig["layerPresets"];
   let configuredLayerCount = 0;
 
-  // Project-level config is the default boundary. Machine-wide directories
-  // are never merged implicitly; users opt into one through Asset Library.
+  // A project config is an explicit override of the cross-project default.
   for (const name of ["skill-central.yaml", "skill-central.yml"]) {
     const projectPath = path.join(root, name);
     if (existsSync(projectPath)) {

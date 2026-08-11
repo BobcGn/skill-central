@@ -33,7 +33,7 @@ export async function cmdRules(opts: RulesOptions): Promise<void> {
 
   if (matched.length === 0) {
     console.log("");
-    console.log("  (no rules match the filters — add rules under .rules/ or the selected custom library)");
+    console.log("  (no rules match the filters — add rules under the active Asset Library's rules/ directory)");
     console.log("");
     return;
   }

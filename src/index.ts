@@ -110,7 +110,7 @@ program
   .option("--prompt-file <path>", "Read prompt content from a file")
   .option("--from-file <path>", "Copy an existing skill file verbatim (overrides other content flags)")
   .option("--layer <layer>", "Force target layer (bypasses tag inference)")
-  .option("--user", "Write to the explicitly selected custom Asset Library")
+  .option("--user", "Write to the default or explicitly selected user Asset Library")
   .option("--force", "Overwrite existing file (creates a .bak.<ts> backup)")
   .option("-y, --yes", "Skip confirmations")
   .action((opts) => {
@@ -198,7 +198,7 @@ program
   .description("List applicable rules from global and project libraries (filters: --tag, --severity)")
   .option("--tag <tag>", "Only show rules with this tag")
   .option("--severity <severity>", 'Only show rules of this severity ("info", "warn", or "error")')
-  .option("--dir <path>", "Override the rules directory (default .rules/)")
+  .option("--dir <path>", "Override the active Asset Library rules directory")
   .option("--project-root <path>", "Override the current project root for scope filtering")
   .option("--project-id <id>", "Override the current git:/path: project id")
   .action((opts) => {
