@@ -17,7 +17,7 @@ Skill Central 启动后，应尽最大可控程度让本机支持 MCP 的 Coding
 
 Skill Central 可以保证：
 
-- 启动时检测已知本地目标：Codex、Claude、Trae、Cursor、Windsurf、Cline。
+- 正式检测并协调 Codex、Claude Code、Cursor；Trae、Windsurf、Cline 保持明确的实验性目标。
 - 对支持目标写入或刷新 `skill-central` MCP 配置。
 - 使用连接事务保留用户既有配置、生成备份并支持回退。
 - 验证配置中的命令能完成 MCP handshake、列出 prompts/tools，并与 Registry baseline 对齐。
@@ -36,7 +36,7 @@ Skill Central 不能保证：
 
 1. 读取当前工作区、全局配置、Skill Registry 和 Rules。
 2. 启动本地 MCP runtime，并确认 stdio server 可握手。
-3. 扫描 `SUPPORTED_IDES` 的配置候选路径。
+3. 扫描 `RELEASE_SUPPORTED_IDES`（Codex、Claude Code、Cursor）的配置候选路径。
 4. 对每个目标构建 connect plan：
    - 未注册：生成写入计划。
    - 已注册且配置一致：标记为 ready-to-verify。
@@ -55,9 +55,9 @@ POST /api/startup-recognition
 GET  /api/startup-recognition/latest
 ```
 
-默认只返回识别报告，不写入配置。调用方必须显式传入 `applyDrift: true` 才会刷新已注册但漂移的 `skill-central` entry。该 API 会逐 target 返回结构化状态，单个 target 的配置错误不会阻断其他 target 的报告。
+默认只返回识别报告，不写入配置。调用方必须显式传入 `applyDrift: true` 才会刷新已注册但漂移的 `skill-central` entry；传入 `registerMissing: true` 才会向已经存在且可读的 Agent 配置添加 entry。该 API 会逐 target 返回结构化状态，单个 target 的配置错误不会阻断其他 target 的报告。
 
-桌面应用在 Board Server 监听成功后会异步调用该 API，并写入 app-state audit。这个启动钩子不阻塞窗口显示，也不会静默创建新的 IDE 配置文件；它只刷新已经存在且已经注册但指向旧命令/参数的 `skill-central` entry。Board 的 IDE 页面读取 latest audit，展示最近一次识别时间、状态计数和审计文件路径。
+桌面应用在 Board Server 监听成功后会异步调用该 API，并写入 app-state audit。这个启动钩子不阻塞窗口显示；它可以通过带备份的事务修复漂移，也可以向已经存在且可读的正式 Agent 配置注册 Skill Central，但不会为未安装或没有配置证据的 Agent 创建新文件。Board 的 IDE 页面读取 latest audit，展示最近一次识别时间、状态计数和审计文件路径。
 
 ## 任务拆分
 
@@ -100,13 +100,13 @@ GET  /api/startup-recognition/latest
 ### Phase 4：可观测性与回归矩阵
 
 - 为启动识别写入 app-state audit，记录目标、配置路径、计划摘要、验证结果和失败摘要。
-- 增加跨平台路径样本测试，覆盖 macOS、Windows、Linux 的配置格式。
+- 增加跨平台路径样本测试，覆盖正式支持的 macOS 与 Windows 配置格式。
 - 为 release checklist 增加“安装后首次启动识别矩阵”。
 
 验收证据：
 
 - audit 能恢复“启动 -> 注册/刷新 -> 验证 -> 用户提示”的证据链。
-- Release 候选包完成至少 Codex、Claude、Cursor 的真实本机识别验证。
+- 稳定版完成 Codex、Claude Code、Cursor 的真实本机识别验证。
 
 ## 回退策略
 
@@ -115,6 +115,6 @@ GET  /api/startup-recognition/latest
 - Startup Reconciler 不直接修改配置文件；它只调用 connect transaction。
 - 回退只针对本轮计划记录的配置路径和 backup path，不扫描并猜测其他备份。
 
-## 当前第一切片
+## 当前实现
 
-当前已完成 Phase 1 与 Phase 2 的 release 候选实现：`register` 会刷新漂移配置，桌面启动会异步执行安全 Reconciler，Board 可展示 latest audit。后续重点是 Phase 3 的当前会话 discovery 引导，以及 Phase 4 中真实 macOS/Windows/Linux 与多 Agent 矩阵验收。
+`1.0.0` 已实现漂移修复、向既有正式 Agent 配置安全注册、异步启动审计，以及带实验性/未验证标签的 Board 状态。Skill 通过 MCP Prompts、Tools、Resources 暴露；Rule 可通过 `rule://` Resource、`rules:all` / `rule:<id>` Prompt 和 `rules.list` / `rules.get` Tool 直接消费。当前会话是否立即发现这些能力仍取决于 Agent，必要时需要刷新或新建任务。

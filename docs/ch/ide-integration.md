@@ -47,19 +47,19 @@ Skill Layer（通常位于 `.skills/`）；Rule 写入 `.rules/` 下的目录，
    expected SHA-256。
 
 本地验证可使用同一服务的
-`skill-central reverse-output preview|apply|rollback`。当前 Alpha MVP 尚未在 Web
+`skill-central reverse-output preview|apply|rollback`。当前实验性能力尚未在 Web
 Board 接入反向输出提案和 Promote 控件；Board 已有的 Skill/Rule 管理仍是独立入口。
 
-## 支持的连接目标
+## 连接目标
 
-| 目标 | 格式 | 默认候选位置 |
-| --- | --- | --- |
-| Codex | TOML | 已存在的项目 `.codex/config.toml`，然后是 `~/.codex/config.toml` |
-| Claude | JSON | `~/.claude.json`，然后是各平台 Claude Desktop 配置 |
-| Trae | JSON | 各平台应用数据目录中的 Trae、Trae CN、TRAE 路径 |
-| Cursor | JSON | `~/.cursor/mcp.json` |
-| Windsurf | JSON | `~/.codeium/windsurf/mcp_config.json` |
-| Cline | JSON | VS Code Global Storage 中的 Cline Extension 配置 |
+| 目标 | 支持级别 | 格式 | 默认候选位置 |
+| --- | --- | --- | --- |
+| Codex | 正式支持 | TOML | 已存在的项目 `.codex/config.toml`，然后是 `~/.codex/config.toml` |
+| Claude Code | 正式支持 | JSON | `~/.claude.json` |
+| Cursor | 正式支持 | JSON | `~/.cursor/mcp.json` |
+| Trae | 实验性 | JSON | 各平台应用数据目录中的 Trae、Trae CN、TRAE 路径 |
+| Windsurf | 实验性 | JSON | `~/.codeium/windsurf/mcp_config.json` |
+| Cline | 实验性 | JSON | VS Code Global Storage 中的 Cline Extension 配置 |
 
 对于 Codex，检测可以报告已经存在且受信任的项目配置，但创建新配置时默认选择用户配置。其他目标选择第一个已存在的候选路径，否则选择第一个默认路径。
 
@@ -173,4 +173,4 @@ MCP stdio 进程，并使用一键连接写入 IDE 配置的同一个可执行�
 
 ## 连接目标与编译目标
 
-上述六个目标表示 Skill Central 能在哪里注册 MCP Server。Compiler Adapter 用于生成目标特定的预览产物，目前只支持 generic MCP、Cursor 和 Windsurf。两组 Registry 用途不同，不得将其描述为相同覆盖范围。
+上述目标表示 Skill Central 可以在哪里生成或协调 MCP 配置；`1.0.0` 仅正式支持 Codex、Claude Code、Cursor。Compiler Adapter 用于生成目标特定的预览产物，目前支持 generic MCP、Cursor、Windsurf。两组 Registry 用途不同，不得将其描述为相同覆盖范围。

@@ -12,7 +12,7 @@ This directory contains the public technical documentation for Skill Central. It
 | [Skills and Layers](./skills-and-layers.md) | Skill authors and contributors | Skill schema, layer governance, resolution, compilation, and MCP exposure |
 | [IDE Integration](./ide-integration.md) | Users and integration contributors | Supported IDEs, configuration discovery, connection transactions, and health checks |
 | [Startup Recognition](./startup-agent-recognition.md) | Users and integration contributors | Boundaries, flow, and work plan for making Skill Central discoverable by Coding Agents after startup |
-| [Data and Security](./data-and-security.md) | Users, reviewers, and security contributors | Local data locations, trust boundaries, credentials, backups, and known Alpha limitations |
+| [Data and Security](./data-and-security.md) | Users, reviewers, and security contributors | Local data locations, trust boundaries, credentials, backups, and current limitations |
 | [Development](./development.md) | Contributors | Repository map, local workflows, tests, and change-specific requirements |
 | [Release and Updates](./release-and-updates.md) | Maintainers and packaging contributors | Release invariants, artifacts, update providers, and platform limitations |
 

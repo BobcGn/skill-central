@@ -180,11 +180,11 @@ Preview 不写入；只有显式 `promote` 才会写入。更新必须提供 exp
 
 跨边界改动应先创建 Issue 并取得设计共识。审查边界以贡献指南为准。
 
-## 当前 Alpha 限制
+## 当前限制
 
 - 正式桌面 GitHub 凭据已接入 macOS Keychain/Windows DPAPI；CLI 仍使用开发型文件 `TokenStore`，Windows 实机行为尚未验证。
 - macOS 安装包为本地 ad-hoc 签名（无 Developer ID）、未公证。
-- macOS/Windows 桌面应用内更新通过 GitHub Release Metadata，仍属于 Alpha 能力，每次 Release 都必须重新验证。
+- macOS/Windows 桌面应用内更新通过 GitHub Release Metadata，每次 Release 都必须重新验证。
 - Compiler Adapter 当前只有 generic MCP、Cursor 和 Windsurf，少于六个 IDE 连接目标。
-- 反向输出当前是通过 MCP 与 CLI 提供的 Alpha MVP；Board 尚未提供反向输出提案或 Promote 控件。
+- 反向输出当前是通过 MCP 与 CLI 提供的实验性能力；Board 尚未提供反向输出提案或 Promote 控件。
 - Board 没有用户认证。非 loopback 绑定是高风险高级覆盖，不是部署模式。

@@ -4,11 +4,9 @@
 
 Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护者执行。贡献者可以改进实现与测试，但未经明确授权不得创建项目 Release。
 
-## 当前 Release Candidate
+## 当前正式版
 
-`1.0.0-rc.3` 是当前 Release Candidate。Release Workflow 先生成 Draft Artifact，核验通过后应手动公开为 GitHub Prerelease。只有公开 Prerelease 后，Homebrew 和应用内更新才能下载 `latest-mac.yml`、`latest.yml` 与安装资产。RC.3 在 RC.2 的 macOS Dock 单图标、解包副本清理和安装位置警告之上，新增 macOS 应用内更新安装修复（ad-hoc 重新签名使 `SecStaticCodeCheckValidity` 通过）与分类化、本地化的更新错误原因。macOS 仅为本地 ad-hoc 签名（无 Developer ID）、未公证；Windows 打包行为仍需要真实机器验证后才能进入 `1.0.0`。
-
-已经公开的 `alpha.1` 应用包含旧更新器，无法被追溯修复。因此，现有 `alpha.1` 安装升级至 `alpha.2` 时，需要执行一次终端命令或手动安装新版 DMG；后续打包桌面版可使用修复后的应用内更新。
+`1.0.0` 支持 macOS arm64/x64 与 Windows x64。macOS 产物使用 ad-hoc 签名（无 Developer ID）且未公证；Windows 产物未使用 Authenticode。正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 配置适配器保持实验性；本机缺少对应应用时必须标记“未验证”。
 
 ## 版本不变量
 
@@ -31,7 +29,7 @@ Runtime Version 在构建时来自 Package Metadata。带 Prerelease Suffix 的�
 4. 创建更新 Cask 的 Pull Request，但暂不合并。
 5. 将产物汇总到 Draft GitHub Release。
 6. 只有全部 Release Gate 通过后，才由维护者检查并手动公开 Draft。
-7. Release 公开后立即合并生成的 Cask PR，再测试公开 Homebrew 安装与升级路线。
+7. 流水线先推送固定 checksum 的 Cask 分支并尝试创建 PR；若仓库策略禁止 Actions 创建 PR，按 workflow summary 的 compare 链接手动创建。Release 公开后立即合并该 PR，再测试公开 Homebrew 安装与升级路线。
 
 Workflow 不会自动公开 Release。目标 Artifact 仍在私有 Draft 时不得合并生成的 Cask，否则公开 Tap 会指向无法下载的文件。先公开 Release、后合并 Cask 只会产生 Homebrew 暂时仍显示旧版本的短暂窗口，不会破坏现有安装路线。
 
@@ -67,7 +65,7 @@ open -a "Skill Central"
 npm run homebrew:diagnose
 ```
 
-macOS Alpha 没有 Developer ID 签名，也没有公证，不能通过标准 Gatekeeper 验证。如果首次启动被阻止，请先核验官方仓库、Release 产物和 Cask 中固定的 SHA-256，然后优先在**系统设置 → 隐私与安全性**中选择**仍要打开**，或在 Finder 中按住 Control 点击应用并选择**打开**。仅在系统仍提示应用“已损坏”且没有提供放行选项时，才执行：
+macOS 应用没有 Developer ID 签名，也没有公证，不能通过标准 Gatekeeper 验证。如果首次启动被阻止，请先核验官方仓库、Release 产物和 Cask 中固定的 SHA-256，然后优先在**系统设置 → 隐私与安全性**中选择**仍要打开**，或在 Finder 中按住 Control 点击应用并选择**打开**。仅在系统仍提示应用“已损坏”且没有提供放行选项时，才执行：
 
 ```bash
 xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
@@ -91,18 +89,6 @@ brew install --cask --require-sha bobcgn/skill-central/skill-central
 ```
 
 该操作只移动 App Bundle，不会触碰 `~/.skill-central/` 下的 Skill Source，也不会触碰 `~/Library/Application Support/skill-central/` 下的 App State。Homebrew 安装通过 Smoke Test 前应保留备份。迁移和常规更新不得使用 `brew uninstall --zap`。
-
-## Alpha.1 一次性升级
-
-由于 `alpha.2` Release 已公开且生成的 Cask 已合并，`alpha.1` 用户应先按上文接管或安装 Cask，再执行：
-
-```bash
-brew update
-brew upgrade --cask --require-sha bobcgn/skill-central/skill-central
-open -a "Skill Central"
-```
-
-公开的 `alpha.1` Binary 不包含修复后的 Updater，因此这次终端操作或手动 DMG 替换无法省略。
 
 ## 桌面后台契约
 
@@ -156,13 +142,13 @@ brew trust bobcgn/skill-central
 
 Desktop 创建一个平台特定的 `UpdateController`，通过 Loopback Board API 暴露 Snapshot。打包版本在首个窗口加载后检查一次；开发版本与不支持的平台不会修改安装目录。
 
-macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release Metadata。Alpha 版本允许接收 Prerelease；检查更新不再依赖 Homebrew Tap 信任状态或 Cask 归属。当前 macOS Alpha 为本地 ad-hoc 签名（无 Developer ID）、未公证，应用内更新安装可通过本地签名校验；失败时应按 Release DMG 手动替换。Homebrew Cask 仍是 macOS 安装和固定 SHA-256 校验路线，但不是应用内检查更新的前置条件。
+macOS 与 Windows 打包桌面版通过 `electron-updater` 检查 GitHub Release Metadata。稳定版接收稳定更新，预览 Channel 可接收 Prerelease；检查更新不依赖 Homebrew Tap 信任状态或 Cask 归属。macOS 应用为本地 ad-hoc 签名（无 Developer ID）、未公证，应用内更新安装可通过本地签名校验；失败时应按 Release DMG 手动替换。Homebrew Cask 仍是 macOS 安装和固定 SHA-256 校验路线，但不是应用内检查更新的前置条件。
 
 更新检查失败会被分类为简洁、稳定的用户可见原因（发布尚未就绪 / 网络不可达 /
 服务器拒绝 / 未知错误），并在 Board 中以本地化文案展示。原始请求细节（URL、响应头、
 堆栈上下文）绝不进入客户端 UI，只保留在桌面诊断日志中。
 
-Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI 与 ZIP 属于手动部署格式，不得假设它们拥有 NSIS 更新行为。本轮变更尚未在 Windows 验证，对外说明时必须明确该状态。
+Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI 与 ZIP 属于手动部署格式，不得假设它们拥有 NSIS 更新行为。每个稳定版都必须通过原生 Windows x64 GitHub Actions 打包任务。
 
 ## 1.0.0 启动识别发布矩阵
 
@@ -172,10 +158,10 @@ Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI
 | --- | --- | --- | --- |
 | macOS 桌面 | Board 启动后异步执行 startup recognition，latest audit 可见 | `npm run lint`、`npm test` 覆盖 Reconciler、API、Board 摘要入口 | arm64 与可用 x64 安装包首次启动，确认 audit 生成且不新增重复进程 |
 | Windows 桌面 | NSIS 安装后启动 Board，MCP 命令路径可被目标 Agent 执行 | 路径/格式逻辑通过单元与集成测试间接覆盖 | 真实 Windows x64 安装、启动、退出、更新和至少 Codex/Cursor 注册验证 |
-| Linux / 开发运行 | CLI/源码运行下仍可生成一致 connect plan 与 audit | CLI `register`、`connect`、`doctor --ide` 和 Web API 测试 | 若发布 Linux 桌面包，必须补真实安装 smoke；否则文档标记为 CLI/dev 支持 |
 | Codex | 配置注册不等于当前任务已发现 MCP；需要新任务或 discovery 路径 | docs/UI 区分注册状态与会话发现状态 | 新建 Codex 任务确认 `skill-central` MCP 工具可发现，旧任务给出刷新建议 |
 | Claude / Claude Code | JSON 配置保留既有 server，漂移刷新有备份 | connect transaction 与 startup recognition 测试覆盖保留 server | 真实客户端重启后识别 `skill-central` server |
-| Cursor / Windsurf / Trae / Cline | 目标配置格式正确，错误目标不影响其他目标报告 | `SUPPORTED_IDES`、config codec、Web API 单 target 错误隔离测试 | 至少 Cursor 必验；其余按可用客户端记录已验证或明确未验证 |
+| Cursor | JSON 配置保留既有 server，启动修复保持事务化 | connect transaction、MCP gate 与 startup recognition 测试 | 真实客户端重启后识别 `skill-central` 的 Skills 与 Rules |
+| Trae / Windsurf / Cline | 实验性目标配置生成与正式支持边界隔离 | config codec 与 Web API 单 target 错误隔离测试 | 本机缺少应用时记录为实验性且未验证 |
 
 每次候选包 smoke 后，应把 latest startup recognition audit 路径、目标状态计数、手动 Agent 发现结果和失败修复建议记录到发布笔记或维护者验收日志。审计文件不得包含环境变量、Access Token、Device Code、Authorization Header 或长 stderr dump。
 
@@ -194,17 +180,17 @@ Release Workflow 会校验该变量并写入桌面包的 Package Metadata；变�
 
 1. 落地全部中英文安装、迁移、更新、安全和生命周期文档。
 2. 在实现与文档准备好生成候选包之前，Package Metadata 保持为当前已发布版本。
-3. 在干净 Checkout 运行 `npm ci`、`npm run lint`、`npm test` 和 `npm run build:desktop`。
+3. 在干净 Checkout 运行 `npm ci`、`npm audit --omit=dev`、`npm run lint`、`npm test`、`npm run test:mcp`、`npm run test:risk` 和 `npm run build:desktop`。
 4. 构建两个 macOS 架构，生成候选 Cask，并运行 `ruby -c`、`brew style` 和离线 Strict Cask Audit；需要联网的 `brew audit --new` 只能在 Release URL 公开后运行。
 5. 在 Apple Silicon 与可用的 Intel Mac 上测试全新 Homebrew 安装。
 6. 测试 DMG Adopt 与可恢复备份路线，确认 Skill Source 和 App State 未被修改。
 7. 测试红色关窗后台行为、Dock/菜单栏恢复、单实例和完全退出。
 8. 在两个本地候选版本间执行真实 Cask 升级，验证应用内重启和版本核验。
 9. 恢复公开 Tap Remote 和已备份的 DMG App Bundle，再次运行只读诊断。
-10. 将 Windows 标记为已验证或明确未验证，不得用 macOS 结果推断 Windows 成功。
+10. 要求原生 Windows x64 GitHub Actions 打包任务通过，不得用 macOS 结果推断 Windows 成功。
 11. 创建由项目维护者控制且启用 Device Flow 的 GitHub OAuth App，将其公共 Client ID 配置为 Repository Variable `SKILL_CENTRAL_GITHUB_CLIENT_ID`；不得配置 Client Secret。
 12. 使用注入该 Client ID 的真实桌面候选包完成 GitHub 登录、用户信息读取、应用重启与登出；确认普通用户无需填写 Client ID，重启后仍保持登录，密文不含 Token 明文，登出删除密文，旧明文凭据被清除且不迁移，API 响应和日志中没有 Access Token、Device Code、Authorization Header、密文或原始原生异常。
-13. 按“1.0.0 启动识别发布矩阵”完成多平台/多 Agent smoke：记录 latest audit、目标状态计数和当前会话 discovery 结果；未验证平台或 Agent 必须明确标记，不得推断。
+13. 按“1.0.0 启动识别发布矩阵”完成正式平台与正式 Agent smoke：记录 latest audit、目标状态计数和当前会话 discovery 结果；实验性 Agent 在不可用时必须明确标记未验证，不得推断。
 14. 审查最终 Diff，确认没有追踪私有 `docs/dev/` 或 `logs/` 内容；得到维护者确认后，才可修改 Version 或创建 Tag。
 
 ## 回退与失败发布

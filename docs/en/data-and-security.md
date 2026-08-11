@@ -39,13 +39,13 @@ Authentication uses GitHub OAuth Device Flow:
 3. The local server polls GitHub after user authorization.
 4. The returned access token is written through the `TokenStore` interface.
 
-The requested scope is currently `repo`, which can grant access to private repositories authorized for the account. Use a dedicated, revocable OAuth grant and avoid high-value credentials during the Alpha.
+The requested scope is currently `repo`, which can grant access to private repositories authorized for the account. Use a dedicated, revocable OAuth grant and avoid high-value credentials.
 
 The Client ID is a public application identifier, not a client secret. The project OAuth App must have Device Flow enabled. The Release workflow injects the ID from the `SKILL_CENTRAL_GITHUB_CLIENT_ID` repository variable and refuses to package when it is missing or malformed. Never add a client secret to a desktop package, source file, log, or Actions configuration.
 
 The official desktop application encrypts the complete token record with Electron `safeStorage`: macOS relies on Keychain and Windows relies on DPAPI for the current OS user. The ciphertext uses restricted permissions and same-directory atomic replacement. Login is blocked when system encryption is unavailable; there is no plaintext fallback. When the desktop finds a legacy plaintext `github.token.json`, it deletes the file without migrating the token and requires login again. Corrupt or undecryptable ciphertext is also deleted and treated as logged out.
 
-The renderer, Board API, and authentication diagnostics never receive access tokens, device codes, authorization headers, ciphertext, or raw native exceptions. Logs contain only predefined operation stages, error codes, and non-sensitive cleanup events. The CLI still uses `DevelopmentFileTokenStore` for source development and is outside the Alpha.2 desktop security commitment. Linux desktop authentication is outside the Alpha.2 support scope; Windows DPAPI remains unverified until a real Windows packaged-app test passes.
+The renderer, Board API, and authentication diagnostics never receive access tokens, device codes, authorization headers, ciphertext, or raw native exceptions. Logs contain only predefined operation stages, error codes, and non-sensitive cleanup events. The CLI uses `DevelopmentFileTokenStore` for source development only and is outside the formal desktop security contract. Linux desktop authentication is outside the `1.0.0` support scope; Windows DPAPI must pass the native Windows packaging gate for every stable release.
 
 Logout removes the local token record but does not revoke the grant on GitHub. Revoke it separately in GitHub settings when compromise is suspected. Ciphertext is tied to OS-user credentials and is not guaranteed to survive migration to another device or system account.
 

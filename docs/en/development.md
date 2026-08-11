@@ -164,6 +164,6 @@ Do not silently reduce coverage because a platform is unavailable. Record the un
 
 ## Documentation Review
 
-Public documents describe only behavior present on `main`. Use explicit labels such as "experimental", "not yet implemented", or "current Alpha limitation" for partial behavior. Do not convert private roadmaps into product commitments.
+Public documents describe only behavior present on `main`. Use explicit labels such as "experimental", "not yet implemented", or "current limitation" for partial behavior. Do not convert private roadmaps into product commitments.
 
 When changing one language, update its counterpart in the same commit. Keep headings and conceptual coverage aligned even when the wording is not a literal translation.

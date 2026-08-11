@@ -114,7 +114,7 @@ appliesTo:
 
 Project identity prefers a stable `git:<host>/<owner>/<repo>` ID derived from Git `origin`. Without a supported remote it falls back to a canonical real path, `path:<absolute-path>`. GitHub project IDs are case-insensitive. Invalid, empty, or duplicate IDs produce field-level validation errors.
 
-Skills are filtered before entering the override tree, so non-matching candidates cannot affect conflict resolution and do not reach MCP, compiler, or ordinary CLI queries. Rules use the same matcher. The Rules CLI and Web Board expose an independent rule view; rule MCP resources are not implemented because the agent consumption model is still undecided.
+Skills are filtered before entering the override tree, so non-matching candidates cannot affect conflict resolution and do not reach MCP, compiler, or ordinary CLI queries. User-global Skills under `~/.skill-central/skills/` load at lower priority in every project. Rules use the same scope matcher and load from `~/.skill-central/rules/` plus the project `.rules/`; a same-ID project rule overrides the global rule. Coding Agents can consume Rules through `rule://registry` and `rule://rule/<id>` resources, `rules:all` and `rule:<id>` prompts, or the `rules.list` and `rules.get` tools.
 
 ## Reverse Output
 
@@ -186,7 +186,7 @@ Required checkpoints before promoting reverse output:
 
 ### Current MVP Surface
 
-The current Alpha implementation exposes one shared reverse-output control plane:
+The current experimental implementation exposes one shared reverse-output control plane:
 
 - The IDE-facing MCP tool is `reverse_output`.
 - The equivalent CLI entry is `skill-central reverse-output <action>`.

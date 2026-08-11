@@ -186,12 +186,12 @@ Changes must preserve these rules:
 
 Cross-boundary changes require an issue and design agreement before implementation. The contribution guide defines the review boundary.
 
-## Current Alpha Limitations
+## Current Limitations
 
 - Official desktop GitHub credentials use macOS Keychain/Windows DPAPI; the CLI still uses the development file TokenStore, and real Windows behavior remains unverified.
 - macOS packages are ad-hoc signed (no Developer ID) and not notarized.
-- macOS/Windows in-app desktop updates use GitHub Release metadata, but remain alpha and must be reverified for each release.
+- macOS/Windows in-app desktop updates use GitHub Release metadata and must be reverified for each release.
 - Compiler adapters currently exist for generic MCP, Cursor, and Windsurf; this is narrower than the six IDE connection targets.
-- Reverse output is an Alpha MVP exposed through MCP and CLI. The Board does not yet expose
+- Reverse output is experimental and exposed through MCP and CLI. The Board does not yet expose
   reverse-output proposal or promotion controls.
 - The Board has no user authentication. Non-loopback binding is an advanced, high-risk override, not a deployment mode.

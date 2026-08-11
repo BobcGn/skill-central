@@ -114,7 +114,7 @@ appliesTo:
 
 项目身份优先由 Git `origin` 生成稳定的 `git:<host>/<owner>/<repo>` ID。没有受支持的 Remote 时，退化为规范化真实路径 `path:<absolute-path>`。GitHub 项目 ID 不区分大小写；无效、空或重复 ID 会产生字段级校验错误。
 
-Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不会参与冲突解析，也不会进入 MCP、Compiler 或普通 CLI 查询。Rule 使用同一个匹配函数。Rules CLI 和 Web Board 提供独立规则视图；Rule MCP Resource 尚未实现，因为规则的 Agent 消费模型仍待确定。
+Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不会参与冲突解析，也不会进入 MCP、Compiler 或普通 CLI 查询。`~/.skill-central/skills/` 下的用户全局 Skill 会在所有项目中以较低优先级加载。Rule 使用同一个作用域 Matcher，并从 `~/.skill-central/rules/` 和项目 `.rules/` 加载；同 ID 项目 Rule 覆盖全局 Rule。Coding Agent 可通过 `rule://registry`、`rule://rule/<id>` Resource，`rules:all`、`rule:<id>` Prompt，或 `rules.list`、`rules.get` Tool 直接消费规则。
 
 ## 反向输出
 
@@ -163,7 +163,7 @@ Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不�
 
 ### 当前 MVP 入口
 
-当前 Alpha 已实现一个统一的反向输出控制面：
+当前实验性实现提供一个统一的反向输出控制面：
 
 - 面向 IDE 的 MCP Tool 是 `reverse_output`。
 - 对应的 CLI 入口是 `skill-central reverse-output <action>`。

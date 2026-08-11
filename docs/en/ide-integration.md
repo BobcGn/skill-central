@@ -52,20 +52,20 @@ The safe sequence is:
    when restoration is required.
 
 The same service is available for local verification through
-`skill-central reverse-output preview|apply|rollback`. The current Alpha MVP does not expose
+`skill-central reverse-output preview|apply|rollback`. The current experimental capability does not expose
 these proposal and promotion controls in the Web Board yet; the Board's existing Skill/Rule
 management remains a separate surface.
 
-## Supported Connection Targets
+## Connection Targets
 
-| Target | Format | Default candidates |
-| --- | --- | --- |
-| Codex | TOML | Existing project `.codex/config.toml`, then `~/.codex/config.toml` |
-| Claude | JSON | `~/.claude.json`, then the platform Claude Desktop configuration |
-| Trae | JSON | Platform application-data paths for Trae, Trae CN, and TRAE variants |
-| Cursor | JSON | `~/.cursor/mcp.json` |
-| Windsurf | JSON | `~/.codeium/windsurf/mcp_config.json` |
-| Cline | JSON | VS Code global storage for the Cline extension |
+| Target | Support | Format | Default candidates |
+| --- | --- | --- | --- |
+| Codex | Supported | TOML | Existing project `.codex/config.toml`, then `~/.codex/config.toml` |
+| Claude Code | Supported | JSON | `~/.claude.json` |
+| Cursor | Supported | JSON | `~/.cursor/mcp.json` |
+| Trae | Experimental | JSON | Platform application-data paths for Trae, Trae CN, and TRAE variants |
+| Windsurf | Experimental | JSON | `~/.codeium/windsurf/mcp_config.json` |
+| Cline | Experimental | JSON | VS Code global storage for the Cline extension |
 
 For Codex, detection may report an existing trusted project configuration, but creation defaults to the user configuration. Other targets select the first existing candidate or their first default candidate.
 
@@ -181,4 +181,4 @@ Do not add silent fallback writes to guessed paths. Unsupported or ambiguous cas
 
 ## Connection Targets vs Compile Targets
 
-The six targets above describe where Skill Central can register its MCP server. Compiler adapters describe target-specific preview artifacts and currently support only generic MCP, Cursor, and Windsurf. These registries serve different purposes and must not be presented as equivalent coverage.
+The targets above describe where Skill Central can generate or reconcile MCP configuration; only Codex, Claude Code, and Cursor are formally supported in `1.0.0`. Compiler adapters describe target-specific preview artifacts and currently support generic MCP, Cursor, and Windsurf. These registries serve different purposes and must not be presented as equivalent coverage.

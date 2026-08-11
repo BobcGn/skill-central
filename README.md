@@ -4,11 +4,11 @@ Local-first MCP hub for distributing reusable AI skills across IDEs.
 
 [简体中文](./README.zh-CN.md)
 
-> Current release candidate: `1.0.0-rc.3`. It is published as a public prerelease for real desktop, Homebrew, IDE, update, sync, and reverse-output validation before `1.0.0`. Keep backups of important skill registries and review every sync or IDE connection plan before applying it.
+> The `1.0.0` release supports macOS (Apple Silicon and Intel) and Windows x64. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Keep backups of important registries and review every sync or IDE connection plan before applying it.
 
-AI coding conventions often end up copied across Codex, Claude, Cursor, Windsurf, Cline, and other tools, each with its own config file and prompt format. Skill Central lets you write reusable Skills and covenant Rules once, keep them in governed local layers, and expose the same source through every MCP-capable IDE you connect.
+AI coding conventions often end up copied across Codex, Claude Code, Cursor, and other tools, each with its own config file and prompt format. Skill Central lets you write reusable Skills and covenant Rules once, keep them in governed local layers, and expose the same source through every MCP-capable Agent you connect.
 
-After an IDE is connected, it sees Skill Central prompts and tools through MCP. In this repository, that means the IDE can discover the project Skills plus built-in control tools such as reverse output and workflow commands from one local server.
+After an Agent is connected, it can consume Skills and applicable covenant Rules through MCP Resources, Prompts, and Tools. The same server also exposes built-in control tools such as reverse output and workflow commands.
 
 Skill Central includes a desktop application, a browser-based local board, a CLI, an MCP server, transactional IDE configuration, GitHub registry sync, and workflow/session primitives.
 
@@ -17,7 +17,7 @@ Skill Central includes a desktop application, a browser-based local board, a CLI
 - One local skill library with layered precedence and conflict visibility.
 - Desktop/Web Board navigation for Skills, Rules, IDE Connections, Sync, and Runtime.
 - Personal settings for GitHub Device Flow, system/light/dark themes, and English/Chinese.
-- IDE detection and MCP registration for Codex, Claude, Trae, Cursor, Windsurf, and Cline.
+- Formal IDE detection and MCP registration for Codex, Claude Code, and Cursor. Trae, Windsurf, and Cline adapters remain experimental and are reported as unverified when the application is not installed.
 - Preview, backup, apply, verify, and rollback for IDE configuration writes.
 - GitHub registry sync plans with conflict choices, audit records, and backups.
 - MCP prompts, tools, resources, sessions, blackboard topics, and workflow scheduling.
@@ -30,7 +30,7 @@ Skill Central includes a desktop application, a browser-based local board, a CLI
 
 Download the `.dmg` for your Mac from [GitHub Releases](https://github.com/BobcGn/skill-central/releases), open it, and drag **Skill Central** into **Applications**.
 
-The macOS alpha carries only an ad-hoc signature (no Developer ID) and is not notarized because the project does not currently use an Apple Developer Program certificate. If Gatekeeper blocks the first launch, first verify that the DMG came from the official `BobcGn/skill-central` Release, then use **System Settings > Privacy & Security > Open Anyway**. You can also Control-click the application in Finder, choose **Open**, and confirm.
+The macOS release carries only an ad-hoc signature (no Developer ID) and is not notarized because the project does not currently use an Apple Developer Program certificate. If Gatekeeper blocks the first launch, first verify that the DMG came from the official `BobcGn/skill-central` Release, then use **System Settings > Privacy & Security > Open Anyway**. You can also Control-click the application in Finder, choose **Open**, and confirm.
 
 Only if macOS still reports that the app is damaged and offers no exception, use this last resort:
 
@@ -40,7 +40,7 @@ xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 
 Then launch Skill Central again from **Applications**. This command removes the quarantine attribute only from the app at the exact path shown above and weakens Gatekeeper protection for that App Bundle. Do not run it against another path or an unverified artifact. Developer ID signing and Apple notarization remain the proper fix.
 
-`1.0.0-alpha.2` publishes the repaired desktop update route. Existing `1.0.0-alpha.1` installations contain the old updater, so they need the one-time upgrade step documented in [Release and Updates](./docs/en/release-and-updates.md).
+For upgrades from early preview builds whose updater cannot reach a final Release, install the current DMG manually once. Later packaged builds can use the repaired in-app updater documented in [Release and Updates](./docs/en/release-and-updates.md).
 
 ### macOS: Homebrew
 
@@ -55,20 +55,20 @@ open -a "Skill Central"
 
 Homebrew 6 requires explicit trust before it loads this third-party Tap. Review the repository and `Casks/skill-central.rb` before running `brew trust`. Installation does not launch the app; `open -a` starts the packaged Electron desktop program. Maintainers can run `npm run homebrew:diagnose` from a source checkout to audit Tap ownership, versions, process count, and the loopback listener.
 
-This alpha carries only an ad-hoc signature (no Developer ID) and is not notarized. If macOS blocks first launch, verify the repository, Release asset, and pinned checksum, then prefer **Open Anyway** in System Settings. Use the exact-path `xattr` command in the DMG section only when macOS offers no exception. Signing and notarization are required before this workaround can be removed.
+This release carries only an ad-hoc signature (no Developer ID) and is not notarized. If macOS blocks first launch, verify the repository, Release asset, and pinned checksum, then prefer **Open Anyway** in System Settings. Use the exact-path `xattr` command in the DMG section only when macOS offers no exception. Signing and notarization are required before this workaround can be removed.
 
-After `1.0.0-alpha.2` is installed, closing the red window button leaves one local process and Board server running. Reopen it from the Dock, the application menu, or the menu bar icon. Use **Quit Skill Central** or `Command-Q` to stop the process fully.
+After Skill Central is installed, closing the red window button leaves one local process and Board server running. Reopen it from the Dock, the application menu, or the menu bar icon. Use **Quit Skill Central** or `Command-Q` to stop the process fully.
 
 ### Windows
 
-Download the NSIS `.exe` from the [GitHub Releases](https://github.com/BobcGn/skill-central/releases) page. The NSIS installation receives later prereleases through the in-app updater and restarts after the update is installed.
+Download the NSIS `.exe` from the [GitHub Releases](https://github.com/BobcGn/skill-central/releases) page. The NSIS installation receives later stable updates through the in-app updater and restarts after the update is installed.
 
-Current Windows release candidates are not Authenticode-signed. SmartScreen can show an unrecognized-app warning on first run; this is expected until the project adds Windows code signing. Before running the installer, verify that it came from the official `BobcGn/skill-central` Release.
+Current Windows releases are not Authenticode-signed. SmartScreen can show an unrecognized-app warning on first run; this is expected until the project adds Windows code signing. Before running the installer, verify that it came from the official `BobcGn/skill-central` Release.
 
 Each release publishes a `latest.yml` file with a base64 SHA-512 digest for the NSIS installer. You can compare the downloaded file against that value in PowerShell:
 
 ```powershell
-$path = ".\Skill-Central-1.0.0-rc.3-win-x64.exe"
+$path = ".\Skill-Central-1.0.0-win-x64.exe"
 $h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
 [Convert]::ToBase64String($h)
 ```
@@ -118,7 +118,7 @@ skill-central mcp
 
 Protocol responses use stdout; diagnostics use stderr so MCP JSON-RPC remains clean.
 
-## Reverse Output (Alpha MVP)
+## Reverse Output (Experimental)
 
 After an IDE connects to Skill Central, it can call the `reverse_output` MCP tool to preview
 and explicitly promote, defer, discard, or roll back a structured Skill/Rule candidate. The
@@ -151,14 +151,14 @@ skill-central register claude
 skill-central register trae
 ```
 
-| Target | Configuration |
-| --- | --- |
-| Codex | Project `.codex/config.toml` when present, otherwise `~/.codex/config.toml` |
-| Claude | Claude Code and Claude Desktop JSON configuration candidates |
-| Trae | International and China edition `mcp.json` candidates |
-| Cursor | Cursor MCP JSON configuration |
-| Windsurf | Windsurf MCP JSON configuration |
-| Cline | Cline MCP settings JSON configuration |
+| Target | Support | Configuration |
+| --- | --- | --- |
+| Codex | Supported | Project `.codex/config.toml` when present, otherwise `~/.codex/config.toml` |
+| Claude Code | Supported | Claude Code user JSON configuration |
+| Cursor | Supported | Cursor MCP JSON configuration |
+| Trae | Experimental | International and China edition `mcp.json` candidates |
+| Windsurf | Experimental | Windsurf MCP JSON configuration |
+| Cline | Experimental | Cline MCP settings JSON configuration |
 
 Codex configuration is parsed and validated as TOML. Other targets use structured JSON handling. Existing unrelated entries are preserved. Apply operations create backup evidence and can be rolled back.
 
@@ -219,7 +219,7 @@ prompt: |
   - summary must be lowercase, imperative mood, no period at end
 ```
 
-The default layers are `01-global` (priority 10), `02-workflows` (20), `03-domains` (30), and `04-tech-stack` (40). When IDs collide, the higher-priority valid skill becomes effective while the complete resolution chain remains inspectable.
+User-global Skills under `~/.skill-central/skills/` are loaded in every project at lower priority. Project layers default to `01-global` (priority 10), `02-workflows` (20), `03-domains` (30), and `04-tech-stack` (40). Applicable Rules are loaded from `~/.skill-central/rules/` and the project `.rules/`; a same-ID project rule overrides the global rule. Agents can read Rules through `rule://` resources, `rules:all` / `rule:<id>` prompts, and `rules.list` / `rules.get` tools.
 
 ## GitHub Sync
 
@@ -231,7 +231,7 @@ SKILL_CENTRAL_GITHUB_CLIENT_ID=<oauth-client-id> skill-central sync login --poll
 skill-central sync plan --registry-dir ./skill-central-registry --direction both
 ```
 
-`1.0.0-alpha.2` desktop packages contain the project Client ID and support GitHub Device Flow from the Personal settings view. The public `1.0.0-alpha.1` package does not contain that Client ID, so GitHub connection fails there; upgrade to `1.0.0-alpha.2` before testing GitHub sync.
+Official desktop packages contain the project Client ID and support GitHub Device Flow from the Personal settings view. Preview packages without this metadata must be upgraded before GitHub sync can be used.
 
 Remote writes require an explicit plan and confirmation. Sync operations preserve audit and backup evidence. Tokens are never returned by the Web API or written to browser storage.
 
@@ -239,10 +239,10 @@ Official desktop packages encrypt GitHub tokens through macOS Keychain or Window
 
 ## Automatic Updates
 
-- **macOS:** packaged desktop builds check GitHub Releases in app and no longer require a trusted Homebrew Tap or Cask ownership before update checks. The current alpha is ad-hoc signed (no Developer ID) and not notarized, so in-app update installation passes local signature validation; the Release DMG remains the manual fallback. Homebrew remains available as an installation route with pinned checksums.
+- **macOS:** packaged desktop builds check GitHub Releases in app and no longer require a trusted Homebrew Tap or Cask ownership before update checks. The application is ad-hoc signed (no Developer ID) and not notarized, so in-app update installation passes local signature validation; the Release DMG remains the manual fallback. Homebrew remains available as an installation route with pinned checksums.
 - **Windows:** packaged NSIS builds check GitHub Releases, download the update and blockmap automatically, then expose **Install and restart** when ready.
 - **CLI/Web-only mode:** reports the updater as unavailable and never tries to mutate an installation.
-- Prereleases are enabled while the installed app version is an alpha.
+- Stable builds receive stable updates. Preview builds may opt into prereleases according to their installed version channel.
 
 ## Security Boundaries
 

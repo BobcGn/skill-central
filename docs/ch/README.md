@@ -12,7 +12,7 @@
 | [Skills 与 Layers](./skills-and-layers.md) | Skill 作者与贡献者 | Skill Schema、Layer 治理、解析、编译与 MCP 暴露 |
 | [IDE 集成](./ide-integration.md) | 使用者与集成贡献者 | 支持的 IDE、配置发现、连接事务与健康检查 |
 | [启动即识别](./startup-agent-recognition.md) | 使用者与集成贡献者 | 启动后让 Coding Agent 发现并使用 Skill Central 的边界、流程和任务规划 |
-| [数据与安全](./data-and-security.md) | 使用者、审查者与安全贡献者 | 本地数据位置、信任边界、凭据、备份与 Alpha 限制 |
+| [数据与安全](./data-and-security.md) | 使用者、审查者与安全贡献者 | 本地数据位置、信任边界、凭据、备份与当前限制 |
 | [开发指南](./development.md) | 贡献者 | 仓库结构、本地开发、测试和变更要求 |
 | [发布与更新](./release-and-updates.md) | 维护者与打包贡献者 | 发布不变量、产物、更新方式和平台限制 |
 

@@ -17,7 +17,7 @@ Skill Central controls and verifies the first three layers. The fourth layer dep
 
 Skill Central can guarantee:
 
-- Detect known local targets: Codex, Claude, Trae, Cursor, Windsurf, and Cline.
+- Formally detect and reconcile Codex, Claude Code, and Cursor. Trae, Windsurf, and Cline remain explicit experimental targets.
 - Write or refresh the `skill-central` MCP config for supported targets.
 - Preserve existing user config through connect transactions, backups, and rollback.
 - Verify the configured command with MCP handshake, prompt/tool listing, and Registry baseline comparison.
@@ -36,7 +36,7 @@ The desktop app should run a `StartupConnectionReconciler` after launch:
 
 1. Read the current workspace, global config, Skill Registry, and Rules.
 2. Start the local MCP runtime and verify stdio handshake.
-3. Scan config candidates for `SUPPORTED_IDES`.
+3. Scan config candidates for `RELEASE_SUPPORTED_IDES` (Codex, Claude Code, and Cursor).
 4. Build a connect plan for each target:
    - Not registered: create a write plan.
    - Registered and identical: mark ready-to-verify.
@@ -55,9 +55,9 @@ POST /api/startup-recognition
 GET  /api/startup-recognition/latest
 ```
 
-By default it only returns a recognition report and does not write config files. Callers must explicitly pass `applyDrift: true` to refresh a registered-but-drifted `skill-central` entry. The API returns structured per-target results; one target's config error does not hide the rest of the report.
+By default it only returns a recognition report and does not write config files. Callers must explicitly pass `applyDrift: true` to refresh a registered-but-drifted `skill-central` entry, and `registerMissing: true` to add the entry to an existing readable Agent config. The API returns structured per-target results; one target's config error does not hide the rest of the report.
 
-After the Board server starts listening, the desktop app calls this API asynchronously and writes an app-state audit. This startup hook does not block the visible window and does not silently create new IDE config files; it only refreshes an existing, already registered `skill-central` entry when its command or arguments have drifted. The Board IDE page reads the latest audit and displays the last recognition time, status counts, and audit path.
+After the Board server starts listening, the desktop app calls this API asynchronously and writes an app-state audit. This startup hook does not block the visible window. It can refresh drift and register Skill Central into an existing readable supported-Agent config through the backup-backed transaction, but it does not create a config for an Agent that is not installed or has no config evidence. The Board IDE page reads the latest audit and displays the last recognition time, status counts, and audit path.
 
 ## Work Plan
 
@@ -100,13 +100,13 @@ Acceptance evidence:
 ### Phase 4: Observability and Release Matrix
 
 - Write startup recognition audits to app state with target, config path, plan summary, verification result, and failure summary.
-- Add cross-platform config path samples for macOS, Windows, and Linux.
+- Add cross-platform config path samples for the supported macOS and Windows releases.
 - Add "first launch recognition matrix" to the release checklist.
 
 Acceptance evidence:
 
 - Audits can reconstruct launch, register/refresh, verify, and user guidance.
-- Release candidates complete real local recognition checks for at least Codex, Claude, and Cursor.
+- Stable releases complete real local recognition checks for Codex, Claude Code, and Cursor.
 
 ## Rollback
 
@@ -117,4 +117,4 @@ Acceptance evidence:
 
 ## Current Slice
 
-Phase 1 and the release-candidate implementation of Phase 2 are complete: `register` refreshes drifted configs, desktop startup runs the safe reconciler asynchronously, and the Board can display the latest audit. The remaining focus is Phase 3 current-session discovery guidance and Phase 4 real macOS/Windows/Linux plus multi-Agent matrix validation.
+The `1.0.0` slice implements drift refresh, safe registration into existing supported-Agent configs, asynchronous startup audit, and Board status with explicit experimental/unverified labels. Skills are available through MCP prompts/tools/resources; Rules are directly consumable through `rule://` resources, `rules:all` and `rule:<id>` prompts, plus `rules.list` and `rules.get` tools. Current-session discovery still depends on each Agent and may require a reload or a new task.

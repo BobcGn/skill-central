@@ -4,11 +4,11 @@
 
 [English](./README.md)
 
-> 当前 Release Candidate：`1.0.0-rc.3`。它会作为公开 Prerelease 用于真实桌面、Homebrew、IDE、更新、同步和反向输出验收，通过后再进入 `1.0.0` 正式发布。请为重要的 Skill Registry 保留备份，并在执行同步或 IDE 连接前检查计划内容。
+> `1.0.0` 正式支持 macOS（Apple Silicon 与 Intel）和 Windows x64；正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。请为重要 Registry 保留备份，并在执行同步或 Agent 连接前检查计划内容。
 
-AI 编码约定经常被复制到 Codex、Claude、Cursor、Windsurf、Cline 等工具中，每个工具都有自己的配置文件和提示词格式。Skill Central 让你只编写一次可复用 Skill 和公约 Rule，把它们放在有治理边界的本地层级中，再通过 MCP 暴露给每个已连接的 IDE。
+AI 编码约定经常被复制到 Codex、Claude Code、Cursor 等工具中，每个工具都有自己的配置文件和提示词格式。Skill Central 让你只编写一次可复用 Skill 和公约 Rule，把它们放在有治理边界的本地层级中，再通过 MCP 暴露给每个已连接的 Agent。
 
-IDE 连接后，可以从同一个本地 Server 发现 Skill Central 的 prompts 和 tools。在本仓库中，这意味着 IDE 能看到项目 Skill，以及 reverse output、workflow 等内置控制工具。
+Agent 连接后，可以通过 MCP Resources、Prompts 与 Tools 直接读取 Skill 和适用的公约 Rule；同一个本地 Server 也提供 reverse output、workflow 等内置控制工具。
 
 Skill Central 包含桌面应用、本地 Web Board、CLI、MCP Server、事务化 IDE 配置、GitHub Registry 同步以及 Workflow/Session 能力。
 
@@ -17,7 +17,7 @@ Skill Central 包含桌面应用、本地 Web Board、CLI、MCP Server、事务�
 - 使用明确层级优先级和冲突证据管理本地 Skill。
 - 桌面/Web Board 提供 Skills、Rules、IDE Connections、Sync、Runtime 主导航。
 - 个人设置支持 GitHub Device Flow、system/light/dark 主题和中英文切换。
-- 检测并注册 Codex、Claude、Trae、Cursor、Windsurf 和 Cline。
+- 正式检测并注册 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 适配器为实验性；未安装应用时明确显示“未验证”。
 - IDE 配置写入支持预览、备份、应用、验证与回退。
 - GitHub Registry 同步支持冲突选择、审计记录和备份。
 - 提供 MCP prompts、tools、resources、sessions、blackboard topics 和 workflow scheduler。
@@ -30,7 +30,7 @@ Skill Central 包含桌面应用、本地 Web Board、CLI、MCP Server、事务�
 
 请从 [GitHub Releases](https://github.com/BobcGn/skill-central/releases) 下载适合当前 Mac 架构的 `.dmg`，打开后将 **Skill Central** 拖入 **Applications（应用程序）**。
 
-项目当前没有使用 Apple Developer Program 证书，因此 macOS Alpha 包仅有本地 ad-hoc 签名（无 Developer ID），未公证。首次启动被 Gatekeeper 阻止时，请先确认 DMG 来自官方 `BobcGn/skill-central` Release，然后在**系统设置 → 隐私与安全性**中选择**仍要打开**。也可以在 Finder 中按住 Control 点击应用、选择**打开**并确认。
+项目当前没有使用 Apple Developer Program 证书，因此 macOS 正式包仅有本地 ad-hoc 签名（无 Developer ID），未公证。首次启动被 Gatekeeper 阻止时，请先确认 DMG 来自官方 `BobcGn/skill-central` Release，然后在**系统设置 → 隐私与安全性**中选择**仍要打开**。也可以在 Finder 中按住 Control 点击应用、选择**打开**并确认。
 
 如果系统仍提示应用“已损坏”且没有提供放行选项，才使用以下最后手段：
 
@@ -40,7 +40,7 @@ xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
 
 执行完成后，从 **Applications（应用程序）** 再次启动 Skill Central。该命令只会移除上述准确路径中应用的 quarantine 属性，会降低该 App Bundle 的 Gatekeeper 保护；不要对其他路径或未经核验的产物执行。真正的修复仍是 Developer ID 签名和 Apple 公证。
 
-`1.0.0-alpha.2` 已发布修复后的桌面更新路线。现有 `1.0.0-alpha.1` 安装包含旧更新器，无法被追溯修复，因此需要按[发布与更新](./docs/ch/release-and-updates.md)中的一次性升级步骤迁移。
+早期预览版若无法通过旧更新器访问正式 Release，需要手动安装一次当前 DMG；后续打包版本可使用[发布与更新](./docs/ch/release-and-updates.md)中说明的应用内更新路线。
 
 ### macOS：Homebrew
 
@@ -55,20 +55,20 @@ open -a "Skill Central"
 
 Homebrew 6 在加载第三方 Tap 前要求显式信任。执行 `brew trust` 前应先检查仓库和 `Casks/skill-central.rb`。安装不会自动启动应用；`open -a` 启动的是打包后的 Electron 桌面程序。维护者可以在源码 Checkout 中运行 `npm run homebrew:diagnose`，核验 Tap 归属、版本、进程数量和 Loopback Listener。
 
-当前 Alpha 仅有本地 ad-hoc 签名（无 Developer ID），未公证。如果 macOS 阻止首次启动，请先核验仓库、Release 产物和固定校验值，再优先使用系统提供的**仍要打开**；仅在系统没有提供放行选项时，使用 DMG 小节中限定准确路径的 `xattr` 命令。完成签名和公证后才能移除这个临时处理。
+当前版本仅有本地 ad-hoc 签名（无 Developer ID），未公证。如果 macOS 阻止首次启动，请先核验仓库、Release 产物和固定校验值，再优先使用系统提供的**仍要打开**；仅在系统没有提供放行选项时，使用 DMG 小节中限定准确路径的 `xattr` 命令。完成签名和公证后才能移除这个临时处理。
 
-安装 `1.0.0-alpha.2` 后，点击左上角红色按钮会保留一个本地进程和 Board Server。可以通过 Dock、应用菜单或菜单栏图标重新显示窗口；使用 **Quit Skill Central** 或 `Command-Q` 才会完全退出。
+安装 Skill Central 后，点击左上角红色按钮会保留一个本地进程和 Board Server。可以通过 Dock、应用菜单或菜单栏图标重新显示窗口；使用 **Quit Skill Central** 或 `Command-Q` 才会完全退出。
 
 ### Windows
 
-从 [GitHub Releases](https://github.com/BobcGn/skill-central/releases) 下载 NSIS `.exe`。NSIS 安装版本可以在应用中接收后续预发布更新，并在安装完成后重启。
+从 [GitHub Releases](https://github.com/BobcGn/skill-central/releases) 下载 NSIS `.exe`。NSIS 安装版本可以在应用中接收后续稳定更新，并在安装完成后重启。
 
-当前 Windows Release Candidate 尚未使用 Authenticode 签名。首次运行时 SmartScreen 可能显示“无法识别的应用”警告；在项目加入 Windows 代码签名前，这是预期行为。运行安装包前，请先确认它来自官方 `BobcGn/skill-central` Release。
+当前 Windows 正式包尚未使用 Authenticode 签名。首次运行时 SmartScreen 可能显示“无法识别的应用”警告；在项目加入 Windows 代码签名前，这是预期行为。运行安装包前，请先确认它来自官方 `BobcGn/skill-central` Release。
 
 每个 Release 会发布包含 NSIS 安装包 base64 SHA-512 摘要的 `latest.yml`。可在 PowerShell 中计算下载文件并与该值比对：
 
 ```powershell
-$path = ".\Skill-Central-1.0.0-rc.3-win-x64.exe"
+$path = ".\Skill-Central-1.0.0-win-x64.exe"
 $h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
 [Convert]::ToBase64String($h)
 ```
@@ -118,7 +118,7 @@ skill-central mcp
 
 协议响应使用 stdout，诊断信息使用 stderr，避免污染 MCP JSON-RPC 通道。
 
-## 反向输出（Alpha MVP）
+## 反向输出（实验性）
 
 IDE 连接 Skill Central 后，可以调用 `reverse_output` MCP Tool，预览并显式
 Promote、Defer、Discard 或 Rollback 结构化 Skill/Rule 候选项。相同控制面也可通过
@@ -150,14 +150,14 @@ skill-central register claude
 skill-central register trae
 ```
 
-| 目标 | 配置位置 |
-| --- | --- |
-| Codex | 已存在时使用项目 `.codex/config.toml`，否则使用 `~/.codex/config.toml` |
-| Claude | Claude Code 与 Claude Desktop JSON 配置候选路径 |
-| Trae | 国际版与中国版 `mcp.json` 候选路径 |
-| Cursor | Cursor MCP JSON 配置 |
-| Windsurf | Windsurf MCP JSON 配置 |
-| Cline | Cline MCP settings JSON 配置 |
+| 目标 | 支持级别 | 配置位置 |
+| --- | --- | --- |
+| Codex | 正式支持 | 已存在时使用项目 `.codex/config.toml`，否则使用 `~/.codex/config.toml` |
+| Claude Code | 正式支持 | Claude Code 用户级 JSON 配置 |
+| Cursor | 正式支持 | Cursor MCP JSON 配置 |
+| Trae | 实验性 | 国际版与中国版 `mcp.json` 候选路径 |
+| Windsurf | 实验性 | Windsurf MCP JSON 配置 |
+| Cline | 实验性 | Cline MCP settings JSON 配置 |
 
 Codex 配置通过 TOML 解析和校验，其他目标使用结构化 JSON 处理。现有无关配置会被保留；Apply 会生成备份证据并支持回退。
 
@@ -218,7 +218,7 @@ prompt: |
   - summary must be lowercase, imperative mood, no period at end
 ```
 
-默认层级为 `01-global`（优先级 10）、`02-workflows`（20）、`03-domains`（30）和 `04-tech-stack`（40）。ID 冲突时，高优先级的有效 Skill 生效，同时完整解析链仍可检查。
+`~/.skill-central/skills/` 下的用户全局 Skill 会在任意项目中以较低优先级自动加载；项目层默认使用 `01-global`（优先级 10）、`02-workflows`（20）、`03-domains`（30）和 `04-tech-stack`（40）。适用 Rule 同时从 `~/.skill-central/rules/` 与项目 `.rules/` 加载，同 ID 项目 Rule 覆盖全局 Rule。Agent 可通过 `rule://` Resource、`rules:all` / `rule:<id>` Prompt 以及 `rules.list` / `rules.get` Tool 直接读取规则。
 
 ## GitHub 同步
 
@@ -230,7 +230,7 @@ SKILL_CENTRAL_GITHUB_CLIENT_ID=<oauth-client-id> skill-central sync login --poll
 skill-central sync plan --registry-dir ./skill-central-registry --direction both
 ```
 
-`1.0.0-alpha.2` 桌面包已包含项目 Client ID，可在个人设置中使用 GitHub Device Flow。公开的 `1.0.0-alpha.1` 没有内置该 Client ID，因此 GitHub 连接会失败；测试 GitHub 同步前请升级到 `1.0.0-alpha.2`。
+正式桌面包内置项目 Client ID，可在个人设置中使用 GitHub Device Flow。未包含该元数据的早期预览包需要先升级，才能使用 GitHub Sync。
 
 远程写入必须先生成计划并显式确认。同步操作会保留审计和备份证据；token 不会通过 Web API 返回，也不会写入浏览器存储。
 
@@ -238,10 +238,10 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 
 ## 自动更新
 
-- **macOS：** 打包桌面版检查 GitHub Releases，不再要求 Homebrew Tap 已信任或由 Cask 接管后才能检查更新。当前 Alpha 为本地 ad-hoc 签名（无 Developer ID）、未公证，应用内更新安装可通过本地签名校验；失败时按 Release DMG 手动替换。Homebrew 仍可作为安装和固定校验值路线。
+- **macOS：** 打包桌面版检查 GitHub Releases，不再要求 Homebrew Tap 已信任或由 Cask 接管后才能检查更新。应用为本地 ad-hoc 签名（无 Developer ID）、未公证，应用内更新安装可通过本地签名校验；失败时按 Release DMG 手动替换。Homebrew 仍可作为安装和固定校验值路线。
 - **Windows：** NSIS 安装版本检查 GitHub Releases，自动下载更新包和 blockmap，准备完成后显示 **安装并重启**。
 - **仅 CLI/Web 模式：** 明确显示更新器不可用，不会尝试修改安装目录。
-- 当前安装版本为 Alpha 时允许接收预发布更新。
+- 稳定版接收稳定更新；预览版可按其安装版本 Channel 接收预发布更新。
 
 ## 安全边界
 

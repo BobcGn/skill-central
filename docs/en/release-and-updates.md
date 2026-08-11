@@ -4,11 +4,9 @@
 
 Release creation, tags, package publication, signing, and repository permission changes are maintainer-only operations. Contributors may improve implementation and tests, but must not create a project Release without explicit authorization.
 
-## Current Release Candidate
+## Current Release
 
-`1.0.0-rc.3` is the current release candidate and is intended to be published as a public GitHub prerelease after the workflow stages the draft artifacts. Public prerelease publication is required before Homebrew and in-app update checks can download `latest-mac.yml`, `latest.yml`, and installer assets. RC.3 adds the macOS in-app update installation fix (ad-hoc re-signing so `SecStaticCodeCheckValidity` passes) and classified, localized update error reasons, on top of the RC.2 Dock single-icon, unpacked-build cleanup, and install-location warning work. It remains ad-hoc signed (no Developer ID) and not notarized on macOS, and Windows packaged behavior still requires real machine verification before `1.0.0`.
-
-The already published `alpha.1` application contains the broken updater and cannot be fixed retroactively. Upgrading an existing `alpha.1` installation to `alpha.2` therefore requires one Terminal operation or a manual DMG replacement. Later packaged desktop releases can use the repaired in-app updater.
+`1.0.0` supports macOS arm64/x64 and Windows x64. macOS artifacts are ad-hoc signed (no Developer ID) and not notarized; Windows artifacts are not Authenticode-signed. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Trae, Windsurf, and Cline configuration adapters remain experimental and must be reported as unverified when their applications are unavailable.
 
 ## Version Invariants
 
@@ -28,7 +26,7 @@ A pushed `v*` tag starts the Release workflow only after candidate validation ha
 1. Validate the version and changelog, then run lint and the complete integration suite.
 2. Build the source archive and macOS/Windows desktop artifacts.
 3. Generate a Cask from the actual arm64/x64 DMGs and their SHA-256 digests.
-4. Open a Cask update pull request against `main` but leave it unmerged.
+4. Push a checksum-pinned Cask branch and open a pull request against `main`, leaving it unmerged. If repository policy blocks Actions from opening the PR, use the compare link recorded in the workflow summary to open it manually.
 5. Assemble the artifacts as a draft GitHub Release.
 6. Inspect and publish the draft manually only after every release gate passes.
 7. Immediately merge the generated Cask PR, then test the public Homebrew install and upgrade routes.
@@ -68,7 +66,7 @@ Review the repository and `Casks/skill-central.rb` before granting trust. The Ca
 npm run homebrew:diagnose
 ```
 
-The macOS alpha carries only an ad-hoc signature (no Developer ID) and is not notarized, so it cannot pass normal Gatekeeper verification. If Gatekeeper blocks the first launch, verify the official repository, Release asset, and pinned Cask SHA-256, then prefer **System Settings > Privacy & Security > Open Anyway** or Control-click the application in Finder and choose **Open**. Only if macOS still reports that the app is damaged and offers no exception, run:
+The macOS application carries only an ad-hoc signature (no Developer ID) and is not notarized, so it cannot pass normal Gatekeeper verification. If Gatekeeper blocks the first launch, verify the official repository, Release asset, and pinned Cask SHA-256, then prefer **System Settings > Privacy & Security > Open Anyway** or Control-click the application in Finder and choose **Open**. Only if macOS still reports that the app is damaged and offers no exception, run:
 
 ```bash
 xattr -r -d com.apple.quarantine /Applications/"Skill Central".app
@@ -92,18 +90,6 @@ brew install --cask --require-sha bobcgn/skill-central/skill-central
 ```
 
 This moves only the App Bundle. Skill sources under `~/.skill-central/` and application state under `~/Library/Application Support/skill-central/` remain untouched. Keep the backup until the Homebrew installation passes the smoke test. Do not use `brew uninstall --zap` for migration or routine upgrades.
-
-## One-Time Alpha.1 Upgrade
-
-Because the `alpha.2` Release is public and its generated Cask has been merged, an `alpha.1` user must first adopt or install the Cask as above, then run:
-
-```bash
-brew update
-brew upgrade --cask --require-sha bobcgn/skill-central/skill-central
-open -a "Skill Central"
-```
-
-This one-time Terminal step or manual DMG replacement is required because the public `alpha.1` binary does not contain the repaired updater.
 
 ## Desktop Background Contract
 
@@ -157,14 +143,14 @@ Restore any `.pre-homebrew` App Bundle only after the candidate has been uninsta
 
 The desktop creates one platform-specific `UpdateController` and exposes its snapshot through the loopback Board API. A packaged desktop checks once shortly after first window load; development and unsupported builds do not modify an installation.
 
-On macOS and Windows, packaged desktop builds use `electron-updater` against GitHub Release metadata. Alpha builds allow prerelease updates; checking for updates no longer depends on Homebrew Tap trust or Cask ownership. The current macOS alpha is ad-hoc signed (no Developer ID) and not notarized; in-app update installation passes local signature validation, and the Release DMG remains the manual fallback. The Homebrew Cask remains a macOS installation route with pinned SHA-256 checksums, but it is not a prerequisite for in-app update checks.
+On macOS and Windows, packaged desktop builds use `electron-updater` against GitHub Release metadata. Stable builds receive stable updates; preview channels may receive prereleases. Update checks do not depend on Homebrew Tap trust or Cask ownership. The macOS application is ad-hoc signed (no Developer ID) and not notarized; in-app update installation passes local signature validation, and the Release DMG remains the manual fallback. The Homebrew Cask remains a macOS installation route with pinned SHA-256 checksums, but it is not a prerequisite for in-app update checks.
 
 Update check failures are classified into concise, stable user-facing reasons
 (release not published yet, network unreachable, server rejection, or unknown) and
 rendered with localized copy in the Board. Raw request details — URLs, headers, and
 stack context — never reach the client UI; they stay in the desktop diagnostic log.
 
-On Windows, packaged NSIS builds also use `electron-updater` with GitHub. MSI and ZIP are manual deployment formats and are not assumed to have NSIS update behavior. Windows remains unverified for these changes and must be tested separately before claiming support.
+On Windows, packaged NSIS builds also use `electron-updater` with GitHub. MSI and ZIP are manual deployment formats and are not assumed to have NSIS update behavior. Every stable release must validate the Windows x64 package in its native GitHub Actions job.
 
 ## 1.0.0 Startup Recognition Release Matrix
 
@@ -174,10 +160,10 @@ The final release must validate four separate layers: the app started, MCP stdio
 | --- | --- | --- | --- |
 | macOS desktop | Run startup recognition asynchronously after Board startup and expose the latest audit | `npm run lint` and `npm test` cover the reconciler, API, and Board summary entry | First launch on arm64 and available x64 packages confirms audit creation and no duplicate process |
 | Windows desktop | After NSIS install, Board starts and the MCP command path is executable by target Agents | Path and format logic are indirectly covered by unit/integration tests | Real Windows x64 install, launch, quit, update, and at least Codex/Cursor registration checks |
-| Linux / development run | CLI/source runs still produce consistent connect plans and audits | CLI `register`, `connect`, `doctor --ide`, and Web API tests | If a Linux desktop package is shipped, add real install smoke; otherwise document CLI/dev support only |
 | Codex | Registered config is not the same as current-task MCP discovery; a new task or discovery path may be needed | Docs/UI distinguish config registration from session discovery | New Codex task discovers `skill-central` MCP tools; old task receives refresh guidance |
 | Claude / Claude Code | JSON config preserves existing servers and backs up drift refreshes | Connect transaction and startup recognition tests cover server preservation | Real client restart recognizes the `skill-central` server |
-| Cursor / Windsurf / Trae / Cline | Target config format is correct and one target failure does not hide other reports | `SUPPORTED_IDES`, config codecs, and Web API single-target isolation tests | Cursor is required; others must be recorded as verified or explicitly unverified according to available clients |
+| Cursor | JSON config preserves existing servers; startup repair is transactional | Connect transaction, MCP gate, and startup recognition tests | Real client restart recognizes Skills and Rules from `skill-central` |
+| Trae / Windsurf / Cline | Experimental target config generation remains isolated from formal support | Config codecs and Web API single-target isolation tests | Record as experimental and unverified when the application is unavailable |
 
 After each candidate smoke run, record the latest startup recognition audit path, target status counts, manual Agent discovery result, and any repair guidance in release notes or maintainer validation logs. Audit files must not contain environment variables, access tokens, device codes, authorization headers, or long stderr dumps.
 
@@ -196,17 +182,17 @@ The Release workflow validates this variable and writes it into desktop package 
 
 1. Land all English and Chinese installation, migration, update, security, and lifecycle documentation.
 2. Keep package metadata at the current released version until implementation and documentation are ready for candidate packaging.
-3. Run `npm ci`, `npm run lint`, `npm test`, and `npm run build:desktop` from a clean checkout.
+3. Run `npm ci`, `npm audit --omit=dev`, `npm run lint`, `npm test`, `npm run test:mcp`, `npm run test:risk`, and `npm run build:desktop` from a clean checkout.
 4. Build both macOS architectures; generate the candidate Cask and run `ruby -c`, `brew style`, and offline strict Cask audit checks. Run the online `brew audit --new` only after the Release URL is public.
 5. Test a fresh Homebrew install on Apple Silicon and Intel where available.
 6. Test DMG adoption and the recoverable backup route without changing skill sources or application state.
 7. Test red-button background behavior, Dock/menu bar restore, single instance, and full Quit.
 8. Test an actual Cask upgrade between two local candidate versions, including in-app restart and version verification.
 9. Restore the public Tap remote and any backed-up DMG App Bundle; rerun the read-only diagnostic.
-10. Record Windows as verified or explicitly unverified; do not infer Windows success from macOS.
+10. Require the native Windows x64 GitHub Actions package job to pass; do not infer Windows success from macOS.
 11. Create a maintainer-controlled GitHub OAuth App with Device Flow enabled and set its public Client ID as the `SKILL_CENTRAL_GITHUB_CLIENT_ID` repository variable. Do not configure a client secret.
 12. Use a real desktop candidate containing that Client ID to complete GitHub login, user-profile lookup, application restart, and logout. Confirm that users do not enter a Client ID, login survives restart, ciphertext contains no plaintext token, logout removes ciphertext, legacy plaintext credentials are deleted without migration, and API responses and logs contain no access token, device code, authorization header, ciphertext, or raw native exception.
-13. Complete the multi-platform/multi-Agent smoke checks in the "1.0.0 Startup Recognition Release Matrix": record the latest audit, target status counts, and current-session discovery result. Mark unverified platforms or Agents explicitly; do not infer them from other environments.
+13. Complete the supported-platform and supported-Agent smoke checks in the "1.0.0 Startup Recognition Release Matrix": record the latest audit, target status counts, and current-session discovery result. Mark experimental Agents as unverified when unavailable; do not infer them from other environments.
 14. Review the final diff, confirm no private `docs/dev/` or `logs/` material is tracked, then obtain maintainer approval before changing versions or tagging.
 
 ## Rollback and Failed Releases
