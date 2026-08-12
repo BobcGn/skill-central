@@ -87,6 +87,7 @@ export function validateRegistryManifest(
     issue("layers", "required non-empty array");
   } else {
     value.layers.forEach((layer, index) => validateLayer(layer, `layers[${index}]`, issue));
+    validateUniqueLayers(value.layers, issue);
   }
 
   if (issues.length > 0) return { ok: false, issues };
@@ -103,7 +104,11 @@ function validateLayer(
     return;
   }
   if (!nonEmptyString(value.id)) issue(`${fieldPath}.id`, "required non-empty string");
-  if (!nonEmptyString(value.path)) issue(`${fieldPath}.path`, "required non-empty string");
+  if (!nonEmptyString(value.path)) {
+    issue(`${fieldPath}.path`, "required non-empty string");
+  } else if (!isSafeRegistryLayerPath(value.path)) {
+    issue(`${fieldPath}.path`, "expected a relative path below layers/ without traversal");
+  }
   if (!isOneOf(value.scope, ["user", "workspace", "repo", "team", "org", "session"])) {
     issue(`${fieldPath}.scope`, "expected user, workspace, repo, team, org, or session");
   }
@@ -118,6 +123,43 @@ function validateLayer(
   if (!isOneOf(value.visibility, ["private", "team", "public"])) {
     issue(`${fieldPath}.visibility`, "expected private, team, or public");
   }
+}
+
+function validateUniqueLayers(
+  layers: unknown[],
+  issue: (fieldPath: string, reason: string) => void,
+): void {
+  const ids = new Map<string, number>();
+  const paths = new Map<string, number>();
+  layers.forEach((layer, index) => {
+    if (!isRecord(layer)) return;
+    if (nonEmptyString(layer.id)) {
+      const previous = ids.get(layer.id);
+      if (previous !== undefined) {
+        issue(`layers[${index}].id`, `duplicates layers[${previous}].id`);
+      } else {
+        ids.set(layer.id, index);
+      }
+    }
+    if (nonEmptyString(layer.path) && isSafeRegistryLayerPath(layer.path)) {
+      const normalized = layer.path.replace(/\\/g, "/").replace(/\/+$/, "");
+      const previous = paths.get(normalized);
+      if (previous !== undefined) {
+        issue(`layers[${index}].path`, `duplicates layers[${previous}].path`);
+      } else {
+        paths.set(normalized, index);
+      }
+    }
+  });
+}
+
+function isSafeRegistryLayerPath(value: string): boolean {
+  const normalized = value.replace(/\\/g, "/");
+  if (normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized)) return false;
+  const segments = normalized.split("/").filter(Boolean);
+  return segments.length >= 2
+    && segments[0] === "layers"
+    && segments.every((segment) => segment !== "." && segment !== "..");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

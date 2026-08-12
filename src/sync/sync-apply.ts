@@ -56,7 +56,10 @@ export interface ApplySyncPlanOptions {
   backupStamp?: string;
 }
 
-const BLOCKED_STATUSES = new Set<SyncOperationStatus>(["conflict"]);
+// Delete operations from older or externally constructed plans are unsafe: the
+// v1 registry has no tombstone/deletion ledger that can prove user intent.
+// Keep the status readable for historical audits, but never execute it.
+const BLOCKED_STATUSES = new Set<SyncOperationStatus>(["conflict", "delete-local", "delete-remote"]);
 const SKIPPED_STATUSES = new Set<SyncOperationStatus>(["noop", "excluded-policy"]);
 const FORCE_REQUIRED_STATUSES = new Set<SyncOperationStatus>([
   "update-local",
@@ -190,6 +193,9 @@ async function applyPreflight(
 }
 
 function classifyBlocked(operation: SyncPlanOperation, force: boolean): string | undefined {
+  if (operation.status === "delete-local" || operation.status === "delete-remote") {
+    return "deletion requires explicit registry tombstone evidence, which registry v1 does not provide";
+  }
   if (BLOCKED_STATUSES.has(operation.status)) {
     return "planned conflict requires an explicit resolution before apply";
   }

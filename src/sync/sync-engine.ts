@@ -58,6 +58,13 @@ export interface BuildSyncPlanOptions {
   layers: SkillLayer[];
 }
 
+export class SyncPlanValidationError extends Error {
+  constructor(message: string, public readonly scanner?: RemoteRegistryScanReport) {
+    super(message);
+    this.name = "SyncPlanValidationError";
+  }
+}
+
 interface IndexedFile {
   layerId: string;
   relativePath: string;
@@ -67,7 +74,19 @@ interface IndexedFile {
 }
 
 export async function buildSyncPlan(options: BuildSyncPlanOptions): Promise<SyncPlan> {
-  const scanner = await scanRemoteRegistry(options.registryDir);
+  let scanner: RemoteRegistryScanReport;
+  try {
+    scanner = await scanRemoteRegistry(options.registryDir);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new SyncPlanValidationError(`registry directory is invalid: ${detail}`);
+  }
+  if (!scanner.manifestOk || !scanner.manifest) {
+    const detail = scanner.issues[0];
+    const suffix = detail ? `: ${detail.fieldPath}: ${detail.reason}` : "";
+    throw new SyncPlanValidationError(`registry manifest is invalid${suffix}`, scanner);
+  }
+  assertNonOverlappingLocalLayers(options.layers);
   const localLayerRoots = indexLocalLayerRoots(options.layers);
   const remoteLayerRoots = indexRemoteLayerRoots(scanner);
   const local = await indexLocalFiles(options.layers);
@@ -187,14 +206,42 @@ function classify(
     return { ...base, status: "conflict", reason: "local and remote differ; bidirectional dry-run cannot choose a winner" };
   }
   if (local && !remote) {
-    if (direction === "pull") return { ...base, status: "delete-local", reason: "remote missing during pull" };
+    if (direction === "pull") return { ...base, status: "noop", reason: "remote absence is not deletion evidence; kept local file" };
     return { ...base, status: "create-remote", reason: "remote missing" };
   }
   if (!local && remote) {
-    if (direction === "push") return { ...base, status: "delete-remote", reason: "local missing during push" };
+    if (direction === "push") return { ...base, status: "noop", reason: "local absence is not deletion evidence; kept remote file" };
     return { ...base, status: "create-local", reason: "local missing" };
   }
   return { ...base, status: "noop", reason: "no local or remote file" };
+}
+
+function assertNonOverlappingLocalLayers(layers: SkillLayer[]): void {
+  const roots = layers.map((layer) => ({
+    layer,
+    root: canonicalPath(layer.path),
+  }));
+  for (let i = 0; i < roots.length; i += 1) {
+    for (let j = i + 1; j < roots.length; j += 1) {
+      const a = roots[i]!;
+      const b = roots[j]!;
+      if (a.root === b.root || isWithin(a.root, b.root) || isWithin(b.root, a.root)) {
+        throw new SyncPlanValidationError(
+          `local sync layers overlap: ${a.layer.id} (${a.layer.path}) and ${b.layer.id} (${b.layer.path})`,
+        );
+      }
+    }
+  }
+}
+
+function canonicalPath(value: string): string {
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function isWithin(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function targetPath(roots: Map<string, string>, layerId: string, relativePath: string): string | undefined {

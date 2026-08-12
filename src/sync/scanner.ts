@@ -11,6 +11,7 @@
 // ============================================================================
 
 import { readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { load as parseYaml } from "js-yaml";
 import {
@@ -38,18 +39,26 @@ const KNOWN_ROOT_FILES = new Set(["manifest.yaml", "manifest.yml", "lockfile.yam
 const SKILL_FILE_RE = /\.(ya?ml|json)$/;
 
 export async function scanRemoteRegistry(rootDir: string): Promise<RemoteRegistryScanReport> {
-  const root = path.resolve(rootDir);
+  const root = resolveRegistryRoot(rootDir);
+  const rootIssue = await validateRegistryRoot(root);
   const manifestPath = await findManifestPath(root);
   const issues: SyncValidationIssue[] = [];
   let manifestOk = false;
   let manifest: RegistryManifest | undefined;
+  if (rootIssue) {
+    issues.push({ filePath: root, fieldPath: "(root)", reason: rootIssue });
+  }
   if (!manifestPath) {
     issues.push({ filePath: path.join(root, "manifest.yaml"), fieldPath: "(file)", reason: "manifest not found" });
   } else {
-    const result = validateRegistryManifest(await parseYamlFile(manifestPath), manifestPath);
-    manifestOk = result.ok;
-    if (result.value) manifest = result.value;
-    issues.push(...result.issues);
+    try {
+      const result = validateRegistryManifest(await parseYamlFile(manifestPath), manifestPath);
+      manifestOk = !rootIssue && result.ok;
+      if (manifestOk && result.value) manifest = result.value;
+      issues.push(...result.issues);
+    } catch (err) {
+      issues.push({ filePath: manifestPath, fieldPath: "(file)", reason: `cannot parse manifest: ${errorMessage(err)}` });
+    }
   }
 
   const importableFiles: string[] = [];
@@ -81,6 +90,29 @@ export async function scanRemoteRegistry(rootDir: string): Promise<RemoteRegistr
     unknownFiles: unknownFiles.sort(),
     issues,
   };
+}
+
+export function resolveRegistryRoot(rootDir: string, home: string = homedir()): string {
+  const input = rootDir.trim();
+  if (!input) throw new Error("registry directory must be a non-empty path");
+  if (input === "~") return path.resolve(home);
+  if (input.startsWith("~/") || input.startsWith("~\\")) {
+    return path.resolve(home, input.slice(2));
+  }
+  const normalized = input.replace(/\\/g, "/");
+  if (/^(?:[A-Za-z]:)?\/~(?:\/|$)/.test(normalized)) {
+    throw new Error(`invalid registry path ${input}; use ~/.skill-central without a leading slash`);
+  }
+  return path.resolve(input);
+}
+
+async function validateRegistryRoot(root: string): Promise<string | undefined> {
+  try {
+    const rootStat = await stat(root);
+    return rootStat.isDirectory() ? undefined : "registry root is not a directory";
+  } catch {
+    return "registry root does not exist or is not readable";
+  }
 }
 
 async function findManifestPath(root: string): Promise<string | undefined> {
@@ -123,4 +155,8 @@ function isKnownRootFile(relativePath: string): boolean {
 
 function toPosix(value: string): string {
   return value.split(path.sep).join("/");
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

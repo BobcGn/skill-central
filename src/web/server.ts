@@ -103,6 +103,7 @@ import {
 import { resolveProjectIdentity } from "../storage/project-identity.js";
 import {
   buildSyncPlan,
+  SyncPlanValidationError,
   type SyncDirection,
   type SyncPlan,
   type SyncPlanOperation,
@@ -1293,12 +1294,19 @@ export function createBoardApp(deps: BoardDeps): Hono {
     if (!direction) {
       return c.json({ error: "direction must be push, pull, or both" }, 400);
     }
-    const plan = await buildSyncPlan({
-      direction,
-      registryDir: body.registryDir,
-      layers: deps.config.layers,
-    });
-    return c.json(await attachSyncConflictDiffPreviews(plan));
+    try {
+      const plan = await buildSyncPlan({
+        direction,
+        registryDir: body.registryDir,
+        layers: deps.config.layers,
+      });
+      return c.json(await attachSyncConflictDiffPreviews(plan));
+    } catch (err) {
+      if (err instanceof SyncPlanValidationError) {
+        return c.json({ error: err.message, scanner: err.scanner }, 400);
+      }
+      throw err;
+    }
   });
 
   app.post("/api/sync/apply", async (c) => {
@@ -1329,11 +1337,19 @@ export function createBoardApp(deps: BoardDeps): Hono {
       return c.json({ error: "direction must be push, pull, or both" }, 400);
     }
     const appState = await ensureAppState({ overrideDir: body.appStateDir });
-    let plan = await buildSyncPlan({
-      direction,
-      registryDir: body.registryDir,
-      layers: deps.config.layers,
-    });
+    let plan: SyncPlan;
+    try {
+      plan = await buildSyncPlan({
+        direction,
+        registryDir: body.registryDir,
+        layers: deps.config.layers,
+      });
+    } catch (err) {
+      if (err instanceof SyncPlanValidationError) {
+        return c.json({ error: err.message, scanner: err.scanner }, 400);
+      }
+      throw err;
+    }
     const resolutionResult = applySyncConflictResolutions(plan, body.resolutions ?? []);
     if ("error" in resolutionResult) {
       return c.json({ error: resolutionResult.error }, 400);
