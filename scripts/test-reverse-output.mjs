@@ -22,6 +22,9 @@ const projectRoot = path.join(root, "project");
 const appStateDir = path.join(root, "app-state");
 const layerPath = path.join(projectRoot, ".skills", "02-workflows");
 const rulesPath = path.join(projectRoot, ".rules", "00-governance");
+const projectEnvironment = { ...process.env };
+delete projectEnvironment.SKILL_CENTRAL_ASSET_ROOT;
+projectEnvironment.SKILL_CENTRAL_SETTINGS_PATH = path.join(root, "project-settings.json");
 
 const config = {
   layers: [{
@@ -374,7 +377,7 @@ try {
     "--project-root",
     projectRoot,
     "--json",
-  ], { cwd: process.cwd(), encoding: "utf8" });
+  ], { cwd: process.cwd(), encoding: "utf8", env: projectEnvironment });
   const cliResult = JSON.parse(cli.stdout);
   assert.equal(cliResult.status, "preview");
   assert.equal(cliResult.proposal.assetId, "reverse-cli-skill");
@@ -383,6 +386,7 @@ try {
     command: process.execPath,
     args: [path.resolve("dist/index.js"), "mcp"],
     cwd: projectRoot,
+    env: projectEnvironment,
     stderr: "pipe",
   });
   const client = new Client(

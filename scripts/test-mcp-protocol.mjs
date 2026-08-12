@@ -23,6 +23,9 @@ try {
       ...getDefaultEnvironment(),
       SKILL_CENTRAL_GLOBAL_RULES_DIR: globalRulesDir,
       SKILL_CENTRAL_USER_SKILLS_DIR: path.join(fixtureRoot, "user-skills"),
+      SKILL_CENTRAL_SETTINGS_PATH: path.join(fixtureRoot, "settings.json"),
+      SKILL_CENTRAL_DEFAULT_ASSET_ROOT: path.join(fixtureRoot, "default-library"),
+      SKILL_CENTRAL_ASSET_ROOT: "",
     },
     stderr: "pipe",
   });

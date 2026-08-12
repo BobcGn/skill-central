@@ -38,6 +38,38 @@ if (defaultAssetLibraryGate.error) {
 }
 if (defaultAssetLibraryGate.status !== 0) process.exit(defaultAssetLibraryGate.status ?? 1);
 
+const syncSafetyGate = spawnSync(
+  process.execPath,
+  [path.join("scripts", "test-sync-safety.mjs")],
+  {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "inherit",
+    shell: false,
+  },
+);
+if (syncSafetyGate.error) {
+  console.error(`[skill-central] Failed to start sync safety gate: ${syncSafetyGate.error.message}`);
+  process.exit(1);
+}
+if (syncSafetyGate.status !== 0) process.exit(syncSafetyGate.status ?? 1);
+
+const desktopShutdownGate = spawnSync(
+  process.execPath,
+  [path.join("scripts", "test-desktop-shutdown.mjs")],
+  {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "inherit",
+    shell: false,
+  },
+);
+if (desktopShutdownGate.error) {
+  console.error(`[skill-central] Failed to start desktop shutdown gate: ${desktopShutdownGate.error.message}`);
+  process.exit(1);
+}
+if (desktopShutdownGate.status !== 0) process.exit(desktopShutdownGate.status ?? 1);
+
 const mcpGate = spawnSync(process.execPath, [path.join("scripts", "test-mcp-protocol.mjs")], {
   cwd: process.cwd(),
   env: process.env,

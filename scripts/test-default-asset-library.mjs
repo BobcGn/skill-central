@@ -58,7 +58,11 @@ try {
     "project override startup must still initialize the default rules directory",
   );
 
-  await writeFile(path.join(initial.skillsDir, "default-skill.yaml"), `schemaVersion: skillcentral.dev/v1
+  const nestedSkillDir = path.join(initial.skillsDir, "02-workflows", "deep", "nested");
+  const nestedRuleDir = path.join(initial.rulesDir, "01-global", "deep", "nested");
+  await mkdir(nestedSkillDir, { recursive: true });
+  await mkdir(nestedRuleDir, { recursive: true });
+  await writeFile(path.join(nestedSkillDir, "default-skill.yaml"), `schemaVersion: skillcentral.dev/v1
 id: default-skill
 name: Default Skill
 description: Loaded from the default home asset library
@@ -66,7 +70,7 @@ type: prompt
 prompt: default home source
 `, "utf-8");
   await writeFile(path.join(initial.skillsDir, "history.yaml.bak.2026-08-11"), "not a live skill\n", "utf-8");
-  await writeFile(path.join(initial.rulesDir, "default-rule.yaml"), `schemaVersion: skillcentral.dev/rule/v1
+  await writeFile(path.join(nestedRuleDir, "default-rule.yaml"), `schemaVersion: skillcentral.dev/rule/v1
 id: default-rule
 name: Default Rule
 description: Loaded from the default home rule library
@@ -82,7 +86,9 @@ body: Always use the selected asset root.
   assert.deepEqual(skillEngine.listSkills().map((skill) => skill.id), ["default-skill"]);
 
   const previousDefaultRoot = process.env[DEFAULT_ASSET_LIBRARY_ROOT_ENV];
+  const previousAssetRoot = process.env.SKILL_CENTRAL_ASSET_ROOT;
   process.env[DEFAULT_ASSET_LIBRARY_ROOT_ENV] = defaultRoot;
+  process.env.SKILL_CENTRAL_ASSET_ROOT = defaultRoot;
   try {
     const ruleEngine = new RuleEngine();
     await ruleEngine.reload({ projectRoot, scopeContext: { projectIds: [] } });
@@ -90,6 +96,8 @@ body: Always use the selected asset root.
   } finally {
     if (previousDefaultRoot === undefined) delete process.env[DEFAULT_ASSET_LIBRARY_ROOT_ENV];
     else process.env[DEFAULT_ASSET_LIBRARY_ROOT_ENV] = previousDefaultRoot;
+    if (previousAssetRoot === undefined) delete process.env.SKILL_CENTRAL_ASSET_ROOT;
+    else process.env.SKILL_CENTRAL_ASSET_ROOT = previousAssetRoot;
   }
 
   const mcpEnvironment = {

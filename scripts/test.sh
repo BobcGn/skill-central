@@ -46,6 +46,7 @@ TEST_BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/skill-central-bin.XXXXXX")"
 export PATH="$TEST_BIN_DIR:$PWD/node_modules/.bin:$PATH"
 export SKILL_CENTRAL_USER_SKILLS_DIR="$TEST_BIN_DIR/user-skills"
 export SKILL_CENTRAL_DEFAULT_ASSET_ROOT="$TEST_BIN_DIR/default-asset-library"
+export SKILL_CENTRAL_SETTINGS_PATH="$TEST_BIN_DIR/settings.json"
 unset SKILL_CENTRAL_GITHUB_CLIENT_ID
 
 # Homebrew documents exit 1 as a valid "outdated items found" result in some
@@ -3729,9 +3730,9 @@ const statusOf = (layerId, relativePath) => {
   return op.status;
 };
 if (statusOf("sync-ci-global", "test-sync-conflict.yaml") !== "update-remote") throw new Error("expected update-remote");
-if (statusOf("sync-ci-global", "test-sync-create-local.yaml") !== "delete-remote") throw new Error("expected delete-remote");
+if (statusOf("sync-ci-global", "test-sync-create-local.yaml") !== "noop") throw new Error("remote-only file must be preserved during push");
 NODE
-pass "sync plan --direction push 可分类 update-remote/delete-remote"
+pass "sync plan --direction push 更新差异但不把本地缺失解释为远端删除"
 
 sync_plan_pull=$(node dist/index.js sync plan --app-state-dir "$app_state_dir" --registry-dir "$registry_dir" --direction pull --dry-run --json)
 SYNC_PLAN_PULL_JSON="$sync_plan_pull" node --input-type=module <<'NODE'
@@ -3742,9 +3743,9 @@ const statusOf = (layerId, relativePath) => {
   return op.status;
 };
 if (statusOf("sync-ci-global", "test-sync-conflict.yaml") !== "update-local") throw new Error("expected update-local");
-if (statusOf("sync-ci-global", "test-sync-create-remote.yaml") !== "delete-local") throw new Error("expected delete-local");
+if (statusOf("sync-ci-global", "test-sync-create-remote.yaml") !== "noop") throw new Error("local-only file must be preserved during pull");
 NODE
-pass "sync plan --direction pull 可分类 update-local/delete-local"
+pass "sync plan --direction pull 更新差异但不把远端缺失解释为本地删除"
 
 set +e
 missing_plan_dry_run=$(node dist/index.js sync plan --app-state-dir "$app_state_dir" --registry-dir "$registry_dir" --json 2>&1)
@@ -3813,62 +3814,62 @@ type: prompt
 prompt: "delete local"
 YAML
 
-set +e
-sync_apply_pull_blocked=$(node dist/index.js sync apply --app-state-dir "$app_state_dir" --registry-dir "$registry_dir" --direction pull --json 2>&1)
-sync_apply_pull_blocked_status=$?
-set -e
-if [ "$sync_apply_pull_blocked_status" -eq 0 ]; then
-  fail "sync apply pull 默认不应执行 update/delete"
-fi
-SYNC_APPLY_PULL_BLOCKED="$sync_apply_pull_blocked" node --input-type=module <<'NODE'
-const lines = process.env.SYNC_APPLY_PULL_BLOCKED.split("\n");
-const start = lines.findIndex((line) => line.trim() === "{");
-if (start === -1) throw new Error("blocked apply did not print JSON report");
-let end = lines.length;
-for (let i = start; i < lines.length; i += 1) {
-  if (lines[i].startsWith("[skill-central] Sync error:")) {
-    end = i;
-    break;
-  }
-}
-const report = JSON.parse(lines.slice(start, end).join("\n"));
-if (report.preflightBlocked !== true) throw new Error("destructive operations should block during preflight");
-const updateLocal = report.operations.find((op) => op.plannedStatus === "update-local" && op.relativePath === "test-sync-conflict.yaml");
-const deleteLocal = report.operations.find((op) => op.plannedStatus === "delete-local" && op.relativePath === "test-sync-delete-local.yaml");
-if (!updateLocal || updateLocal.applyStatus !== "blocked") throw new Error("update-local should be blocked without --force");
-if (!deleteLocal || deleteLocal.applyStatus !== "blocked") throw new Error("delete-local should be blocked without --force");
-NODE
-pass "sync apply 默认阻断 update/delete destructive 操作"
-
 sync_apply_pull_force=$(node dist/index.js sync apply --app-state-dir "$app_state_dir" --registry-dir "$registry_dir" --direction pull --force --json)
 SYNC_APPLY_PULL_FORCE_JSON="$sync_apply_pull_force" node --input-type=module <<'NODE'
 import { access, readFile } from "node:fs/promises";
 const report = JSON.parse(process.env.SYNC_APPLY_PULL_FORCE_JSON);
 if (report.preflightBlocked !== false) throw new Error("--force pull should pass preflight");
 const updateLocal = report.operations.find((op) => op.plannedStatus === "update-local" && op.relativePath === "test-sync-conflict.yaml");
-const deleteLocal = report.operations.find((op) => op.plannedStatus === "delete-local" && op.relativePath === "test-sync-delete-local.yaml");
 if (!updateLocal || updateLocal.applyStatus !== "applied" || !updateLocal.backupPath) {
   throw new Error("update-local --force should apply with backup");
 }
-if (!deleteLocal || deleteLocal.applyStatus !== "applied" || !deleteLocal.backupPath) {
-  throw new Error("delete-local --force should apply with backup");
-}
+const retained = report.operations.find((op) => op.relativePath === "test-sync-delete-local.yaml");
+if (!retained || retained.plannedStatus !== "noop" || retained.applyStatus !== "skipped") throw new Error("local-only file should be retained");
 const updated = await readFile(".skills/sync-ci-global/test-sync-conflict.yaml", "utf-8");
 if (!updated.includes('prompt: "remote version"')) throw new Error("update-local did not copy remote content");
 await access(updateLocal.backupPath);
-await access(deleteLocal.backupPath);
-try {
-  await access(".skills/sync-ci-global/test-sync-delete-local.yaml");
-  throw new Error("delete-local did not remove local file");
-} catch (err) {
-  if (err.code !== "ENOENT") throw err;
-}
+await access(".skills/sync-ci-global/test-sync-delete-local.yaml");
 const audit = JSON.parse(await readFile(report.auditPath, "utf-8"));
 if (!audit.operations.some((op) => op.backupPath === updateLocal.backupPath)) {
   throw new Error("audit missing update backup path");
 }
 NODE
-pass "sync apply --force 会备份后执行 update/delete 并记录 audit"
+pass "sync apply --force 仅覆盖差异且保留远端缺失的本地文件"
+
+SYNC_DELETE_GUARD_APP_STATE="$app_state_dir" node --input-type=module <<'NODE'
+import { access } from "node:fs/promises";
+import { ensureAppState } from "./dist/local-store/app-state.js";
+import { applySyncPlan, SyncApplyBlockedError } from "./dist/sync/sync-apply.js";
+
+const localPath = ".skills/sync-ci-global/test-sync-delete-local.yaml";
+const appState = await ensureAppState({ overrideDir: process.env.SYNC_DELETE_GUARD_APP_STATE });
+const legacyPlan = {
+  direction: "pull",
+  dryRun: true,
+  remoteRoot: ".skill-central-registry-ci",
+  generatedAt: new Date().toISOString(),
+  operations: [{
+    status: "delete-local",
+    layerId: "sync-ci-global",
+    relativePath: "test-sync-delete-local.yaml",
+    localPath,
+    reason: "legacy remote missing during pull",
+  }],
+  counts: { "create-local": 0, "create-remote": 0, "update-local": 0, "update-remote": 0, "delete-local": 1, "delete-remote": 0, conflict: 0, noop: 0, "excluded-policy": 0 },
+  scanner: { root: ".skill-central-registry-ci", manifestPath: "manifest.yaml", manifestOk: true, importableFiles: [], workspaceProfiles: [], unknownFiles: [], issues: [] },
+};
+try {
+  await applySyncPlan(legacyPlan, { appState, force: true });
+  throw new Error("legacy delete plan should be blocked even with force");
+} catch (err) {
+  if (!(err instanceof SyncApplyBlockedError)) throw err;
+  if (!err.report.operations.some((op) => op.plannedStatus === "delete-local" && op.applyStatus === "blocked")) {
+    throw new Error("legacy delete operation did not produce a blocked audit result");
+  }
+}
+await access(localPath);
+NODE
+pass "旧版 delete 计划即使 force 也在写入前阻断"
 
 # ── 24. Rules 规则库、Asset Scope 与 Web Board 作用域管理 ──────────────────
 echo ""
