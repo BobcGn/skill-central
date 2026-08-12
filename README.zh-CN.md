@@ -232,7 +232,10 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 
 正式桌面包内置项目 Client ID，可在个人设置中使用 GitHub Device Flow。未包含该元数据的早期预览包需要先升级，才能使用 GitHub Sync。
 
-远程写入必须先生成计划并显式确认。同步操作会保留审计和备份证据；token 不会通过 Web API 返回，也不会写入浏览器存储。
+远程写入必须先生成计划并显式确认。Registry 目录必须包含有效 `manifest.yaml`，不能直接选择
+`~/.skill-central` 资产库代替 Registry。Registry v1 没有删除 tombstone，因此缺失文件只会被
+保留，不会被 pull/push 推断为删除；`--force` 也不能绕过该边界。同步操作会保留审计和备份
+证据；token 不会通过 Web API 返回，也不会写入浏览器存储。
 
 正式桌面程序通过 macOS Keychain 或 Windows DPAPI 加密 GitHub Token；系统安全存储不可用时不会回退明文。旧开发型明文 Token 会被删除且不迁移，需要重新登录。CLI 登录仍仅供源码开发使用，Windows DPAPI 路线必须通过真实打包应用验证后才能声明已验证。
 

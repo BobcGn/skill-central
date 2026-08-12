@@ -160,14 +160,17 @@ export class LocalRuntimeManager {
       status: "stopped",
       stoppedAt: new Date().toISOString(),
     };
+    child.stdin.end();
     child.kill("SIGTERM");
-    await Promise.race([
-      once(child, "exit"),
-      delay(1500).then(() => {
-        if (!child.killed) child.kill("SIGKILL");
-      }),
-    ]);
-    this.child = undefined;
+    const exitedAfterTerm = await waitForExit(child, 1500);
+    if (!exitedAfterTerm && child.exitCode === null && child.signalCode === null) {
+      // `child.killed` only means kill() was called; it does not mean the OS
+      // process exited. A SIGTERM-resistant runtime must receive SIGKILL and
+      // be reaped before desktop shutdown can complete.
+      child.kill("SIGKILL");
+      await waitForExit(child, 1500);
+    }
+    if (this.child === child) this.child = undefined;
     return this.getSnapshot();
   }
 
@@ -183,4 +186,15 @@ export class LocalRuntimeManager {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+async function waitForExit(
+  child: ChildProcessByStdio<Writable, Readable, Readable>,
+  timeoutMs: number,
+): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  return Promise.race([
+    once(child, "exit").then(() => true),
+    delay(timeoutMs).then(() => false),
+  ]);
 }

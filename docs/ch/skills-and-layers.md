@@ -120,6 +120,10 @@ Skill 在进入 Override Tree 前按项目过滤，因此不匹配候选项不�
 
 `skill-central add --user` 会写入当前已选择自定义资产库或默认 Home 资产库的 `skills/` 树；普通 `add` 跟随当前生效资产库，显式项目 Layer 除外。`*.bak.*` 备份和 `_` 前缀模板只作为恢复/参考材料，不会作为生效资产加载。
 
+`skills/` 与 `rules/` 下可以继续使用任意深度的分类目录，例如
+`skills/02-workflows/release/checks/` 或 `rules/01-global/security/`。加载器会递归发现合法文件；
+目录名本身不会决定是否加载。以 `.`、`_` 开头的条目、备份和不支持的扩展名会被排除。
+
 ## 反向输出
 
 反向输出（reverse output）指 IDE、Board 或工作流在日常工作中主动产生了当前技能库和规则库里还没有的内容，并把它沉淀为数字资产，而不是留在临时笔记、聊天记录或一次性导出里。
@@ -221,6 +225,17 @@ Tool 输入可以使用 `inputSchema`。当前运行时只校验必填字段与�
 `SkillEngine` 持有内存中的 Override Tree。Registry Query Layer 为 CLI、MCP、Board、Compiler 和 Health Consumer 提供统一视图。调用方可按 ID、类型、Tag、Layer、源格式或状态等条件查询。
 
 需要解释解析结果的 Consumer 应使用 Resolution Record，不得根据 effective Skill 重新推断 provenance。
+
+### 同步安全边界
+
+Asset Library 与 Registry checkout 是两个不同概念。Asset Library 的根目录包含 `skills/`、
+`rules/`；Registry checkout 必须包含有效 `manifest.yaml`，其同步 Layer 必须使用唯一、相对且
+位于 `layers/` 下的路径。`~` 和 `~/...` 会展开为用户主目录；`/~` 不是 Home 表达式，会被拒绝。
+
+Registry v1 尚未定义 tombstone 或删除清单，因此“某一侧没有文件”不是删除证据。pull 会保留
+远端缺失的本地文件，push 会保留本地缺失的远端文件。`--force` 只允许对双方都存在但内容不同
+的文件执行带备份覆盖，不能授权推断式删除。无效 Registry、本地 Layer 路径重叠及旧版删除计划
+都会在任何文件写入前阻断。
 
 ## 编译
 

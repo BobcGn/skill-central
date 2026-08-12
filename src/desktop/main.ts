@@ -39,6 +39,7 @@ import { startMcpServer } from "../mcp.js";
 import { desktopMcpServerConfig, isDesktopMcpMode, withProjectRootEnv } from "./mcp-launch.js";
 import { isUnpackedBuildLocation } from "./location.js";
 import { LocalRuntimeManager } from "../runtime/manager.js";
+import { shutdownDesktopServices } from "./shutdown.js";
 
 const DEFAULT_PORT = 5417;
 const MAX_PORT_TRIES = 10;
@@ -49,6 +50,8 @@ let boardServer: BoardServerHandle | undefined;
 let desktopUpdater: UpdateController | undefined;
 let tray: Tray | undefined;
 let automaticUpdateCheckStarted = false;
+let quitCleanupStarted = false;
+let quitCleanupComplete = false;
 
 async function ensureDesktopServices(): Promise<BoardServerHandle> {
   // A desktop app lifecycle owns exactly one Board server. Reopened windows
@@ -262,7 +265,7 @@ function createTray(): void {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Show Skill Central", click: requestShowMainWindow },
     { type: "separator" },
-    { label: "Quit Skill Central", click: () => app.quit() },
+    { label: "Quit Skill Central", click: requestDesktopQuit },
   ]));
   tray.on("click", requestShowMainWindow);
 }
@@ -281,7 +284,11 @@ function installApplicationMenu(): void {
             { role: "hideOthers" },
             { role: "unhide" },
             { type: "separator" },
-            { role: "quit" },
+            {
+              label: "Quit Skill Central",
+              accelerator: "CommandOrControl+Q",
+              click: requestDesktopQuit,
+            },
           ],
         },
         { role: "editMenu" },
@@ -387,13 +394,49 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
-  // The Board listener belongs to this process and must not survive a real
-  // Quit or hold the loopback port for a future launch.
-  void boardServer?.runtime.stop();
-  boardServer?.server.close();
-  boardServer = undefined;
+app.on("before-quit", (event) => {
+  if (quitCleanupComplete || desktopMcpMode) return;
+  // Electron does not await an async event listener. Hold the quit transition
+  // until the MCP child has exited and the loopback listener has closed, then
+  // re-enter app.quit() once with cleanup marked complete.
+  event.preventDefault();
+  requestDesktopQuit();
 });
+
+function requestDesktopQuit(): void {
+  if (quitCleanupComplete) {
+    process.exit(0);
+  }
+  if (quitCleanupStarted) return;
+  quitCleanupStarted = true;
+  const ownedBoard = boardServer;
+  boardServer = undefined;
+  let finalized = false;
+  const finalizeQuit = () => {
+    if (finalized) return;
+    finalized = true;
+    clearTimeout(forceQuitTimer);
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
+    mainWindow = undefined;
+    tray?.destroy();
+    tray = undefined;
+    quitCleanupComplete = true;
+    // We already completed (or exhausted) the graceful shutdown contract.
+    // Electron can remain stuck after a prevented before-quit transition on
+    // macOS, including after app.exit(). End the now-clean main process
+    // directly so Command+Q has a deterministic terminal state.
+    process.exit(0);
+  };
+  const forceQuitTimer = setTimeout(() => {
+    recordStartupDiagnostic("Desktop shutdown exceeded 5 seconds; forcing the cleaned main process to exit.");
+    finalizeQuit();
+  }, 5000);
+  void shutdownDesktopServices(ownedBoard).catch((err) => {
+    recordStartupDiagnostic(`Desktop shutdown cleanup failed: ${errorMessage(err)}`);
+  }).finally(() => {
+    finalizeQuit();
+  });
+}
 
 app.on("will-quit", () => {
   tray?.destroy();

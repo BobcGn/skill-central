@@ -19,6 +19,16 @@
 
 ### 修复
 
+- **危险同步删除**：Registry 缺失、不可读、manifest 无效、Layer 路径越界或本地 Layer
+  物理路径重叠时，计划与应用会在任何资产写入前失败；`/~/.skill-central` 不再被误解为 Home。
+- **缺失不再等于删除**：Registry v1 没有 tombstone 删除证据，因此 pull 中远端缺失会保留
+  本地文件，push 中本地缺失会保留远端文件；旧版 `delete-local/delete-remote` 计划即使带
+  `--force` 也会被预检阻断。
+- **层级目录回归**：默认/自定义资产库专项测试使用多层 `skills/**` 与 `rules/**`，并通过
+  Board/CLI/MCP 同源加载门禁；真实用户设置不再污染集成测试。
+- **macOS 退出残留进程**：`Command+Q` 现在会等待本地 MCP Runtime 与 Board listener 完整
+  关闭后再退出；SIGTERM 无响应的子进程会被可靠 SIGKILL 并回收，不再因误读 `child.killed`
+  而留在活动监视器中。
 - **默认来源缺失**：修复桌面应用从普通工作区启动时回退项目 `.skills/.rules`、导致
   `~/.skill-central/{skills,rules}` 无法显示的问题。
 - **选择目录不刷新**：资产库选择现在会重载 Skills/Rules 并重配本地 MCP Runtime；Registry
@@ -34,6 +44,8 @@
   Layer；默认只递归读取固定的 `skills/`、`rules/` 子目录。
 - 已有内容不会被删除或迁移；`*.bak.*` 与 `_` 前缀模板仍不作为生效资产。自定义根也必须使用
   相同的两个子目录，且 Board、CLI、MCP 始终共享选择结果。
+- Asset Library 与 Registry checkout 必须是两个目录。Registry 必须含有效 `manifest.yaml`
+  和受限于 `layers/` 的唯一 Layer 路径；普通资产库根不能直接作为同步 Registry。
 - 正式平台与 Agent 范围保持不变：macOS x64/arm64、Windows x64；Codex、Claude Code、Cursor。
 
 ## [1.0.0] - 2026-08-11

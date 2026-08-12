@@ -102,6 +102,11 @@ Homebrew 能保证安装桌面 App Bundle，但不会自动启动应用，也不
 4. 使用应用菜单或菜单栏的 Quit，确认进程和 Listener 均消失。
 5. 连续启动两次，确认单实例逻辑只恢复原窗口。
 
+`Command+Q` 属于完整退出：主进程会先等待本地 MCP 子进程和 Board Loopback Listener 关闭，
+必要时强制终止不响应 SIGTERM 的子进程，然后才完成 Electron 退出。活动监视器中不应保留
+Skill Central 或其本地 MCP Runtime；若仍有由 Codex、Claude Code 或 Cursor 独立启动的 MCP
+进程，应退出对应 Agent 会话后再区分其所有者。
+
 ## 发布前本地候选 Tap
 
 候选测试使用本地 DMG 与临时 Git Tap，不需要创建 GitHub Release。构建两个架构后生成 Tap：

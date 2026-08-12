@@ -103,6 +103,12 @@ Homebrew guarantees installation of the desktop App Bundle, not automatic launch
 4. Use the application or menu bar Quit action and confirm the process/listener disappear.
 5. Launch twice and confirm the single-instance behavior restores the original window.
 
+`Command+Q` is a full quit. The main process waits for its local MCP child and Board loopback listener
+to close, force-kills a child that ignores SIGTERM when necessary, and only then completes Electron
+shutdown. Activity Monitor should retain neither Skill Central nor its app-owned MCP runtime. MCP
+processes independently launched by Codex, Claude Code, or Cursor belong to those Agent sessions and
+should be distinguished by quitting the owning session.
+
 ## Pre-Release Candidate Tap
 
 Candidate testing uses local DMGs and a temporary Git-backed Tap. It does not require a GitHub Release. Build both architectures, then generate the Tap:

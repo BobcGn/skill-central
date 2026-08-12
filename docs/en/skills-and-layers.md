@@ -120,6 +120,11 @@ Users may explicitly select one reusable asset-library root from **Sync → Loca
 
 `skill-central add --user` writes to the selected custom library or the default Home library's `skills/` tree. Ordinary `add` follows the active library unless the repository explicitly configures project layers. Backup files (`*.bak.*`) and `_`-prefixed templates remain recovery/reference material and are not loaded as live assets.
 
+Both `skills/` and `rules/` may contain classification directories at any depth, such as
+`skills/02-workflows/release/checks/` or `rules/01-global/security/`. Discovery is recursive;
+directory names do not decide whether an asset loads. Entries prefixed with `.` or `_`, backups,
+and unsupported extensions are excluded.
+
 ## Reverse Output
 
 Reverse output means the IDE, Board, or workflow has produced content that is not yet
@@ -245,6 +250,19 @@ Tag-based composition orders prompt skills from lower to higher layer priority, 
 `SkillEngine` owns the in-memory override tree. The Registry query layer provides a shared view for CLI, MCP, Board, compiler, and health consumers. A query can filter by identifiers, type, tags, layer, source format, or status depending on the caller.
 
 Consumers that need explanations should use resolution records rather than reconstructing provenance from an effective skill.
+
+### Sync Safety Boundary
+
+An Asset Library and a Registry checkout are different directories. The Asset Library root contains
+`skills/` and `rules/`; a Registry checkout must contain a valid `manifest.yaml`, and every sync layer
+must have a unique relative path below `layers/`. `~` and `~/...` expand to the user Home directory;
+`/~` is not Home syntax and is rejected.
+
+Registry v1 has no tombstone or deletion ledger, so absence on one side is not deletion evidence.
+A pull retains local files missing remotely, and a push retains remote files missing locally. `--force`
+only permits backup-backed replacement when both sides exist and differ; it cannot authorize inferred
+deletion. Invalid registries, overlapping local layer paths, and legacy delete plans are blocked before
+any file write.
 
 ## Compilation
 

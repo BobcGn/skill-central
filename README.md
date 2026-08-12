@@ -242,6 +242,11 @@ skill-central sync plan --registry-dir ./skill-central-registry --direction both
 
 Official desktop packages contain the project Client ID and support GitHub Device Flow from the Personal settings view. Preview packages without this metadata must be upgraded before GitHub sync can be used.
 
+The Registry directory must contain a valid `manifest.yaml`; the `~/.skill-central` Asset Library is
+not itself a Registry checkout. Registry v1 has no deletion tombstones, so a missing file is retained
+instead of being inferred as a pull/push deletion, even with `--force`. Invalid registries and overlapping
+local layer paths are rejected before any file write.
+
 Remote writes require an explicit plan and confirmation. Sync operations preserve audit and backup evidence. Tokens are never returned by the Web API or written to browser storage.
 
 The desktop Sync page can fill the Registry checkout path with **Choose existing directory**.
