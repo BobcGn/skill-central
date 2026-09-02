@@ -61,12 +61,19 @@ export async function reconcileStartupConnections(
 ): Promise<StartupRecognitionReport> {
   if (options.verify) await engine.waitForReady();
   const targets = options.targets ?? RELEASE_SUPPORTED_IDES;
+  const reconciledTargets: StartupRecognitionTarget[] = [];
+  // Verification starts a short-lived stdio MCP process. Keep startup probes
+  // sequential so opening the desktop app cannot create a burst of parallel
+  // Electron/Node children on machines with several registered IDEs.
+  for (const target of targets) {
+    reconciledTargets.push(await reconcileTarget(engine, target, options));
+  }
   return {
     checkedAt: new Date().toISOString(),
     applyDrift: !!options.applyDrift,
     registerMissing: !!options.registerMissing,
     verify: !!options.verify,
-    targets: await Promise.all(targets.map((target) => reconcileTarget(engine, target, options))),
+    targets: reconciledTargets,
   };
 }
 

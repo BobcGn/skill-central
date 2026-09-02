@@ -205,9 +205,26 @@ async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promi
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))),
   );
   const client = new Client({ name: "skill-central-health", version: VERSION }, { capabilities: {} });
+  let cleanup: Promise<void> | undefined;
+  const closeProbe = (): Promise<void> => {
+    const pid = transport.pid;
+    cleanup ??= client.close()
+      .catch(() => transport.close().catch(() => undefined))
+      .then(() => waitForProcessMissing(pid, 1500));
+    return cleanup;
+  };
+  let timer: NodeJS.Timeout | undefined;
+  let timedOut = false;
+  const timeoutError = new ProbeError("initialize", `MCP probe timed out after ${timeoutMs}ms`);
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      void closeProbe().finally(() => reject(timeoutError));
+    }, timeoutMs);
+  });
 
-  return withTimeout((async () => {
-    try {
+  try {
+    return await Promise.race([(async () => {
       await client.connect(transport);
       const prompts = await client.listPrompts();
       const tools = await client.listTools();
@@ -218,10 +235,28 @@ async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promi
         toolIds: tools.tools.map((tool) => tool.name),
         diagnosticLog: Buffer.concat(chunks).toString("utf-8").trim(),
       };
-    } finally {
-      await client.close().catch(() => undefined);
+    })(), timeout]);
+  } catch (err) {
+    if (timedOut) throw timeoutError;
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+    await closeProbe();
+  }
+}
+
+async function waitForProcessMissing(pid: number | null, timeoutMs: number): Promise<void> {
+  if (!pid) return;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ESRCH") return;
+      return;
     }
-  })(), timeoutMs, "initialize");
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
+  }
 }
 
 function skillCentralEnvironment(): Record<string, string> {
@@ -260,18 +295,6 @@ function registryBaseline(engine: SkillEngine) {
     skillIds,
     skillIdSet: new Set(skillIds),
   };
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, stage: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new ProbeError(stage, `MCP probe timed out after ${timeoutMs}ms`)), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 class ProbeError extends Error {

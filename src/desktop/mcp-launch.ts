@@ -34,15 +34,10 @@ export function withProjectRootEnv(
 /**
  * Builds the MCP launch entry written into IDE configurations.
  *
- * Windows Electron binaries are linked for the GUI subsystem, so writes to
- * `process.stdout` from `<app>.exe mcp` never reach the parent pipe: the stdio
- * server starts, logs readiness on stderr, and then loses every JSON-RPC
- * response, which every client sees as a handshake timeout. Running the same
- * executable under ELECTRON_RUN_AS_NODE against the packaged CLI entry restores
- * stdout and skips the Chromium stack that a stdio server never needs.
- *
- * POSIX packages keep the plain `mcp` argument, which is the launch path the
- * project already validates on macOS.
+ * Packaged MCP servers must never enter Electron's GUI runtime. Besides fixing
+ * stdout for Windows GUI-subsystem executables, ELECTRON_RUN_AS_NODE prevents
+ * every desktop Runtime, IDE connection, and health probe from allocating a
+ * second Chromium process tree on macOS.
  */
 export function desktopMcpServerConfig(
   packaged: boolean,
@@ -55,18 +50,14 @@ export function desktopMcpServerConfig(
   const projectRootEnv: Record<string, string> | undefined = projectRoot
     ? { [PROJECT_ROOT_ENV]: projectRoot }
     : undefined;
-  if (platform === "win32") {
-    // Resolve with the Windows flavour explicitly: the target platform is an
-    // argument here, so the separator must not follow whichever host builds it.
-    return {
-      command: execPath,
-      args: [path.win32.join(appPath, "dist", "index.js"), "mcp"],
-      env: { ...DESKTOP_NODE_MODE_ENV, ...(projectRootEnv ?? {}) },
-    };
-  }
+  const entrypoint = platform === "win32"
+    // The target platform is an argument here, so path separators must not
+    // follow whichever host happens to build or test the package.
+    ? path.win32.join(appPath, "dist", "index.js")
+    : path.posix.join(appPath, "dist", "index.js");
   return {
     command: execPath,
-    args: ["mcp"],
-    env: projectRootEnv,
+    args: [entrypoint, "mcp"],
+    env: { ...DESKTOP_NODE_MODE_ENV, ...(projectRootEnv ?? {}) },
   };
 }

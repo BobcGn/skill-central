@@ -77,9 +77,8 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
         args: mcpServerConfig.args,
         cwd: rootDir,
         env: mcpServerConfig.env,
-        autoStart: true,
       }
-    : { cwd: rootDir, autoStart: true });
+    : { cwd: rootDir });
   const board = startBoardServer({
     host,
     port,
@@ -322,10 +321,10 @@ app.setName("Skill Central");
 const desktopMcpMode = isDesktopMcpMode(process.argv, app.isPackaged);
 
 if (desktopMcpMode) {
-  // macOS Dock 只应展示主应用一个图标。该 MCP 分支由本地 MCP Runtime
-  // 子进程命中：它是同一个 App 可执行文件的第二个 Electron 实例，
-  // 默认 Regular 激活策略会让 Dock 额外生成一个图标（“双图标”现象）。
-  // 这里显式隐藏 Dock 图标；主 GUI 进程不进入此分支，不受影响。
+  // Compatibility for MCP entries written before 1.1.1. New packaged entries
+  // use ELECTRON_RUN_AS_NODE and bypass this Electron main module entirely.
+  // Keep legacy macOS launches out of the Dock until startup reconciliation
+  // refreshes their command to the lightweight Node-mode entrypoint.
   if (process.platform === "darwin") {
     app.dock?.hide();
   }

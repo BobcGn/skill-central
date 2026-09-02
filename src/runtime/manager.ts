@@ -47,6 +47,8 @@ export interface LocalRuntimeManagerOptions {
 
 export class LocalRuntimeManager {
   private child: ChildProcessByStdio<Writable, Readable, Readable> | undefined;
+  private stopPromise: Promise<RuntimeSnapshot> | undefined;
+  private configureChain: Promise<RuntimeSnapshot> | undefined;
   private snapshot: RuntimeSnapshot;
 
   constructor(
@@ -66,19 +68,23 @@ export class LocalRuntimeManager {
   }
 
   async configure(options: LocalRuntimeManagerOptions, restart = true): Promise<RuntimeSnapshot> {
-    const wasRunning = this.snapshot.status === "running";
-    if (this.child) await this.stop();
-    this.options = { ...this.options, ...options };
-    this.snapshot = {
-      status: "stopped",
-      transport: "stdio",
-      command: this.options.command ?? process.execPath,
-      args: this.options.args ?? [resolve(process.argv[1] ?? "dist/index.js"), "mcp"],
-      stoppedAt: new Date().toISOString(),
-      stdoutLines: [],
-      stderrLines: [],
+    const configure = async (): Promise<RuntimeSnapshot> => {
+      const wasRunning = this.snapshot.status === "running";
+      if (this.child) await this.stop();
+      this.options = { ...this.options, ...options };
+      this.snapshot = {
+        status: "stopped",
+        transport: "stdio",
+        command: this.options.command ?? process.execPath,
+        args: this.options.args ?? [resolve(process.argv[1] ?? "dist/index.js"), "mcp"],
+        stoppedAt: new Date().toISOString(),
+        stdoutLines: [],
+        stderrLines: [],
+      };
+      return wasRunning && restart ? this.start() : this.getSnapshot();
     };
-    return wasRunning && restart ? this.start() : this.getSnapshot();
+    this.configureChain = (this.configureChain ?? Promise.resolve(this.getSnapshot())).then(configure, configure);
+    return this.configureChain;
   }
 
   getSnapshot(): RuntimeSnapshot {
@@ -90,7 +96,10 @@ export class LocalRuntimeManager {
   }
 
   start(): RuntimeSnapshot {
-    if (this.child && !this.child.killed) return this.getSnapshot();
+    // A child remains owned until its exit event has been observed. `killed`
+    // only reports that kill() was requested and must not authorize a second
+    // overlapping Runtime during shutdown.
+    if (this.child || this.stopPromise) return this.getSnapshot();
 
     const command = this.options.command ?? process.execPath;
     const args = this.options.args ?? [resolve(process.argv[1] ?? "dist/index.js"), "mcp"];
@@ -98,6 +107,9 @@ export class LocalRuntimeManager {
       cwd: this.options.cwd ?? process.cwd(),
       env: this.options.env ? { ...process.env, ...this.options.env } : process.env,
       stdio: ["pipe", "pipe", "pipe"],
+      // A dedicated POSIX process group lets shutdown reach descendants even
+      // after the direct child exits. Windows uses taskkill /T in stop().
+      detached: process.platform !== "win32",
     });
 
     this.child = child;
@@ -118,9 +130,11 @@ export class LocalRuntimeManager {
     child.stderr.on("data", (chunk) => this.pushLog("stderr", chunk));
 
     child.once("error", (err) => {
+      if (this.child !== child) return;
       this.snapshot = {
         ...this.snapshot,
         status: "error",
+        pid: undefined,
         lastError: err.message,
         stoppedAt: new Date().toISOString(),
       };
@@ -128,11 +142,13 @@ export class LocalRuntimeManager {
     });
 
     child.once("exit", (code, signal) => {
+      if (this.child !== child) return;
       const stoppedAt = new Date().toISOString();
       const expectedStop = this.snapshot.status === "stopped";
       this.snapshot = {
         ...this.snapshot,
         status: expectedStop || code === 0 ? "stopped" : "error",
+        pid: undefined,
         stoppedAt,
         exitCode: code,
         signal,
@@ -145,6 +161,7 @@ export class LocalRuntimeManager {
   }
 
   async stop(): Promise<RuntimeSnapshot> {
+    if (this.stopPromise) return this.stopPromise;
     if (!this.child) {
       this.snapshot = {
         ...this.snapshot,
@@ -155,23 +172,34 @@ export class LocalRuntimeManager {
     }
 
     const child = this.child;
-    this.snapshot = {
-      ...this.snapshot,
-      status: "stopped",
-      stoppedAt: new Date().toISOString(),
-    };
-    child.stdin.end();
-    child.kill("SIGTERM");
-    const exitedAfterTerm = await waitForExit(child, 1500);
-    if (!exitedAfterTerm && child.exitCode === null && child.signalCode === null) {
-      // `child.killed` only means kill() was called; it does not mean the OS
-      // process exited. A SIGTERM-resistant runtime must receive SIGKILL and
-      // be reaped before desktop shutdown can complete.
-      child.kill("SIGKILL");
+    const stop = async (): Promise<RuntimeSnapshot> => {
+      this.snapshot = {
+        ...this.snapshot,
+        status: "stopped",
+        stoppedAt: new Date().toISOString(),
+      };
+      child.stdin.end();
+      if (process.platform === "win32") {
+        // Node signals only terminate the direct process on Windows. taskkill
+        // /T covers any helper descendants owned by the Runtime.
+        const treeTerminationStarted = await terminateWindowsProcessTree(child.pid);
+        if (!treeTerminationStarted && child.exitCode === null && child.signalCode === null) {
+          child.kill("SIGKILL");
+        }
+      } else {
+        signalPosixProcessGroup(child.pid, "SIGTERM");
+        const exitedAfterTerm = await waitForExit(child, 1500);
+        if (!exitedAfterTerm) signalPosixProcessGroup(child.pid, "SIGKILL");
+      }
       await waitForExit(child, 1500);
-    }
-    if (this.child === child) this.child = undefined;
-    return this.getSnapshot();
+      if (this.child === child) this.child = undefined;
+      this.snapshot = { ...this.snapshot, pid: undefined };
+      return this.getSnapshot();
+    };
+    this.stopPromise = stop().finally(() => {
+      this.stopPromise = undefined;
+    });
+    return this.stopPromise;
   }
 
   private pushLog(stream: "stdout" | "stderr", chunk: string): void {
@@ -182,6 +210,27 @@ export class LocalRuntimeManager {
       .filter((line) => line.length > 0);
     this.snapshot[key] = [...this.snapshot[key], ...lines].slice(-(this.options.maxLogLines ?? 80));
   }
+}
+
+function signalPosixProcessGroup(pid: number | undefined, signal: NodeJS.Signals): void {
+  if (!pid) return;
+  try {
+    process.kill(-pid, signal);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+  }
+}
+
+function terminateWindowsProcessTree(pid: number | undefined): Promise<boolean> {
+  if (!pid) return Promise.resolve(false);
+  return new Promise((resolveTermination) => {
+    const killer = spawn("taskkill", ["/pid", String(pid), "/t", "/f"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    killer.once("error", () => resolveTermination(false));
+    killer.once("exit", (code) => resolveTermination(code === 0));
+  });
 }
 
 function delay(ms: number): Promise<void> {
