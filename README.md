@@ -4,7 +4,7 @@ Local-first MCP hub for distributing reusable AI skills across IDEs.
 
 [简体中文](./README.zh-CN.md)
 
-> The `1.1.0` release supports macOS (Apple Silicon and Intel) and Windows x64. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Keep backups of important registries and review every sync or IDE connection plan before applying it.
+> The `1.1.1` release supports macOS (Apple Silicon and Intel) and Windows x64. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Keep backups of important registries and review every sync or IDE connection plan before applying it.
 
 AI coding conventions often end up copied across Codex, Claude Code, Cursor, and other tools, each with its own config file and prompt format. Skill Central lets you write reusable Skills and covenant Rules once, keep them in governed local layers, and expose the same source through every MCP-capable Agent you connect.
 
@@ -68,7 +68,7 @@ Current Windows releases are not Authenticode-signed. SmartScreen can show an un
 Each release publishes a `latest.yml` file with a base64 SHA-512 digest for the NSIS installer. You can compare the downloaded file against that value in PowerShell:
 
 ```powershell
-$path = ".\Skill-Central-1.1.0-win-x64.exe"
+$path = ".\Skill-Central-1.1.1-win-x64.exe"
 $h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
 [Convert]::ToBase64String($h)
 ```

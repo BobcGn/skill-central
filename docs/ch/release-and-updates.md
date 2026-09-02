@@ -6,7 +6,7 @@ Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护�
 
 ## 当前正式版
 
-`1.1.0` 支持 macOS arm64/x64 与 Windows x64。macOS 产物使用 ad-hoc 签名（无 Developer ID）且未公证；Windows 产物未使用 Authenticode。正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 配置适配器保持实验性；本机缺少对应应用时必须标记“未验证”。
+`1.1.1` 支持 macOS arm64/x64 与 Windows x64。macOS 产物使用 ad-hoc 签名（无 Developer ID）且未公证；Windows 产物未使用 Authenticode。正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 配置适配器保持实验性；本机缺少对应应用时必须标记“未验证”。
 
 ## 版本不变量
 

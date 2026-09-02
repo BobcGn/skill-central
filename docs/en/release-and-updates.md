@@ -6,7 +6,7 @@ Release creation, tags, package publication, signing, and repository permission 
 
 ## Current Release
 
-`1.1.0` supports macOS arm64/x64 and Windows x64. macOS artifacts are ad-hoc signed (no Developer ID) and not notarized; Windows artifacts are not Authenticode-signed. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Trae, Windsurf, and Cline configuration adapters remain experimental and must be reported as unverified when their applications are unavailable.
+`1.1.1` supports macOS arm64/x64 and Windows x64. macOS artifacts are ad-hoc signed (no Developer ID) and not notarized; Windows artifacts are not Authenticode-signed. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Trae, Windsurf, and Cline configuration adapters remain experimental and must be reported as unverified when their applications are unavailable.
 
 ## Version Invariants
 

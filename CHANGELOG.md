@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-01
+
+### 修复
+
+- **macOS/Windows MCP 轻量进程**：打包应用写入 IDE、桌面 Runtime 和健康探测的 MCP
+  启动项统一使用 `ELECTRON_RUN_AS_NODE=1` 执行内置 CLI；macOS 不再为每个 MCP 连接
+  创建第二棵 Electron/Chromium Helper 进程树，Windows 保持可靠的 stdio stdout。
+- **后台空闲内存**：桌面 Board 不再自动启动仅供 Runtime 控制台使用的本地 MCP；需要时
+  可从 Runtime 页面手动启动，未启动时不会占用额外常驻进程。
+- **子进程泄漏与竞争**：Runtime 启停/重配改为单实例生命周期，POSIX 按进程组、Windows
+  按进程树清理；健康探测超时会主动关闭 transport 并等待子进程回收，启动识别改为顺序探测，
+  避免长期运行或重复检查后累积进程。
+
+### 兼容性说明
+
+- stdio MCP 继续由每个活跃 Coding Agent 分别持有一个轻量 Node 进程；本版本不引入共享
+  daemon。升级后请重新加载 Agent 的 MCP 连接，使 1.1.0 写入的旧启动项刷新为 Node 模式。
+
 ## [1.1.0] - 2026-08-11
 
 ### 新增
