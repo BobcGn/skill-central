@@ -70,6 +70,22 @@ if (desktopShutdownGate.error) {
 }
 if (desktopShutdownGate.status !== 0) process.exit(desktopShutdownGate.status ?? 1);
 
+const healthCleanupGate = spawnSync(
+  process.execPath,
+  [path.join("scripts", "test-health-probe-cleanup.mjs")],
+  {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "inherit",
+    shell: false,
+  },
+);
+if (healthCleanupGate.error) {
+  console.error(`[skill-central] Failed to start health cleanup gate: ${healthCleanupGate.error.message}`);
+  process.exit(1);
+}
+if (healthCleanupGate.status !== 0) process.exit(healthCleanupGate.status ?? 1);
+
 const mcpGate = spawnSync(process.execPath, [path.join("scripts", "test-mcp-protocol.mjs")], {
   cwd: process.cwd(),
   env: process.env,

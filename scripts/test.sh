@@ -3085,8 +3085,15 @@ const macExec = "/Applications/Skill Central.app/Contents/MacOS/Skill Central";
 const macAppPath = "/Applications/Skill Central.app/Contents/Resources/app.asar";
 const macProjectRoot = "/Users/alice/project";
 const packagedMcp = desktopMcpServerConfig(true, macExec, macAppPath, "darwin", macProjectRoot);
-if (packagedMcp?.command !== macExec || packagedMcp.args?.[0] !== "mcp") {
+const expectedMacEntry = `${macAppPath}/dist/index.js`;
+if (packagedMcp?.command !== macExec
+  || packagedMcp.args?.length !== 2
+  || packagedMcp.args[0] !== expectedMacEntry
+  || packagedMcp.args[1] !== "mcp") {
   throw new Error("packaged desktop MCP config is invalid");
+}
+if (packagedMcp.env?.ELECTRON_RUN_AS_NODE !== "1") {
+  throw new Error("macOS packaged MCP config must skip the Electron GUI runtime");
 }
 if (packagedMcp.env?.SKILL_CENTRAL_PROJECT_ROOT !== macProjectRoot) {
   throw new Error("macOS packaged MCP config should pin the selected workspace root");
@@ -3095,9 +3102,9 @@ if (desktopMcpServerConfig(false, "/usr/bin/electron", "/src", "darwin") !== und
   throw new Error("development desktop should keep CLI MCP config");
 }
 
-// Windows Electron binaries are GUI-subsystem, so `<app>.exe mcp` never
-// delivers JSON-RPC on stdout. The packaged launch entry must run the same
-// executable as plain Node against the bundled CLI so responses survive.
+// Both packaged platforms run the app executable as plain Node against the
+// bundled CLI. Windows needs this for stdout; macOS needs it to avoid a second
+// Chromium process tree for every MCP connection.
 const winExec = "C:\\Program Files\\Skill Central\\Skill Central.exe";
 const winAppPath = "C:\\Program Files\\Skill Central\\resources\\app.asar";
 const winProjectRoot = "C:\\Users\\alice\\project";
