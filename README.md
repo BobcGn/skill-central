@@ -4,7 +4,7 @@ Local-first MCP hub for distributing reusable AI skills across IDEs.
 
 [简体中文](./README.zh-CN.md)
 
-> The `1.1.1` release supports macOS (Apple Silicon and Intel) and Windows x64. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Keep backups of important registries and review every sync or IDE connection plan before applying it.
+> The `1.1.2` release supports macOS (Apple Silicon and Intel) and Windows x64. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Keep backups of important registries and review every sync or IDE connection plan before applying it.
 
 AI coding conventions often end up copied across Codex, Claude Code, Cursor, and other tools, each with its own config file and prompt format. Skill Central lets you write reusable Skills and covenant Rules once, keep them in governed local layers, and expose the same source through every MCP-capable Agent you connect.
 
@@ -68,7 +68,7 @@ Current Windows releases are not Authenticode-signed. SmartScreen can show an un
 Each release publishes a `latest.yml` file with a base64 SHA-512 digest for the NSIS installer. You can compare the downloaded file against that value in PowerShell:
 
 ```powershell
-$path = ".\Skill-Central-1.1.1-win-x64.exe"
+$path = ".\Skill-Central-1.1.2-win-x64.exe"
 $h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
 [Convert]::ToBase64String($h)
 ```
@@ -109,6 +109,11 @@ skill-central board
 ```
 
 The board binds to `127.0.0.1:5417` by default. If the port is occupied it tries the next ten ports. Updater availability depends on the platform and installation method.
+
+Packaged desktop builds expose MCP through the Board's loopback-only Streamable HTTP endpoint and
+register detected Coding Agents to that shared service. This avoids one persistent stdio child process
+per Agent session. After upgrading or repairing a connection, restart/reload already-open Agents so
+they read the refreshed URL. Source/CLI integrations can still use the standalone stdio server below.
 
 Start the stdio MCP server:
 
@@ -170,6 +175,8 @@ skill-central register trae
 | Cline | Experimental | Cline MCP settings JSON configuration |
 
 Codex configuration is parsed and validated as TOML. Other targets use structured JSON handling. Existing unrelated entries are preserved. Apply operations create backup evidence and can be rolled back.
+The packaged desktop app writes a loopback `url` entry for its shared MCP endpoint; command-based
+stdio entries remain supported for CLI and development use.
 
 ## Core CLI
 

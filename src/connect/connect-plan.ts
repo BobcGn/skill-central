@@ -87,8 +87,8 @@ export async function buildConnectPlan(
         status: "applied",
         title: "Preview MCP config merge",
         detail: registration.registered && serverDrift
-          ? `Refresh drifted ${SKILL_CENTRAL_MCP_SERVER_NAME} entry to ${desiredServer.command} ${(desiredServer.args ?? []).join(" ")}`
-          : `Set mcpServers.${SKILL_CENTRAL_MCP_SERVER_NAME} to ${desiredServer.command} ${(desiredServer.args ?? []).join(" ")}`,
+          ? `Refresh drifted ${SKILL_CENTRAL_MCP_SERVER_NAME} entry to ${describeServer(desiredServer)}`
+          : `Set mcpServers.${SKILL_CENTRAL_MCP_SERVER_NAME} to ${describeServer(desiredServer)}`,
       },
       {
         kind: "backup",
@@ -116,6 +116,11 @@ export async function buildConnectPlan(
       },
     ],
   };
+}
+
+function describeServer(server: McpServerConfig): string {
+  if (server.url) return server.url;
+  return [server.command, ...(server.args ?? [])].filter(Boolean).join(" ");
 }
 
 export async function applyConnectPlan(plan: OneClickConnectPlan): Promise<OneClickConnectPlan> {

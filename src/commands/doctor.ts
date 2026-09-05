@@ -309,6 +309,9 @@ function printIdeHealth(health: IdeConnectionHealth): void {
   if (health.serverCommand) {
     console.log(`  Command     : ${[health.serverCommand, ...(health.serverArgs ?? [])].join(" ")}`);
   }
+  if (health.serverUrl) {
+    console.log(`  URL         : ${health.serverUrl}`);
+  }
   if (health.serverVersion) console.log(`  Server      : ${health.serverVersion}`);
   console.log(`  Prompt count: ${health.promptCount} / registry ${health.registryPromptCount}`);
   console.log(`  Tool count  : ${health.toolCount} / registry ${health.registryToolCount}`);

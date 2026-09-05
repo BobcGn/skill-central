@@ -76,7 +76,7 @@ function printPlan(plan: OneClickConnectPlan): void {
   console.log("  " + "-".repeat(72));
   console.log(`  Target : ${plan.target}`);
   console.log(`  Config : ${plan.configPath}`);
-  console.log(`  Server : ${plan.desiredServer.command} ${(plan.desiredServer.args ?? []).join(" ")}`);
+  console.log(`  Server : ${plan.desiredServer.url ?? [plan.desiredServer.command, ...(plan.desiredServer.args ?? [])].filter(Boolean).join(" ")}`);
   console.log(`  Backup : ${plan.backupPath ?? "(new file)"}`);
   console.log("");
   console.log("▸ Steps");

@@ -4,7 +4,7 @@
 
 ## 集成模型
 
-Skill Central 以本地 stdio MCP Server 连接 IDE：
+源码与 CLI 安装通过本地 stdio MCP Server 连接 IDE：
 
 ```json
 {
@@ -15,7 +15,17 @@ Skill Central 以本地 stdio MCP Server 连接 IDE：
 
 `skill-central` 可执行文件必须存在于 IDE 进程使用的环境中。MCP 进程加载与 CLI 相同的 Skill Layer，并暴露 prompts、tools 和只读 resources。
 
-通过打包桌面应用执行一键连接时，Skill Central 会写入当前 App Bundle 的绝对可执行路径，并让该可执行文件以 `mcp` 参数进入 stdio MCP 模式。这样 IDE 不需要从 shell `PATH` 中找到 `skill-central` 命令。源码 CLI 运行 `connect` 或 `register` 时仍写入上面的通用命令。
+打包桌面应用改为注册现有 Board 进程提供的 Streamable HTTP 回环端点：
+
+```json
+{
+  "url": "http://127.0.0.1:5417/mcp"
+}
+```
+
+实际端口可能位于 `5417` 到 `5427`。多个 Agent 会话在同一个桌面进程中使用各自的 MCP
+Session，不再各自常驻一个 stdio 子进程。注册变更后，需要重载或重启已经打开的 Agent。
+源码 CLI 的 `connect` 和 `register` 仍写入上面的通用命令。
 
 ## 公约与 IDE 原生规则
 
@@ -127,9 +137,10 @@ Apply 会解析当前 JSON 或 TOML，保留无关设置和其他 MCP Server，�
 
 ## 健康状态
 
-只执行检测时可以返回 `registered`，不会启动进程。Verification 会执行有超时限制的 stdio Probe，并检查：
+只执行检测时可以返回 `registered`，不会建立连接。Verification 会按配置的 HTTP 或 stdio
+Transport 执行有超时限制的 Probe，并检查：
 
-1. Process Spawn
+1. Transport Connection（stdio 模式还包括 Process Spawn）
 2. MCP Initialize Handshake
 3. `prompts/list`
 4. `tools/list`
@@ -150,11 +161,10 @@ Apply 会解析当前 JSON 或 TOML，保留无关设置和其他 MCP Server，�
 
 Health Result 会包含失败阶段、诊断文本和下一步建议。默认 Probe Timeout 为八秒。
 
-Board 的 Runtime 视图是独立的本地烟测面。桌面应用启动后，它应默认显示一个 running 的
-MCP stdio 进程，并使用一键连接写入 IDE 配置的同一个可执行文件路径。Board Runtime 停止
-本身不能证明某个 IDE 配置已损坏，但说明打包 MCP 启动入口无法保持运行，必须先修复后再
-依赖 IDE 健康检查结果。macOS 上的 Runtime 子进程会隐藏自己的 Dock 图标
-（`app.dock.hide()`），因此程序坞只显示主应用一个图标。
+Board 的 Runtime 视图是独立、按需启动的 stdio Launcher 烟测面，默认保持 stopped，也不是
+打包桌面应用注册给 IDE 的服务。手动启动它可以验证内置 CLI 入口；IDE 健康检查则直接探测
+共享 HTTP 端点。macOS 上显式启动的 Runtime 子进程会隐藏自己的 Dock 图标
+（`app.dock.hide()`）。
 
 ## 新增 IDE
 

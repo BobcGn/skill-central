@@ -1,6 +1,6 @@
 {
   "name": "@bobcgn/skill-central",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Local MCP Server for cross-IDE AI skill distribution and reuse",
   "author": "BobcGn",
@@ -85,8 +85,9 @@
   },
   "overrides": {
     "esbuild": "^0.28.1",
-    "fast-uri": "^3.1.5",
+    "fast-uri": "^3.1.7",
     "ip-address": "^10.5.0",
+    "qs": "^6.16.0",
     "minimatch@3.1.5": {
       "brace-expansion": "1.1.18"
     },

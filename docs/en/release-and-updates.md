@@ -6,7 +6,7 @@ Release creation, tags, package publication, signing, and repository permission 
 
 ## Current Release
 
-`1.1.1` supports macOS arm64/x64 and Windows x64. macOS artifacts are ad-hoc signed (no Developer ID) and not notarized; Windows artifacts are not Authenticode-signed. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Trae, Windsurf, and Cline configuration adapters remain experimental and must be reported as unverified when their applications are unavailable.
+`1.1.2` supports macOS arm64/x64 and Windows x64. macOS artifacts are ad-hoc signed (no Developer ID) and not notarized; Windows artifacts are not Authenticode-signed. Codex, Claude Code, and Cursor are the formally supported Coding Agents. Trae, Windsurf, and Cline configuration adapters remain experimental and must be reported as unverified when their applications are unavailable.
 
 ## Version Invariants
 
@@ -103,11 +103,11 @@ Homebrew guarantees installation of the desktop App Bundle, not automatic launch
 4. Use the application or menu bar Quit action and confirm the process/listener disappear.
 5. Launch twice and confirm the single-instance behavior restores the original window.
 
-`Command+Q` is a full quit. The main process waits for its local MCP child and Board loopback listener
-to close, force-kills a child that ignores SIGTERM when necessary, and only then completes Electron
-shutdown. Activity Monitor should retain neither Skill Central nor its app-owned MCP runtime. MCP
-processes independently launched by Codex, Claude Code, or Cursor belong to those Agent sessions and
-should be distinguished by quitting the owning session.
+`Command+Q` is a full quit. The main process closes shared HTTP MCP sessions, waits for any optional
+local stdio Runtime child and the Board loopback listener, force-kills a child that ignores SIGTERM
+when necessary, and only then completes Electron shutdown. Activity Monitor should retain neither
+Skill Central nor its app-owned runtime. Legacy stdio processes launched before an Agent reload still
+belong to those Agent sessions and disappear when the owning session exits.
 
 ## Pre-Release Candidate Tap
 
@@ -160,12 +160,12 @@ On Windows, packaged NSIS builds also use `electron-updater` with GitHub. MSI an
 
 ## Stable Startup Recognition Release Matrix
 
-The final release must validate four separate layers: the app started, MCP stdio can handshake, the target Agent config is registered or refreshed, and the current session discovered the tool surface. Skill Central can automate and audit the first three layers. The fourth layer must be recorded with real Agent smoke results; a present config must not be reported as proof that an already-running session can call the tools.
+The final release must validate four separate layers: the app started, the configured MCP transport can handshake, the target Agent config is registered or refreshed, and the current session discovered the tool surface. Skill Central can automate and audit the first three layers. The fourth layer must be recorded with real Agent smoke results; a present config must not be reported as proof that an already-running session can call the tools.
 
 | Dimension | Stable release requirement | Current automated evidence | Real candidate-package gate |
 | --- | --- | --- | --- |
 | macOS desktop | Run startup recognition asynchronously after Board startup and expose the latest audit | `npm run lint` and `npm test` cover the reconciler, API, and Board summary entry | First launch on arm64 and available x64 packages confirms audit creation and no duplicate process |
-| Windows desktop | After NSIS install, Board starts and the MCP command path is executable by target Agents | Path and format logic are indirectly covered by unit/integration tests | Real Windows x64 install, launch, quit, update, and at least Codex/Cursor registration checks |
+| Windows desktop | After NSIS install, Board starts and its shared MCP URL is reachable by target Agents | URL/format logic is covered by unit and integration tests | Real Windows x64 install, launch, quit, update, and at least Codex/Cursor registration checks |
 | Codex | Registered config is not the same as current-task MCP discovery; a new task or discovery path may be needed | Docs/UI distinguish config registration from session discovery | New Codex task discovers `skill-central` MCP tools; old task receives refresh guidance |
 | Claude / Claude Code | JSON config preserves existing servers and backs up drift refreshes | Connect transaction and startup recognition tests cover server preservation | Real client restart recognizes the `skill-central` server |
 | Cursor | JSON config preserves existing servers; startup repair is transactional | Connect transaction, MCP gate, and startup recognition tests | Real client restart recognizes Skills and Rules from `skill-central` |

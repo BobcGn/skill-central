@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { McpServerConfig } from "../ide-detection/types.js";
+import { isStdioMcpServerConfig, type McpServerConfig } from "../ide-detection/types.js";
 import { PROJECT_ROOT_ENV } from "../mcp.js";
 
 export function desktopCliArgs(argv: readonly string[], packaged: boolean): string[] {
@@ -22,6 +22,7 @@ export function withProjectRootEnv(
   projectRoot: string,
 ): McpServerConfig | undefined {
   if (!server) return undefined;
+  if (!isStdioMcpServerConfig(server)) return server;
   return {
     ...server,
     env: {
@@ -29,6 +30,15 @@ export function withProjectRootEnv(
       [PROJECT_ROOT_ENV]: projectRoot,
     },
   };
+}
+
+/**
+ * Registration written by the packaged desktop app. All IDE sessions share
+ * the Board's loopback process instead of allocating one stdio child each.
+ */
+export function desktopMcpHttpServerConfig(host: string, port: number): McpServerConfig {
+  const urlHost = host === "::1" ? "[::1]" : host;
+  return { url: `http://${urlHost}:${port}/mcp` };
 }
 
 /**
@@ -45,7 +55,7 @@ export function desktopMcpServerConfig(
   appPath: string,
   platform: NodeJS.Platform = process.platform,
   projectRoot?: string,
-): McpServerConfig | undefined {
+): (McpServerConfig & { command: string }) | undefined {
   if (!packaged) return undefined;
   const projectRootEnv: Record<string, string> | undefined = projectRoot
     ? { [PROJECT_ROOT_ENV]: projectRoot }

@@ -13,12 +13,14 @@ Skill Central 是一个本地优先的可复用 AI Skill 控制中心。它从�
 ```mermaid
 flowchart TD
     Electron[Electron 主进程] --> Board[本地 Hono Board Server]
-    Electron --> Runtime[本地 MCP Runtime 进程]
+    Electron --> SharedMCP[共享 HTTP MCP Endpoint]
+    Electron -. 可选烟测 .-> Runtime[本地 stdio Runtime 进程]
     Electron --> Window[沙箱化 BrowserWindow]
     Window -->|Loopback HTTP| Board
 
     CLI[skill-central 命令] --> Engine[SkillEngine / Registry]
-    IDE[IDE Client] -->|stdio MCP| MCP[MCP Handlers]
+    IDE[IDE Client] -->|Streamable HTTP 或 stdio| MCP[MCP Handlers]
+    SharedMCP --> MCP
     MCP --> Engine
     MCP --> Reverse[ReverseOutputService]
     CLI --> Reverse
@@ -73,7 +75,8 @@ flowchart TD
 1. Electron 在 `127.0.0.1` 上从 `5417` 到 `5427` 寻找可用端口。
 2. 启动与 CLI 相同的 Board Server。
 3. 在启用沙箱、上下文隔离且关闭 Node Integration 的窗口中加载 Board。
-4. 使用桌面 IDE 连接计划写入 IDE 配置的同一个启动入口，启动一个本地 MCP stdio Runtime。
+4. 在 Board Listener 上提供共享 Streamable HTTP MCP Endpoint，并将该 URL 写入检测到的 IDE
+   配置；可选 Runtime 烟测进程在用户请求前保持停止。
 5. 打包版本在首个窗口加载后不久执行一次更新检查。
 
 ## 主要数据流
@@ -109,14 +112,14 @@ flowchart LR
 
 ### 本地 Runtime
 
-Board 的 Runtime 视图观察桌面进程持有的本地 MCP stdio 进程。它是打包启动入口的运行烟测面，
-不是供 IDE 共用的 MCP Daemon。该进程空闲时也必须保持 stdin 打开；关闭 stdin 会让 MCP
-Server 退出，并使 Runtime Snapshot 回到 `stopped`。IDE 健康验证仍会独立启动写在对应 IDE
-MCP 配置里的命令；只有该配置进程无法 Spawn 或在 Probe 中退出时，才报告 `server-stopped`。
+桌面 Board Listener 持有打包 IDE 注册使用的共享 Streamable HTTP MCP Endpoint。每个客户端
+拥有隔离的 MCP Session，同时复用同一个 OS 进程和 `SkillEngine`。Session 终止、工作区切换、
+资产库重载以及桌面应用退出都会关闭对应 Server 状态；IDE 健康验证会创建并显式终止临时
+HTTP Session。
 
-在 macOS 上，该子进程是同一 App 可执行文件的第二个 Electron 实例，默认 Regular 激活策略
-会在程序坞额外占据一个图标。MCP 分支因此调用 `app.dock.hide()`，使程序坞只为主应用保留
-一个图标。
+Runtime 视图仍保留为按需启动的 stdio Launcher 开发与诊断烟测面；进程必须保持 stdin 打开
+直到停止。macOS 打包 Launcher 使用 Node 模式并隐藏 Dock 图标。这个可选 Runtime 不会作为
+打包 IDE Transport 注册。
 
 ### Registry 同步
 

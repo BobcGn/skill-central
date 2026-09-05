@@ -61,15 +61,21 @@ const server = {
     }, 120);
   },
 };
+const mcpHttpEndpoint = {
+  close: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    events.push("mcp-http-closed");
+  },
+};
 
-await shutdownDesktopServices({ runtime, server });
-assert.deepEqual(events.sort(), ["runtime-stopped", "server-closed"]);
+await shutdownDesktopServices({ runtime, server, mcpHttpEndpoint });
+assert.deepEqual(events.sort(), ["mcp-http-closed", "runtime-stopped", "server-closed"]);
 const desktopSource = await readFile(new URL("../src/desktop/main.ts", import.meta.url), "utf8");
 assert.match(desktopSource, /accelerator:\s*"CommandOrControl\+Q"/);
 assert.match(desktopSource, /click:\s*requestDesktopQuit/);
 assert.match(desktopSource, /app\.on\("before-quit",[\s\S]*requestDesktopQuit\(\)/);
 assert.match(desktopSource, /setTimeout\([\s\S]*forcing the cleaned main process to exit[\s\S]*5000\)/);
-console.log("Desktop shutdown contract passed: runtime child is reaped and Board close is awaited.");
+console.log("Desktop shutdown contract passed: runtime child and shared MCP sessions are reaped before Board close completes.");
 
 async function waitForStdoutPid(runtime) {
   for (let attempt = 0; attempt < 40; attempt += 1) {

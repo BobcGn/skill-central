@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-05
+
+### 修复
+
+- **Coding Agent 后台进程累积**：桌面应用改为在现有 Board 回环服务中提供共享的
+  Streamable HTTP MCP 端点，并将 Codex、Claude Code、Cursor 等检测到的 Agent 注册到该
+  端点；多个 Agent 会话不再分别常驻一个 `skill-central mcp` stdio 子进程。健康探测会显式
+  终止临时 HTTP 会话，切换工作区、重载资产库和退出桌面应用时也会回收所有共享会话。
+- **生产依赖安全公告**：将 `fast-uri` 与 `qs` 约束到已修复版本，确保正式版生产依赖审计
+  不包含已知高危或中危项。
+
+### 兼容性说明
+
+- 独立 CLI、源码开发和手工集成继续支持 `skill-central mcp` stdio 模式。升级桌面应用后需
+  重启或重新加载已打开的 Coding Agent，使其读取更新后的本地 HTTP MCP 配置；升级前已经
+  启动的 stdio 子进程仍由原 Agent 会话负责退出。
+
 ## [1.1.1] - 2026-09-01
 
 ### 修复

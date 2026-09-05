@@ -17,8 +17,15 @@ import {
   StdioClientTransport,
   getDefaultEnvironment,
 } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { detectIdeRegistration } from "../ide-detection/detect.js";
-import type { IdeDetectionOptions, IdeTarget, McpServerConfig } from "../ide-detection/types.js";
+import {
+  isHttpMcpServerConfig,
+  isStdioMcpServerConfig,
+  type IdeDetectionOptions,
+  type IdeTarget,
+  type McpServerConfig,
+} from "../ide-detection/types.js";
 import type { SkillEngine } from "../core/engine.js";
 import { BUILTIN_CONTROL_TOOL_NAMES } from "../protocol/tools.js";
 import { ALL_RULES_PROMPT_NAME, RULE_PROMPT_PREFIX } from "../protocol/prompts.js";
@@ -41,6 +48,7 @@ export interface IdeConnectionHealth {
   configPath: string;
   serverCommand?: string;
   serverArgs?: string[];
+  serverUrl?: string;
   serverVersion?: string;
   promptCount: number;
   rulePromptCount: number;
@@ -125,6 +133,7 @@ export async function checkIdeConnectionHealth(
     ...base,
     serverCommand: server.command,
     serverArgs: server.args,
+    serverUrl: server.url,
   };
 
   if (options.verify !== true) {
@@ -183,34 +192,22 @@ export async function checkIdeConnectionHealth(
 async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promise<ProbeResult> {
   const chunks: Buffer[] = [];
 
-  // An explicit `env` replaces the transport's inherited defaults instead of
-  // extending them, so a config that only pins one variable would otherwise
-  // strip PATH and SYSTEMROOT and make the server unlaunchable.
-  const transport = new StdioClientTransport({
-    command: server.command,
-    args: server.args ?? [],
-    // Preserve Skill Central's explicit runtime overrides even when the IDE
-    // entry only contains command/args. The SDK's default environment is a
-    // safety-filtered subset and intentionally omits custom variables; without
-    // this merge the health process and the probed MCP child can load different
-    // global Skill/Rule roots and report false drift.
-    env: {
-      ...getDefaultEnvironment(),
-      ...skillCentralEnvironment(),
-      ...server.env,
-    },
-    stderr: "pipe",
-  });
-  transport.stderr?.on("data", (chunk) =>
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))),
-  );
+  const transport = isHttpMcpServerConfig(server)
+    ? new StreamableHTTPClientTransport(new URL(server.url), {
+        requestInit: server.headers ? { headers: server.headers } : undefined,
+      })
+    : createStdioTransport(server, chunks);
   const client = new Client({ name: "skill-central-health", version: VERSION }, { capabilities: {} });
   let cleanup: Promise<void> | undefined;
   const closeProbe = (): Promise<void> => {
-    const pid = transport.pid;
-    cleanup ??= client.close()
-      .catch(() => transport.close().catch(() => undefined))
-      .then(() => waitForProcessMissing(pid, 1500));
+    const pid = transport instanceof StdioClientTransport ? transport.pid : null;
+    cleanup ??= (async () => {
+      if (transport instanceof StreamableHTTPClientTransport) {
+        await transport.terminateSession().catch(() => undefined);
+      }
+      await client.close().catch(() => transport.close().catch(() => undefined));
+      await waitForProcessMissing(pid, 1500);
+    })();
     return cleanup;
   };
   let timer: NodeJS.Timeout | undefined;
@@ -243,6 +240,34 @@ async function probeMcpServer(server: McpServerConfig, timeoutMs: number): Promi
     if (timer) clearTimeout(timer);
     await closeProbe();
   }
+}
+
+function createStdioTransport(server: McpServerConfig, chunks: Buffer[]): StdioClientTransport {
+  if (!isStdioMcpServerConfig(server)) {
+    throw new Error("MCP config must define exactly one of command or url.");
+  }
+  // An explicit `env` replaces the transport's inherited defaults instead of
+  // extending them, so a config that only pins one variable would otherwise
+  // strip PATH and SYSTEMROOT and make the server unlaunchable.
+  const transport = new StdioClientTransport({
+    command: server.command,
+    args: server.args ?? [],
+    // Preserve Skill Central's explicit runtime overrides even when the IDE
+    // entry only contains command/args. The SDK's default environment is a
+    // safety-filtered subset and intentionally omits custom variables; without
+    // this merge the health process and the probed MCP child can load different
+    // global Skill/Rule roots and report false drift.
+    env: {
+      ...getDefaultEnvironment(),
+      ...skillCentralEnvironment(),
+      ...server.env,
+    },
+    stderr: "pipe",
+  });
+  transport.stderr?.on("data", (chunk) =>
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))),
+  );
+  return transport;
 }
 
 async function waitForProcessMissing(pid: number | null, timeoutMs: number): Promise<void> {

@@ -126,8 +126,8 @@ npm test
 - 同步更新两套 Message Dictionary 与两种语言公共文档。
 - 保持 System/Light/Dark Theme、Keyboard Focus 与窄屏导航。
 - 保持 `contextIsolation`、禁用 Node Integration 和 Sandbox。
-- 桌面 Board 拥有一个本地 MCP Runtime 进程，必须保持 stdio stdin 打开，直到显式停止或应用退出。
-  打包 MCP Server Config 已存在时，不得再从 Electron argv 猜测启动入口。
+- 桌面 Board 持有一个共享回环 HTTP MCP Endpoint；工作区/资产库变更与应用退出必须关闭全部
+  Session。可选 stdio Runtime 从显式启动到显式停止或应用退出期间必须保持 stdin 打开。
 - macOS 上 Runtime 子进程必须在 MCP 分支调用 `app.dock.hide()` 隐藏 Dock 图标，
   确保程序坞不会为同一 App Bundle 显示第二个图标。
 

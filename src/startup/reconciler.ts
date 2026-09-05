@@ -17,7 +17,11 @@ import {
   defaultIdeConfigPath,
   RELEASE_SUPPORTED_IDES,
 } from "../ide-detection/registry.js";
-import type { IdeTarget, McpServerConfig } from "../ide-detection/types.js";
+import {
+  mcpServerConfigForTarget,
+  type IdeTarget,
+  type McpServerConfig,
+} from "../ide-detection/types.js";
 
 export type StartupRecognitionStatus =
   | "not-registered"
@@ -86,7 +90,7 @@ async function reconcileTarget(
   try {
     let plan = await buildConnectPlan(target, {
       configPath,
-      desiredServer: options.desiredServer,
+      desiredServer: mcpServerConfigForTarget(target, options.desiredServer),
       dryRun: !(options.applyDrift || options.registerMissing),
     });
 

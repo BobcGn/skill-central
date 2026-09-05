@@ -4,7 +4,7 @@
 
 [English](./README.md)
 
-> `1.1.1` 正式支持 macOS（Apple Silicon 与 Intel）和 Windows x64；正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。请为重要 Registry 保留备份，并在执行同步或 Agent 连接前检查计划内容。
+> `1.1.2` 正式支持 macOS（Apple Silicon 与 Intel）和 Windows x64；正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。请为重要 Registry 保留备份，并在执行同步或 Agent 连接前检查计划内容。
 
 AI 编码约定经常被复制到 Codex、Claude Code、Cursor 等工具中，每个工具都有自己的配置文件和提示词格式。Skill Central 让你只编写一次可复用 Skill 和公约 Rule，把它们放在有治理边界的本地层级中，再通过 MCP 暴露给每个已连接的 Agent。
 
@@ -68,7 +68,7 @@ Homebrew 6 在加载第三方 Tap 前要求显式信任。执行 `brew trust` �
 每个 Release 会发布包含 NSIS 安装包 base64 SHA-512 摘要的 `latest.yml`。可在 PowerShell 中计算下载文件并与该值比对：
 
 ```powershell
-$path = ".\Skill-Central-1.1.1-win-x64.exe"
+$path = ".\Skill-Central-1.1.2-win-x64.exe"
 $h = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($path))
 [Convert]::ToBase64String($h)
 ```
@@ -109,6 +109,11 @@ skill-central board
 ```
 
 Board 默认监听 `127.0.0.1:5417`；端口被占用时会继续尝试后续十个端口。更新器是否可用取决于平台和安装方式。
+
+打包桌面版通过 Board 的纯回环 Streamable HTTP Endpoint 提供 MCP，并将检测到的 Coding
+Agent 注册到这个共享服务，从而避免每个 Agent 会话各自常驻一个 stdio 子进程。升级或修复
+连接后，请重启或重载已经打开的 Agent，让它读取更新后的 URL。源码和 CLI 集成仍可使用下方
+独立的 stdio Server。
 
 启动 stdio MCP Server：
 
@@ -160,6 +165,8 @@ skill-central register trae
 | Cline | 实验性 | Cline MCP settings JSON 配置 |
 
 Codex 配置通过 TOML 解析和校验，其他目标使用结构化 JSON 处理。现有无关配置会被保留；Apply 会生成备份证据并支持回退。
+打包桌面应用会写入共享 MCP Endpoint 的回环 `url`；基于 `command` 的 stdio Entry 继续供
+CLI 和开发模式使用。
 
 ## 核心 CLI
 

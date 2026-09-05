@@ -18,6 +18,7 @@ interface ClosableServer {
 export interface DesktopServiceHandle {
   runtime: RuntimeController;
   server: ClosableServer;
+  mcpHttpEndpoint?: { close(): Promise<void> };
 }
 
 export async function shutdownDesktopServices(
@@ -27,6 +28,7 @@ export async function shutdownDesktopServices(
   if (!board) return;
   const results = await Promise.allSettled([
     board.runtime.stop(),
+    board.mcpHttpEndpoint?.close() ?? Promise.resolve(),
     closeServer(board.server, serverTimeoutMs),
   ]);
   const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");

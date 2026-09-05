@@ -4,7 +4,7 @@
 
 ## Integration Model
 
-Skill Central connects to IDEs as a local stdio MCP server:
+Source and CLI installations connect to IDEs through a local stdio MCP server:
 
 ```json
 {
@@ -15,7 +15,19 @@ Skill Central connects to IDEs as a local stdio MCP server:
 
 The executable must be available in the environment used by the IDE. The MCP process loads the same configured skill layers as the CLI and exposes prompts, tools, and read-only resources.
 
-When one-click connection is run from the packaged desktop app, Skill Central writes the absolute executable path of the current App Bundle and starts that executable with the `mcp` argument. The IDE therefore does not need to find `skill-central` on the shell `PATH`. Source CLI `connect` and `register` still write the generic command shown above.
+The packaged desktop app instead registers the Streamable HTTP endpoint hosted by its existing
+loopback Board process:
+
+```json
+{
+  "url": "http://127.0.0.1:5417/mcp"
+}
+```
+
+The selected port may be between `5417` and `5427`. Multiple Agent sessions use separate MCP
+sessions on this one desktop process rather than each retaining a stdio child. Reload or restart
+already-open Agents after registration changes. Source CLI `connect` and `register` continue to
+write the generic command shown above.
 
 ## Covenant and IDE-Native Rules
 
@@ -134,9 +146,10 @@ Keep the backup path shown by the plan. Rollback does not guess among multiple b
 
 ## Health States
 
-Detection alone can report `registered` without starting a process. Verification executes a bounded stdio probe and checks:
+Detection alone can report `registered` without opening a connection. Verification executes a
+bounded probe using the configured HTTP or stdio transport and checks:
 
-1. Process spawn
+1. Transport connection (and process spawn for stdio)
 2. MCP initialize handshake
 3. `prompts/list`
 4. `tools/list`
@@ -157,12 +170,10 @@ Possible states include:
 
 Health results include the failure stage, diagnostic text, and suggested next actions. The default probe timeout is eight seconds.
 
-The Board Runtime view is a separate local smoke surface. In the desktop app it should already
-show a running MCP stdio process after startup, using the same executable path that one-click
-connection writes into IDE configuration. A stopped Board Runtime does not by itself prove that
-an IDE config is broken, but it does indicate the packaged MCP launcher cannot stay alive and must
-be fixed before relying on IDE health results. On macOS the runtime child process hides its Dock
-icon (`app.dock.hide()`), so the Dock shows a single icon for the main application.
+The Board Runtime view is a separate, opt-in stdio launcher smoke surface. It is stopped by
+default and is not the service registered with IDEs by the packaged desktop app. Starting it can
+validate the bundled CLI launcher, while IDE health checks probe the shared HTTP endpoint directly.
+On macOS an explicitly started runtime child hides its Dock icon (`app.dock.hide()`).
 
 ## Adding an IDE
 

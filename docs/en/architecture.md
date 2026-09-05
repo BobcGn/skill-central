@@ -13,12 +13,14 @@ The project deliberately separates source assets from derived runtime state. Ski
 ```mermaid
 flowchart TD
     Electron[Electron main process] --> Board[Local Hono Board server]
-    Electron --> Runtime[Local MCP runtime process]
+    Electron --> SharedMCP[Shared HTTP MCP endpoint]
+    Electron -. optional smoke test .-> Runtime[Local stdio runtime process]
     Electron --> Window[Sandboxed BrowserWindow]
     Window -->|Loopback HTTP| Board
 
     CLI[skill-central commands] --> Engine[SkillEngine / Registry]
-    IDE[IDE client] -->|stdio MCP| MCP[MCP handlers]
+    IDE[IDE client] -->|Streamable HTTP or stdio| MCP[MCP handlers]
+    SharedMCP --> MCP
     MCP --> Engine
     MCP --> Reverse[ReverseOutputService]
     CLI --> Reverse
@@ -73,8 +75,8 @@ The desktop shell does not grant Node.js access to renderer code. Electron start
 1. Electron finds an available port from `5417` through `5427` on `127.0.0.1`.
 2. It starts the same Board server used by the CLI.
 3. It loads the Board in a sandboxed window with context isolation and no Node integration.
-4. It starts one local MCP stdio runtime using the same launcher that desktop IDE
-   connection plans write into IDE configuration.
+4. It exposes a shared Streamable HTTP MCP endpoint on the Board listener and writes that URL into
+   detected IDE configurations. The optional Runtime smoke process remains stopped until requested.
 5. A packaged build checks for updates shortly after the first window loads.
 
 ## Primary Data Flows
@@ -110,16 +112,15 @@ Only the `skill-central` server entry is added or replaced. Other MCP entries ar
 
 ### Local runtime
 
-The Board Runtime view observes the desktop-owned local MCP stdio process. It is an
-operational smoke surface for the packaged launcher, not a shared MCP daemon for IDE clients.
-The process must keep stdin open while idle; closing stdin makes the MCP server exit and the
-runtime snapshot return to `stopped`. IDE health verification still launches the command written
-in that IDE's MCP config and reports `server-stopped` only when that configured process cannot be
-spawned or exits during the probe.
+The desktop Board listener owns the shared Streamable HTTP MCP endpoint used by packaged IDE
+registrations. Each client receives an isolated MCP session while sharing the same OS process and
+`SkillEngine`. Session termination, workspace changes, asset-library reloads, and desktop shutdown
+close the corresponding server state. IDE health verification creates and explicitly terminates a
+temporary HTTP session.
 
-On macOS, this child process is a second Electron instance of the same App executable and would
-otherwise occupy an extra Dock icon (Electron defaults to the Regular activation policy). The MCP
-branch therefore calls `app.dock.hide()` so the Dock keeps exactly one icon for the main app.
+The Runtime view remains an opt-in stdio launcher smoke surface for development and diagnostics.
+Its process must keep stdin open until stopped. On macOS the packaged launcher runs in Node mode
+and hides its Dock icon. This optional runtime is not registered as the packaged IDE transport.
 
 ### Registry sync
 

@@ -81,9 +81,12 @@ export function isConnectCreatedConfig(
 
 export function sameMcpServerConfig(a: McpServerConfig | undefined, b: McpServerConfig): boolean {
   return !!a
+    && a.type === b.type
     && a.command === b.command
     && JSON.stringify(a.args ?? []) === JSON.stringify(b.args ?? [])
-    && JSON.stringify(a.env ?? {}) === JSON.stringify(b.env ?? {});
+    && JSON.stringify(a.env ?? {}) === JSON.stringify(b.env ?? {})
+    && a.url === b.url
+    && JSON.stringify(a.headers ?? {}) === JSON.stringify(b.headers ?? {});
 }
 
 export function emptyIdeConfig(format: IdeConfigFormat): string {
@@ -104,15 +107,25 @@ function parseTomlRoot(raw: string): Record<string, unknown> {
 }
 
 function normaliseServer(value: unknown): McpServerConfig | undefined {
-  if (!isRecord(value) || typeof value.command !== "string" || value.command.length === 0) {
+  if (!isRecord(value)) {
     return undefined;
   }
+  const command = typeof value.command === "string" && value.command.length > 0
+    ? value.command
+    : undefined;
+  const url = typeof value.url === "string" && value.url.length > 0
+    ? value.url
+    : undefined;
+  if ((!command && !url) || (command && url)) return undefined;
   return {
-    command: value.command,
+    type: value.type === "http" || value.type === "stdio" ? value.type : undefined,
+    command,
     args: Array.isArray(value.args)
       ? value.args.filter((arg): arg is string => typeof arg === "string")
       : undefined,
     env: isStringRecord(value.env) ? value.env : undefined,
+    url,
+    headers: isStringRecord(value.headers) ? value.headers : undefined,
   };
 }
 

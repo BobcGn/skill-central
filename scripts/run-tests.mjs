@@ -86,6 +86,22 @@ if (healthCleanupGate.error) {
 }
 if (healthCleanupGate.status !== 0) process.exit(healthCleanupGate.status ?? 1);
 
+const sharedMcpHttpGate = spawnSync(
+  process.execPath,
+  [path.join("scripts", "test-shared-mcp-http.mjs")],
+  {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "inherit",
+    shell: false,
+  },
+);
+if (sharedMcpHttpGate.error) {
+  console.error(`[skill-central] Failed to start shared MCP HTTP gate: ${sharedMcpHttpGate.error.message}`);
+  process.exit(1);
+}
+if (sharedMcpHttpGate.status !== 0) process.exit(sharedMcpHttpGate.status ?? 1);
+
 const mcpGate = spawnSync(process.execPath, [path.join("scripts", "test-mcp-protocol.mjs")], {
   cwd: process.cwd(),
   env: process.env,

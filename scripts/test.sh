@@ -1423,20 +1423,17 @@ import { buildConnectPlan, applyConnectPlan, rollbackConnectPlan } from "./dist/
 
 const configPath = ".skill-central-connect-ci/desktop-cursor-mcp.json";
 const desiredServer = {
-  command: "/Applications/Skill Central.app/Contents/MacOS/Skill Central",
-  args: ["mcp"],
+  url: "http://127.0.0.1:5417/mcp",
 };
 let plan = await buildConnectPlan("cursor", { configPath, desiredServer });
-if (plan.desiredServer.command !== desiredServer.command) {
-  throw new Error("connect plan did not preserve desktop MCP command");
+if (plan.desiredServer.url !== desiredServer.url) {
+  throw new Error("connect plan did not preserve desktop MCP URL");
 }
 plan = await applyConnectPlan(plan);
 const raw = JSON.parse(await readFile(configPath, "utf8"));
-if (raw.mcpServers["skill-central"].command !== desiredServer.command) {
-  throw new Error("connect apply did not write desktop MCP command");
-}
-if (raw.mcpServers["skill-central"].args[0] !== "mcp") {
-  throw new Error("connect apply did not write desktop MCP args");
+if (raw.mcpServers["skill-central"].url !== desiredServer.url
+  || raw.mcpServers["skill-central"].command !== undefined) {
+  throw new Error("connect apply did not write the desktop MCP URL exclusively");
 }
 await rollbackConnectPlan(plan);
 try {
@@ -1445,8 +1442,19 @@ try {
 } catch (err) {
   if (err.code !== "ENOENT") throw err;
 }
+
+const codexConfigPath = ".skill-central-connect-ci/desktop-codex-config.toml";
+let codexPlan = await buildConnectPlan("codex", { configPath: codexConfigPath, desiredServer });
+codexPlan = await applyConnectPlan(codexPlan);
+const codexRaw = await readFile(codexConfigPath, "utf8");
+if (!codexRaw.includes('[mcp_servers.skill-central]')
+  || !codexRaw.includes('url = "http://127.0.0.1:5417/mcp"')
+  || codexRaw.includes("command =")) {
+  throw new Error(`Codex TOML did not preserve the exclusive desktop MCP URL:\n${codexRaw}`);
+}
+await rollbackConnectPlan(codexPlan);
 NODE
-pass "connect 支持桌面安装包注入绝对 MCP 启动入口并正确回退"
+pass "connect 支持桌面共享 MCP URL 的 JSON/TOML 写入与回退"
 
 drift_config="$connect_dir/drift-cursor-mcp.json"
 cat > "$drift_config" <<'JSON'
@@ -3072,7 +3080,8 @@ node scripts/test-secure-token-store.mjs \
 
 node --input-type=module <<'NODE'
 import { readFile } from "node:fs/promises";
-import { desktopCliArgs, desktopMcpServerConfig, isDesktopMcpMode } from "./dist/desktop/mcp-launch.js";
+import { desktopCliArgs, desktopMcpHttpServerConfig, desktopMcpServerConfig, isDesktopMcpMode } from "./dist/desktop/mcp-launch.js";
+import { mcpServerConfigForTarget } from "./dist/ide-detection/types.js";
 import { BrewCaskUpdater } from "./dist/update/brew-cask.js";
 
 if (!isDesktopMcpMode(["/Applications/Skill Central.app/Contents/MacOS/Skill Central", "mcp"], true)) {
@@ -3100,6 +3109,21 @@ if (packagedMcp.env?.SKILL_CENTRAL_PROJECT_ROOT !== macProjectRoot) {
 }
 if (desktopMcpServerConfig(false, "/usr/bin/electron", "/src", "darwin") !== undefined) {
   throw new Error("development desktop should keep CLI MCP config");
+}
+const sharedMcp = desktopMcpHttpServerConfig("127.0.0.1", 5417);
+if (sharedMcp.url !== "http://127.0.0.1:5417/mcp" || sharedMcp.command !== undefined) {
+  throw new Error(`packaged desktop MCP clients should share the Board HTTP endpoint: ${JSON.stringify(sharedMcp)}`);
+}
+const claudeSharedMcp = mcpServerConfigForTarget("claude", sharedMcp);
+if (claudeSharedMcp?.type !== "http" || claudeSharedMcp.url !== sharedMcp.url) {
+  throw new Error(`Claude HTTP MCP config requires an explicit transport type: ${JSON.stringify(claudeSharedMcp)}`);
+}
+if (mcpServerConfigForTarget("codex", sharedMcp)?.type !== undefined) {
+  throw new Error("Codex HTTP MCP config must not receive Claude's JSON transport type");
+}
+const sharedIpv6Mcp = desktopMcpHttpServerConfig("::1", 5418);
+if (sharedIpv6Mcp.url !== "http://[::1]:5418/mcp") {
+  throw new Error(`shared MCP IPv6 URL is invalid: ${JSON.stringify(sharedIpv6Mcp)}`);
 }
 
 // Both packaged platforms run the app executable as plain Node against the

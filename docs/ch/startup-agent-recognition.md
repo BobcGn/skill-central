@@ -7,7 +7,7 @@
 Skill Central 启动后，应尽最大可控程度让本机支持 MCP 的 Coding Agent 发现并使用它。这里的“可用”不是单一健康灯，而是四层条件同时成立：
 
 1. 桌面应用或 CLI 进程可运行。
-2. `skill-central mcp` 作为 stdio MCP Server 可以完成 initialize、`prompts/list` 和 `tools/list`。
+2. 配置的共享 HTTP 或独立 stdio Transport 可以完成 initialize、`prompts/list` 和 `tools/list`。
 3. 目标 IDE/Agent 的 MCP 配置中存在正确的 `skill-central` server entry。
 4. 当前 Agent 会话已经加载或发现该 MCP 工具集合。
 
@@ -20,13 +20,13 @@ Skill Central 可以保证：
 - 正式检测并协调 Codex、Claude Code、Cursor；Trae、Windsurf、Cline 保持明确的实验性目标。
 - 对支持目标写入或刷新 `skill-central` MCP 配置。
 - 使用连接事务保留用户既有配置、生成备份并支持回退。
-- 验证配置中的命令能完成 MCP handshake、列出 prompts/tools，并与 Registry baseline 对齐。
+- 验证配置的 Transport 能完成 MCP handshake、列出 prompts/tools，并与 Registry baseline 对齐。
 - 在配置缺失、命令不可执行、握手失败、数量漂移或当前会话需要刷新时给出可执行修复建议。
 
 Skill Central 不能保证：
 
 - 不支持 MCP 的 Agent 自动拥有 Skill Central 能力。
-- 云端隔离或无本机文件访问权限的 Agent 访问本地 stdio server。
+- 云端隔离的 Agent 访问本机回环 HTTP 或 stdio Server。
 - 已经固化工具清单的会话在不刷新、不新建任务、不运行 discovery 的情况下立即出现新工具。
 - 第三方客户端在未来版本中保持配置路径和热加载行为不变。
 
@@ -35,7 +35,7 @@ Skill Central 不能保证：
 桌面应用启动后应执行 `StartupConnectionReconciler`：
 
 1. 读取当前工作区、全局配置、Skill Registry 和 Rules。
-2. 启动本地 MCP runtime，并确认 stdio server 可握手。
+2. 启动 Board 持有的共享 HTTP Endpoint，并确认可完成握手。
 3. 扫描 `RELEASE_SUPPORTED_IDES`（Codex、Claude Code、Cursor）的配置候选路径。
 4. 对每个目标构建 connect plan：
    - 未注册：生成写入计划。
@@ -117,4 +117,6 @@ GET  /api/startup-recognition/latest
 
 ## 当前实现
 
-`1.0.0` 已实现漂移修复、向既有正式 Agent 配置安全注册、异步启动审计，以及带实验性/未验证标签的 Board 状态。Skill 通过 MCP Prompts、Tools、Resources 暴露；Rule 可通过 `rule://` Resource、`rules:all` / `rule:<id>` Prompt 和 `rules.list` / `rules.get` Tool 直接消费。当前会话是否立即发现这些能力仍取决于 Agent，必要时需要刷新或新建任务。
+当前实现包含漂移修复、向既有正式 Agent 配置安全注册、异步启动审计，以及带实验性/未验证
+标签的 Board 状态。打包桌面注册使用共享回环 HTTP Endpoint；CLI 注册继续兼容 stdio。
+当前会话是否立即发现这些能力仍取决于 Agent，必要时需要刷新或新建任务。

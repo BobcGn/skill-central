@@ -134,6 +134,14 @@ import {
   type UpdateController,
 } from "../update/types.js";
 import { PROJECT_ROOT_ENV } from "../mcp.js";
+import {
+  isStdioMcpServerConfig,
+  mcpServerConfigForTarget,
+} from "../ide-detection/types.js";
+import {
+  createSharedMcpHttpEndpoint,
+  type SharedMcpHttpEndpoint,
+} from "./mcp-http.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -161,6 +169,10 @@ export interface BoardDeps {
   selectSyncRegistryDirectory?: (currentPath?: string) => Promise<string | undefined>;
   selectAssetLibraryDirectory?: (currentPath?: string) => Promise<string | undefined>;
   assetLibrarySettingsPath?: string;
+  /** Shared loopback MCP transport owned by the Board server lifecycle. */
+  mcpHttpEndpoint?: SharedMcpHttpEndpoint;
+  /** Disabled when an explicitly acknowledged Board binds beyond loopback. */
+  mcpHttpEnabled?: boolean;
 }
 
 export interface BoardOptions {
@@ -184,6 +196,7 @@ export interface BoardServerHandle {
   port: number;
   server: ServerType;
   runtime: RuntimeController;
+  mcpHttpEndpoint: SharedMcpHttpEndpoint;
 }
 
 export interface RuntimeController {
@@ -446,6 +459,12 @@ export function createBoardApp(deps: BoardDeps): Hono {
     deps.rulesDir ?? deps.config.assetLibrary?.rulesDir ?? DEFAULT_RULES_DIR,
   );
   const runtime = deps.runtime ?? createRuntimeController(deps.mcpServerConfig);
+  const mcpHttpEndpoint = deps.mcpHttpEndpoint ?? createSharedMcpHttpEndpoint({
+    engine: deps.engine,
+    getProjectRoot: () => deps.rootDir,
+    getConfig: () => deps.config,
+  });
+  deps.mcpHttpEndpoint ??= mcpHttpEndpoint;
   const updater = deps.updater ?? new UnsupportedUpdateController(
     deps.version,
     "Automatic updates are available in the packaged desktop app.",
@@ -475,6 +494,14 @@ export function createBoardApp(deps: BoardDeps): Hono {
   // maintainer-controlled OAuth application identity.
   const githubOAuthClientId = resolveGitHubOAuthClientId({ override: deps.githubOAuthClientId });
 
+  // One process, many MCP sessions. Packaged desktop registrations point at
+  // this loopback endpoint so Codex no longer creates one persistent child for
+  // every task. CLI users can continue to use the stdio `skill-central mcp`
+  // entrypoint when the Board is not running.
+  if (deps.mcpHttpEnabled !== false) {
+    app.all("/mcp", (c) => mcpHttpEndpoint.handle(c.req.raw));
+  }
+
   // ── /api/health ────────────────────────────────────────────────────────
   app.get("/api/health", (c) =>
     c.json({
@@ -485,6 +512,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       directoryPicker: typeof deps.selectSyncRegistryDirectory === "function",
       assetLibraryPicker: typeof deps.selectAssetLibraryDirectory === "function",
       assetLibrary: deps.config.assetLibrary,
+      mcpHttpSessions: mcpHttpEndpoint.sessionCount(),
     }),
   );
 
@@ -514,6 +542,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
       await deps.engine.reload(nextConfig.layers, { projectRoot: nextRoot });
       deps.rootDir = nextRoot;
       deps.config = nextConfig;
+      await mcpHttpEndpoint.close();
       deps.mcpServerConfig = withProjectRootEnv(deps.mcpServerConfig, nextRoot, nextConfig.assetLibrary);
       await configureRuntimeForWorkspace(runtime, deps.mcpServerConfig, nextRoot);
       await deps.onWorkspaceChange?.(nextRoot);
@@ -1128,7 +1157,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
     return c.json(await buildConnectPlan(body.target, {
       configPath: body.configPath,
       dryRun: true,
-      desiredServer: deps.mcpServerConfig,
+      desiredServer: mcpServerConfigForTarget(body.target, deps.mcpServerConfig),
     }));
   });
 
@@ -1148,7 +1177,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
     }
     let plan = await buildConnectPlan(body.target, {
       configPath: body.configPath,
-      desiredServer: deps.mcpServerConfig,
+      desiredServer: mcpServerConfigForTarget(body.target, deps.mcpServerConfig),
     });
     plan = await applyConnectPlan(plan);
     if (body.verify) {
@@ -1170,7 +1199,7 @@ export function createBoardApp(deps: BoardDeps): Hono {
     }
     const plan = await buildConnectPlan(body.target, {
       configPath: body.configPath,
-      desiredServer: deps.mcpServerConfig,
+      desiredServer: mcpServerConfigForTarget(body.target, deps.mcpServerConfig),
     });
     return c.json(await rollbackConnectPlan({
       ...plan,
@@ -2141,6 +2170,7 @@ function withProjectRootEnv(
   assetLibrary?: AssetLibraryContext,
 ): McpServerConfig | undefined {
   if (!server) return undefined;
+  if (!isStdioMcpServerConfig(server)) return server;
   const env: Record<string, string> = {
     ...(server.env ?? {}),
     [PROJECT_ROOT_ENV]: projectRoot,
@@ -2162,6 +2192,7 @@ async function reloadBoardAssetLibrary(
   const nextConfig = loadConfig(deps.rootDir, { settingsPath: deps.assetLibrarySettingsPath });
   await deps.engine.reload(nextConfig.layers, { projectRoot: deps.rootDir });
   deps.config = nextConfig;
+  await deps.mcpHttpEndpoint?.close();
   deps.mcpServerConfig = withProjectRootEnv(
     deps.mcpServerConfig,
     deps.rootDir,
@@ -2177,7 +2208,7 @@ async function configureRuntimeForWorkspace(
 ): Promise<void> {
   if (!isConfigurableRuntime(runtime)) return;
   await runtime.configure(
-    mcpServerConfig
+    isStdioMcpServerConfig(mcpServerConfig)
       ? {
           command: mcpServerConfig.command,
           args: mcpServerConfig.args,
@@ -2210,7 +2241,9 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
   void engine.reload(config.layers, { projectRoot: rootDir });
 
   const runtime = opts.runtime ?? createRuntimeController(mcpServerConfig, rootDir);
-  const app = createBoardApp({
+  const host = opts.host ?? "127.0.0.1";
+  const port = opts.port ?? 5417;
+  const boardDeps: BoardDeps = {
     config,
     engine,
     rootDir,
@@ -2225,19 +2258,29 @@ export function startBoardServer(opts: BoardOptions = {}): BoardServerHandle {
     selectSyncRegistryDirectory: opts.selectSyncRegistryDirectory,
     selectAssetLibraryDirectory: opts.selectAssetLibraryDirectory,
     assetLibrarySettingsPath: opts.assetLibrarySettingsPath,
+    mcpHttpEnabled: isLoopbackHost(host),
+  };
+  const mcpHttpEndpoint = createSharedMcpHttpEndpoint({
+    engine,
+    getProjectRoot: () => boardDeps.rootDir,
+    getConfig: () => boardDeps.config,
   });
-
-  const host = opts.host ?? "127.0.0.1";
-  const port = opts.port ?? 5417;
+  boardDeps.mcpHttpEndpoint = mcpHttpEndpoint;
+  const app = createBoardApp(boardDeps);
 
   const server = serve({ fetch: app.fetch, port, hostname: host });
 
-  return { port, host, server, runtime };
+  return { port, host, server, runtime, mcpHttpEndpoint };
+}
+
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.toLowerCase();
+  return normalized === "127.0.0.1" || normalized === "localhost" || normalized === "::1" || normalized === "[::1]";
 }
 
 function createRuntimeController(mcpServerConfig?: McpServerConfig, rootDir?: string): RuntimeController {
   return new LocalRuntimeManager(
-    mcpServerConfig
+    isStdioMcpServerConfig(mcpServerConfig)
       ? { command: mcpServerConfig.command, args: mcpServerConfig.args, env: mcpServerConfig.env, cwd: rootDir }
       : { cwd: rootDir },
   );

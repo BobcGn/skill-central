@@ -6,7 +6,7 @@ Release 创建、Tag、Package 发布、签名和仓库权限变更仅由维护�
 
 ## 当前正式版
 
-`1.1.1` 支持 macOS arm64/x64 与 Windows x64。macOS 产物使用 ad-hoc 签名（无 Developer ID）且未公证；Windows 产物未使用 Authenticode。正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 配置适配器保持实验性；本机缺少对应应用时必须标记“未验证”。
+`1.1.2` 支持 macOS arm64/x64 与 Windows x64。macOS 产物使用 ad-hoc 签名（无 Developer ID）且未公证；Windows 产物未使用 Authenticode。正式支持的 Coding Agent 为 Codex、Claude Code 与 Cursor。Trae、Windsurf、Cline 配置适配器保持实验性；本机缺少对应应用时必须标记“未验证”。
 
 ## 版本不变量
 
@@ -102,10 +102,10 @@ Homebrew 能保证安装桌面 App Bundle，但不会自动启动应用，也不
 4. 使用应用菜单或菜单栏的 Quit，确认进程和 Listener 均消失。
 5. 连续启动两次，确认单实例逻辑只恢复原窗口。
 
-`Command+Q` 属于完整退出：主进程会先等待本地 MCP 子进程和 Board Loopback Listener 关闭，
-必要时强制终止不响应 SIGTERM 的子进程，然后才完成 Electron 退出。活动监视器中不应保留
-Skill Central 或其本地 MCP Runtime；若仍有由 Codex、Claude Code 或 Cursor 独立启动的 MCP
-进程，应退出对应 Agent 会话后再区分其所有者。
+`Command+Q` 属于完整退出：主进程会关闭共享 HTTP MCP Session，等待可选的本地 stdio
+Runtime 子进程和 Board Loopback Listener 关闭，必要时强制终止不响应 SIGTERM 的子进程，
+然后才完成 Electron 退出。活动监视器中不应保留 Skill Central 或其自有 Runtime。
+Agent 重载前启动的旧 stdio 进程仍属于对应 Agent 会话，并会在其退出时消失。
 
 ## 发布前本地候选 Tap
 
@@ -157,12 +157,12 @@ Windows 打包的 NSIS 版本同样通过 `electron-updater` 使用 GitHub。MSI
 
 ## 稳定版启动识别发布矩阵
 
-正式版必须同时验证“应用已启动”“MCP stdio 可握手”“目标 Agent 配置已注册/刷新”和“当前会话已发现工具”四层状态。前三层可由 Skill Central 自动检查并写入 app-state audit；第四层必须按 Agent 行为记录真实 smoke 结果，不能把配置存在误报为当前会话已经可调用。
+正式版必须同时验证“应用已启动”“配置的 MCP Transport 可握手”“目标 Agent 配置已注册/刷新”和“当前会话已发现工具”四层状态。前三层可由 Skill Central 自动检查并写入 app-state audit；第四层必须按 Agent 行为记录真实 smoke 结果，不能把配置存在误报为当前会话已经可调用。
 
 | 维度 | 稳定版要求 | 当前自动化证据 | 真实候选包验收 |
 | --- | --- | --- | --- |
 | macOS 桌面 | Board 启动后异步执行 startup recognition，latest audit 可见 | `npm run lint`、`npm test` 覆盖 Reconciler、API、Board 摘要入口 | arm64 与可用 x64 安装包首次启动，确认 audit 生成且不新增重复进程 |
-| Windows 桌面 | NSIS 安装后启动 Board，MCP 命令路径可被目标 Agent 执行 | 路径/格式逻辑通过单元与集成测试间接覆盖 | 真实 Windows x64 安装、启动、退出、更新和至少 Codex/Cursor 注册验证 |
+| Windows 桌面 | NSIS 安装后启动 Board，共享 MCP URL 可被目标 Agent 访问 | URL/格式逻辑由单元与集成测试覆盖 | 真实 Windows x64 安装、启动、退出、更新和至少 Codex/Cursor 注册验证 |
 | Codex | 配置注册不等于当前任务已发现 MCP；需要新任务或 discovery 路径 | docs/UI 区分注册状态与会话发现状态 | 新建 Codex 任务确认 `skill-central` MCP 工具可发现，旧任务给出刷新建议 |
 | Claude / Claude Code | JSON 配置保留既有 server，漂移刷新有备份 | connect transaction 与 startup recognition 测试覆盖保留 server | 真实客户端重启后识别 `skill-central` server |
 | Cursor | JSON 配置保留既有 server，启动修复保持事务化 | connect transaction、MCP gate 与 startup recognition 测试 | 真实客户端重启后识别 `skill-central` 的 Skills 与 Rules |

@@ -36,7 +36,11 @@ import { startBoardServer, type BoardServerHandle } from "../web/server.js";
 import { createDesktopUpdater } from "./updater.js";
 import type { UpdateController } from "../update/types.js";
 import { startMcpServer } from "../mcp.js";
-import { desktopMcpServerConfig, isDesktopMcpMode, withProjectRootEnv } from "./mcp-launch.js";
+import {
+  desktopMcpHttpServerConfig,
+  desktopMcpServerConfig,
+  isDesktopMcpMode,
+} from "./mcp-launch.js";
 import { isUnpackedBuildLocation } from "./location.js";
 import { LocalRuntimeManager } from "../runtime/manager.js";
 import { shutdownDesktopServices } from "./shutdown.js";
@@ -64,19 +68,28 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
   const githubOAuthClientId = resolveGitHubOAuthClientId({
     packaged: PACKAGED_GITHUB_OAUTH_CLIENT_ID,
   });
-  const mcpServerConfig = desktopMcpServerConfig(app.isPackaged, process.execPath, app.getAppPath(), process.platform, rootDir);
+  const runtimeMcpServerConfig = desktopMcpServerConfig(
+    app.isPackaged,
+    process.execPath,
+    app.getAppPath(),
+    process.platform,
+    rootDir,
+  );
+  const ideMcpServerConfig = app.isPackaged
+    ? desktopMcpHttpServerConfig(host, port)
+    : runtimeMcpServerConfig;
   // safeStorage is only queried after app.whenReady(). The store rejects Linux
   // and unavailable OS encryption rather than falling back to plaintext.
   const tokenStore = new SafeStorageTokenStore({
     safeStorage,
     onEvent: logSecureTokenStoreEvent,
   });
-  const runtime = new LocalRuntimeManager(mcpServerConfig
+  const runtime = new LocalRuntimeManager(runtimeMcpServerConfig
     ? {
-        command: mcpServerConfig.command,
-        args: mcpServerConfig.args,
+        command: runtimeMcpServerConfig.command,
+        args: runtimeMcpServerConfig.args,
         cwd: rootDir,
-        env: mcpServerConfig.env,
+        env: runtimeMcpServerConfig.env,
       }
     : { cwd: rootDir });
   const board = startBoardServer({
@@ -85,7 +98,7 @@ async function ensureDesktopServices(): Promise<BoardServerHandle> {
     rootDir,
     updater: desktopUpdater,
     runtime,
-    mcpServerConfig: withProjectRootEnv(mcpServerConfig, rootDir),
+    mcpServerConfig: ideMcpServerConfig,
     githubOAuthClientId,
     tokenStore,
     authLogger: ({ operation, code }) => {

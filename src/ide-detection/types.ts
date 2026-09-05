@@ -25,9 +25,35 @@ export interface IdeTargetDefinition {
 }
 
 export interface McpServerConfig {
-  command: string;
+  /** Required by Claude Code for HTTP entries; omitted by Codex and Cursor. */
+  type?: "http" | "stdio";
+  /** Local stdio transport. Mutually exclusive with `url`. */
+  command?: string;
   args?: string[];
   env?: Record<string, string>;
+  /** Shared Streamable HTTP transport. Mutually exclusive with `command`. */
+  url?: string;
+  headers?: Record<string, string>;
+}
+
+export function isStdioMcpServerConfig(
+  server: McpServerConfig | undefined,
+): server is McpServerConfig & { command: string } {
+  return typeof server?.command === "string" && server.command.length > 0;
+}
+
+export function isHttpMcpServerConfig(
+  server: McpServerConfig | undefined,
+): server is McpServerConfig & { url: string } {
+  return typeof server?.url === "string" && server.url.length > 0;
+}
+
+export function mcpServerConfigForTarget(
+  target: IdeTarget,
+  server: McpServerConfig | undefined,
+): McpServerConfig | undefined {
+  if (!server || !isHttpMcpServerConfig(server) || target !== "claude") return server;
+  return { ...server, type: "http" };
 }
 
 export interface IdeDetectionOptions {

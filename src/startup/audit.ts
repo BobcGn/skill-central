@@ -34,7 +34,9 @@ export interface StartupRecognitionAuditTarget {
   status: string;
   configPath: string;
   currentCommand?: string;
+  currentUrl?: string;
   desiredCommand?: string;
+  desiredUrl?: string;
   desiredArgs?: string[];
   backupPath?: string;
   healthStatus?: string;
@@ -105,7 +107,9 @@ function toAuditTarget(target: StartupRecognitionTarget): StartupRecognitionAudi
     status: target.status,
     configPath: target.configPath,
     currentCommand: target.plan?.currentServer?.command,
+    currentUrl: target.plan?.currentServer?.url,
     desiredCommand: target.plan?.desiredServer.command,
+    desiredUrl: target.plan?.desiredServer.url,
     desiredArgs: target.plan?.desiredServer.args,
     backupPath: target.plan?.backupPath,
     healthStatus: target.plan?.health?.status,

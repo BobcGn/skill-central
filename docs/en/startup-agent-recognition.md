@@ -7,7 +7,7 @@
 When Skill Central starts, it should make itself discoverable and usable by local MCP-capable Coding Agents as far as the product can control. "Usable" is not one health light; it requires four separate layers:
 
 1. The desktop app or CLI process can run.
-2. `skill-central mcp` can complete MCP initialize, `prompts/list`, and `tools/list` over stdio.
+2. The configured shared HTTP or standalone stdio transport can complete MCP initialize, `prompts/list`, and `tools/list`.
 3. The target IDE or Agent MCP config contains the correct `skill-central` server entry.
 4. The current Agent session has loaded or discovered that MCP tool surface.
 
@@ -20,13 +20,13 @@ Skill Central can guarantee:
 - Formally detect and reconcile Codex, Claude Code, and Cursor. Trae, Windsurf, and Cline remain explicit experimental targets.
 - Write or refresh the `skill-central` MCP config for supported targets.
 - Preserve existing user config through connect transactions, backups, and rollback.
-- Verify the configured command with MCP handshake, prompt/tool listing, and Registry baseline comparison.
+- Verify the configured transport with MCP handshake, prompt/tool listing, and Registry baseline comparison.
 - Provide actionable repair guidance for missing configs, failed commands, handshake failures, drift, or sessions that need refresh/discovery.
 
 Skill Central cannot guarantee:
 
 - Agents without MCP support automatically gain Skill Central capabilities.
-- Cloud-isolated Agents or Agents without local filesystem/process access can reach a local stdio server.
+- Cloud-isolated Agents can reach a local loopback HTTP or stdio server.
 - Already-running sessions receive new tools without refresh, a new task, or discovery.
 - Third-party clients keep the same config paths or hot-loading behavior forever.
 
@@ -35,7 +35,7 @@ Skill Central cannot guarantee:
 The desktop app should run a `StartupConnectionReconciler` after launch:
 
 1. Read the current workspace, global config, Skill Registry, and Rules.
-2. Start the local MCP runtime and verify stdio handshake.
+2. Start the Board-owned shared HTTP endpoint and verify its handshake.
 3. Scan config candidates for `RELEASE_SUPPORTED_IDES` (Codex, Claude Code, and Cursor).
 4. Build a connect plan for each target:
    - Not registered: create a write plan.
@@ -117,4 +117,8 @@ Acceptance evidence:
 
 ## Current Slice
 
-The `1.0.0` slice implements drift refresh, safe registration into existing supported-Agent configs, asynchronous startup audit, and Board status with explicit experimental/unverified labels. Skills are available through MCP prompts/tools/resources; Rules are directly consumable through `rule://` resources, `rules:all` and `rule:<id>` prompts, plus `rules.list` and `rules.get` tools. Current-session discovery still depends on each Agent and may require a reload or a new task.
+The current implementation provides drift refresh, safe registration into existing supported-Agent
+configs, asynchronous startup audit, and Board status with explicit experimental/unverified labels.
+Packaged desktop registrations use the shared loopback HTTP endpoint; CLI registrations retain
+stdio compatibility. Current-session discovery still depends on each Agent and may require a
+reload or a new task.

@@ -128,9 +128,9 @@ Do not silently reduce coverage because a platform is unavailable. Record the un
 - Update both message dictionaries and both public documentation languages.
 - Preserve system/light/dark themes, keyboard focus, and narrow-screen navigation.
 - Keep `contextIsolation`, disabled Node integration, and sandboxing.
-- The desktop Board owns one local MCP runtime process and must keep stdio stdin open until
-  explicit stop or application quit. Do not infer its launcher from Electron argv when a packaged
-  MCP server config is available.
+- The desktop Board owns one shared loopback HTTP MCP endpoint. Workspace/library changes and app
+  quit must close all sessions. The optional stdio Runtime must keep stdin open from explicit start
+  until explicit stop or application quit.
 - On macOS, the runtime child process must hide its Dock icon (`app.dock.hide()`) in the MCP
   branch so the Dock never shows a second icon for the same App bundle.
 
